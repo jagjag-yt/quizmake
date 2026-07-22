@@ -7,6 +7,15 @@
 デザインハンドオフ（`design_handoff_quiz_app/`）の Hi-fi プロトタイプを
 **React + Vite + Tailwind CSS v4** で再現したものです。
 
+## 主な機能
+
+- **問題演習**：選択肢クリックで即時に正誤判定＋解説表示。リトライ・前後移動。
+- **選択肢のランダム表示**：表示順を毎回シャッフル（正解位置も追従）。
+- **Excel（.xlsx）読み込み**：自作の問題集を差し替え可能（[Excel の書き方](#excelxlsx読み込み)）。
+- **ブックマーク**：問題を★で保存し、「ブックマークのみ」で復習クイズ。
+- **番号ジャンプ**：「問題〇」の番号を入力して任意の問題へ移動。
+- **正答率の記録**：回答するたびに正答率を集計・保存（ヘッダー表示／リセット可）。
+
 ## セットアップ
 
 ```bash
@@ -22,13 +31,20 @@ npm run preview   # ビルド結果のプレビュー
 src/
 ├── main.jsx                     エントリポイント
 ├── index.css                    Tailwind の読み込み＋全体スタイル
-├── App.jsx                      状態管理とレイアウト（2カラム）
+├── App.jsx                      状態管理とレイアウト（2カラム・全機能のオーケストレーション）
 ├── data/
-│   └── questions.js             問題データ＋スキーマ定義（Excel連携を見据えた構造）
+│   └── questions.js             問題データ＋スキーマ定義／questionKey（ブックマーク用キー）
+├── hooks/
+│   └── usePersistentState.js    localStorage 永続化フック（ブックマーク・正答率）
+├── utils/
+│   ├── parseExcel.js            Excel → 問題データ変換
+│   └── shuffle.js               選択肢のランダム表示
 └── components/
-    ├── ProgressHeader.jsx       ヘッダー（戻る／進捗テキスト＋進捗バー）
-    ├── QuestionCard.jsx         左カラム（問題文・選択肢／正誤ハイライト）
+    ├── ProgressHeader.jsx       ヘッダー（戻る／Excel／モード切替／正答率／進捗バー）
+    ├── QuestionCard.jsx         左カラム（番号ジャンプ入力／★ブックマーク／選択肢）
     ├── ResultCard.jsx           右カラム（正解・解説・基本事項／未回答プレースホルダー）
+    ├── EmptyBookmarks.jsx       ブックマーク0件時の空状態
+    ├── ExcelLoader.jsx          Excel 読み込みボタン
     └── FooterNav.jsx            フッターナビ（前へ／リトライ／次へ）
 ```
 
@@ -53,6 +69,31 @@ src/
 - 実装は [`src/utils/shuffle.js`](src/utils/shuffle.js)。表示順の配列（`order`）を state に持ち、
   それに合わせて選択肢と `correctIndex` を写した「表示用の問題」を組み立てる方式です。
   元データ（`src/data/questions.js` / Excel）の並びや正解定義は変更しません。
+
+## ブックマーク・番号ジャンプ・正答率
+
+### ブックマーク
+- 問題カード右上の **☆ ブックマーク** ボタンで、その問題を保存/解除します（★＝保存中）。
+- ヘッダーの **「★ ブックマーク（件数）」** に切り替えると、保存した問題だけの演習になります。
+- 保存は問題文をキーに **ブラウザに永続化**（localStorage）。再読み込み後も残ります。
+- 内容ベースのキーなので、同じ問題文であれば Excel を読み直しても対応します。
+
+### 番号ジャンプ
+- 「問題〇」の**番号部分が入力欄**になっています。番号を入力して **Enter**（または入力欄からフォーカスを外す）と、その問題番号（`questionNumber`）へ移動します。
+- 該当する番号が無い場合は、元の番号に戻ります。
+- 「ブックマークのみ」表示中は、その中の問題番号が対象です。
+
+### 正答率の記録
+- 選択肢を選ぶたびに **回答数・正解数** を集計し、ヘッダーに **正答率（正解/回答）** を表示します。
+- **localStorage に永続化**され、ヘッダーの **↻** ボタンでリセットできます。
+- リトライしてもう一度回答すると、その回答も集計に加算されます（練習の試行回数ベース）。
+
+> 実装：永続化は [`src/hooks/usePersistentState.js`](src/hooks/usePersistentState.js)、
+> 問題キーは [`src/data/questions.js`](src/data/questions.js) の `questionKey`、
+> ブックマーク★・番号入力は [`src/components/QuestionCard.jsx`](src/components/QuestionCard.jsx)、
+> モード切替・正答率表示は [`src/components/ProgressHeader.jsx`](src/components/ProgressHeader.jsx)。
+>
+> localStorage キー：`quizmake.bookmarks.v1`（ブックマーク）／`quizmake.stats.v1`（正答率）。
 
 ## データモデル（Excel連携を見据えた拡張しやすい構造）
 

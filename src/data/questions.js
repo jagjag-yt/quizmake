@@ -104,3 +104,13 @@ export const QUESTIONS = [
 ]
 
 export const LETTERS = ['a', 'b', 'c', 'd', 'e']
+
+/**
+ * 問題を一意に識別する安定キー（問題文の全文）。
+ * ブックマークの保存・照合に使う。問題番号ではなく内容ベースにすることで、
+ * Excel の差し替えや並び替えがあっても同じ問題を追跡できる。
+ *
+ * @param {Question} q
+ * @returns {string}
+ */
+export const questionKey = (q) => q.segments.map((s) => s.text).join('')

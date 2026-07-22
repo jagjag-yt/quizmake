@@ -1,5 +1,100 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LETTERS } from '../data/questions'
+
+/**
+ * 「問題〇」バッジ。番号部分が入力欄になっており、番号を打って Enter で
+ * その問題番号へジャンプする。無効な番号のときは元の番号に戻す。
+ */
+function QuestionNumberBadge({ number, onJump }) {
+  const [draft, setDraft] = useState(String(number))
+
+  // 問題が変わったら表示中の番号に同期
+  useEffect(() => {
+    setDraft(String(number))
+  }, [number])
+
+  const submit = (e) => {
+    e.preventDefault()
+    const num = Number(draft)
+    if (Number.isInteger(num) && onJump(num)) return // ジャンプ成功
+    setDraft(String(number)) // 失敗時は元に戻す
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      title="番号を入力して Enter でジャンプ"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '5px 14px',
+        borderRadius: '999px',
+        background: '#eff6ff',
+        color: '#2563eb',
+        fontWeight: 700,
+        fontSize: '13px',
+      }}
+    >
+      <span>問題</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit(e)
+        }}
+        onFocus={(e) => e.target.select()}
+        onBlur={submit}
+        aria-label="問題番号（入力してジャンプ）"
+        style={{
+          width: `${Math.max(1, draft.length)}ch`,
+          minWidth: '1ch',
+          border: 'none',
+          borderBottom: '1px solid #93c5fd',
+          background: 'transparent',
+          color: '#2563eb',
+          fontWeight: 700,
+          fontSize: '13px',
+          fontFamily: 'inherit',
+          textAlign: 'center',
+          padding: 0,
+          outline: 'none',
+        }}
+      />
+    </form>
+  )
+}
+
+/** ブックマークのトグルボタン（★＝登録中 / ☆＝未登録）。 */
+function BookmarkStar({ active, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={active ? 'ブックマークを解除' : 'ブックマークに追加'}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 12px',
+        borderRadius: '999px',
+        border: `1px solid ${active ? '#f59e0b' : '#e2e8f0'}`,
+        background: active ? '#fffbeb' : '#ffffff',
+        color: active ? '#b45309' : '#64748b',
+        fontSize: '13px',
+        fontWeight: 700,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      <span style={{ fontSize: '15px', lineHeight: 1 }}>{active ? '★' : '☆'}</span>
+      {active ? 'ブックマーク中' : 'ブックマーク'}
+    </button>
+  )
+}
 
 /**
  * 単一の選択肢。回答状態に応じて正誤色に切り替わる。
@@ -92,9 +187,20 @@ function Choice({ letter, text, state, onSelect }) {
  *   selectedIndex: number | null,
  *   answered: boolean,
  *   onSelect: (idx: number) => void,
+ *   bookmarked: boolean,
+ *   onToggleBookmark: () => void,
+ *   onJump: (num: number) => boolean,
  * }} props
  */
-export default function QuestionCard({ question, selectedIndex, answered, onSelect }) {
+export default function QuestionCard({
+  question,
+  selectedIndex,
+  answered,
+  onSelect,
+  bookmarked,
+  onToggleBookmark,
+  onJump,
+}) {
   return (
     <section
       style={{
@@ -105,20 +211,18 @@ export default function QuestionCard({ question, selectedIndex, answered, onSele
         border: '1px solid #eef2f7',
       }}
     >
-      <span
+      <div
         style={{
-          display: 'inline-flex',
-          padding: '5px 14px',
-          borderRadius: '999px',
-          background: '#eff6ff',
-          color: '#2563eb',
-          fontWeight: 700,
-          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
           marginBottom: '18px',
         }}
       >
-        問題 {question.questionNumber}
-      </span>
+        <QuestionNumberBadge number={question.questionNumber} onJump={onJump} />
+        <BookmarkStar active={bookmarked} onToggle={onToggleBookmark} />
+      </div>
 
       <p
         style={{
