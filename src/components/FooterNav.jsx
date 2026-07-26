@@ -1,53 +1,52 @@
+import { COLORS } from '../constants'
+
 const btnBase = {
   flex: 1,
   padding: '12px 24px',
   borderRadius: '12px',
   fontSize: '14px',
   fontWeight: 700,
+  fontFamily: 'inherit',
   textAlign: 'center',
   userSelect: 'none',
   transition: 'all 0.15s ease',
 }
 
 /**
- * フッターナビ：前の問題／リトライ／次の問題。
+ * フッターナビ：前の問題／リトライ／次の問題（最終問題では「結果を見る」）。
  *
  * @param {{
  *   isFirst: boolean,
  *   isLast: boolean,
  *   answered: boolean,
+ *   examMode: boolean,
  *   onPrev: () => void,
  *   onRetry: () => void,
  *   onNext: () => void,
+ *   onFinish: () => void,
  * }} props
  */
-export default function FooterNav({ isFirst, isLast, answered, onPrev, onRetry, onNext }) {
-  const prevStyle = {
-    ...btnBase,
-    border: '1px solid #e2e8f0',
-    background: '#ffffff',
-    color: isFirst ? '#cbd5e1' : '#475569',
-    cursor: isFirst ? 'default' : 'pointer',
-    opacity: isFirst ? 0.6 : 1,
-  }
+export default function FooterNav({
+  isFirst,
+  isLast,
+  answered,
+  examMode,
+  onPrev,
+  onRetry,
+  onNext,
+  onFinish,
+}) {
+  // 本番モードでは解き直しをさせない（試験の再現）
+  const canRetry = answered && !examMode
 
-  const nextStyle = {
+  const outlined = (disabled) => ({
     ...btnBase,
-    border: '1px solid #e2e8f0',
-    background: '#ffffff',
-    color: isLast ? '#cbd5e1' : '#475569',
-    cursor: isLast ? 'default' : 'pointer',
-    opacity: isLast ? 0.6 : 1,
-  }
-
-  const retryStyle = {
-    ...btnBase,
-    border: '1px solid #2563eb',
-    background: answered ? '#2563eb' : '#eff6ff',
-    color: answered ? '#ffffff' : '#93c5fd',
-    cursor: answered ? 'pointer' : 'default',
-    opacity: answered ? 1 : 0.7,
-  }
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.card,
+    color: disabled ? '#cbd5e1' : COLORS.body,
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.6 : 1,
+  })
 
   return (
     <nav
@@ -62,15 +61,58 @@ export default function FooterNav({ isFirst, isLast, answered, onPrev, onRetry, 
         gap: '16px',
       }}
     >
-      <div style={prevStyle} onClick={isFirst ? undefined : onPrev}>
+      <button
+        type="button"
+        style={outlined(isFirst)}
+        onClick={isFirst ? undefined : onPrev}
+        disabled={isFirst}
+        title="前の問題（←）"
+      >
         &#8592; 前の問題
-      </div>
-      <div style={retryStyle} onClick={answered ? onRetry : undefined}>
+      </button>
+
+      <button
+        type="button"
+        style={{
+          ...btnBase,
+          border: `1px solid ${COLORS.blue}`,
+          background: canRetry ? COLORS.blue : COLORS.blueLight,
+          color: canRetry ? '#ffffff' : COLORS.bluePale,
+          cursor: canRetry ? 'pointer' : 'default',
+          opacity: canRetry ? 1 : 0.7,
+        }}
+        onClick={canRetry ? onRetry : undefined}
+        disabled={!canRetry}
+        title="リトライ（R）"
+      >
         リトライ
-      </div>
-      <div style={nextStyle} onClick={isLast ? undefined : onNext}>
-        次の問題 &#8594;
-      </div>
+      </button>
+
+      {isLast ? (
+        <button
+          type="button"
+          style={{
+            ...btnBase,
+            border: `1px solid ${COLORS.green}`,
+            background: COLORS.green,
+            color: '#ffffff',
+            cursor: 'pointer',
+          }}
+          onClick={onFinish}
+          title="結果を見る（→）"
+        >
+          結果を見る &#8594;
+        </button>
+      ) : (
+        <button
+          type="button"
+          style={outlined(false)}
+          onClick={onNext}
+          title="次の問題（→）"
+        >
+          次の問題 &#8594;
+        </button>
+      )}
     </nav>
   )
 }

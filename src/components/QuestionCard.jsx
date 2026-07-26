@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LETTERS } from '../data/questions'
+import { COLORS, LETTERS } from '../constants'
 
 /**
  * 「問題〇」バッジ。番号部分が入力欄になっており、番号を打って Enter で
@@ -30,8 +30,8 @@ function QuestionNumberBadge({ number, onJump }) {
         gap: '4px',
         padding: '5px 14px',
         borderRadius: '999px',
-        background: '#eff6ff',
-        color: '#2563eb',
+        background: COLORS.blueLight,
+        color: COLORS.blue,
         fontWeight: 700,
         fontSize: '13px',
       }}
@@ -48,13 +48,14 @@ function QuestionNumberBadge({ number, onJump }) {
         onFocus={(e) => e.target.select()}
         onBlur={submit}
         aria-label="問題番号（入力してジャンプ）"
+        data-shortcut-ignore="true"
         style={{
           width: `${Math.max(1, draft.length)}ch`,
           minWidth: '1ch',
           border: 'none',
-          borderBottom: '1px solid #93c5fd',
+          borderBottom: `1px solid ${COLORS.bluePale}`,
           background: 'transparent',
-          color: '#2563eb',
+          color: COLORS.blue,
           fontWeight: 700,
           fontSize: '13px',
           fontFamily: 'inherit',
@@ -73,16 +74,16 @@ function BookmarkStar({ active, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      title={active ? 'ブックマークを解除' : 'ブックマークに追加'}
+      title={active ? 'ブックマークを解除（B）' : 'ブックマークに追加（B）'}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: '6px',
         padding: '6px 12px',
         borderRadius: '999px',
-        border: `1px solid ${active ? '#f59e0b' : '#e2e8f0'}`,
-        background: active ? '#fffbeb' : '#ffffff',
-        color: active ? '#b45309' : '#64748b',
+        border: `1px solid ${active ? COLORS.amber : COLORS.border}`,
+        background: active ? COLORS.amberLight : COLORS.card,
+        color: active ? COLORS.amberDark : COLORS.sub,
         fontSize: '13px',
         fontWeight: 700,
         fontFamily: 'inherit',
@@ -97,48 +98,91 @@ function BookmarkStar({ active, onToggle }) {
 }
 
 /**
- * 単一の選択肢。回答状態に応じて正誤色に切り替わる。
+ * 問題画像。URLは取り込み時に検証済み（http(s) と画像data URLのみ）。
+ * 読み込みに失敗した場合は領域ごと隠す。
  */
+function QuestionImage({ url }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => setFailed(false), [url])
+  if (!url || failed) return null
+  return (
+    <img
+      src={url}
+      alt="問題の図"
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      style={{
+        display: 'block',
+        maxWidth: '100%',
+        maxHeight: '320px',
+        objectFit: 'contain',
+        margin: '0 0 24px 0',
+        borderRadius: '12px',
+        border: `1px solid ${COLORS.border}`,
+        background: COLORS.bg,
+      }}
+    />
+  )
+}
+
+/** 単一の選択肢。回答状態に応じて正誤色に切り替わる。 */
 function Choice({ letter, text, state, onSelect }) {
   const [hover, setHover] = useState(false)
-  const { answered, isCorrect, isSelected } = state
+  const { answered, reveal, isCorrect, isSelected, disabled } = state
 
   // 既定（未回答）
-  let bg = '#ffffff'
-  let border = '#e2e8f0'
-  let color = '#1e293b'
+  let bg = COLORS.card
+  let border = COLORS.border
+  let color = COLORS.text
   let badgeBg = '#f1f5f9'
-  let badgeColor = '#475569'
+  let badgeColor = COLORS.body
 
-  if (answered) {
+  if (reveal) {
+    // 正誤を開示する（通常モードの回答後）
     if (isCorrect) {
-      bg = '#f0fdf4'
-      border = '#16a34a'
-      color = '#166534'
-      badgeBg = '#16a34a'
+      bg = COLORS.greenLight
+      border = COLORS.green
+      color = COLORS.greenDark
+      badgeBg = COLORS.green
       badgeColor = '#ffffff'
     } else if (isSelected) {
-      bg = '#fef2f2'
-      border = '#dc2626'
-      color = '#991b1b'
-      badgeBg = '#dc2626'
+      bg = COLORS.redLight
+      border = COLORS.red
+      color = COLORS.redDark
+      badgeBg = COLORS.red
       badgeColor = '#ffffff'
     } else {
       // その他の未選択肢：減光
-      color = '#94a3b8'
+      color = COLORS.muted
       badgeColor = '#cbd5e1'
     }
-  } else if (hover) {
-    // 未回答時の hover
-    border = '#93c5fd'
-    bg = '#f8fafc'
+  } else if (isSelected) {
+    // 選択済み（未採点、または本番モードで正誤を伏せている状態）
+    bg = COLORS.blueLight
+    border = COLORS.blue
+    color = COLORS.blue
+    badgeBg = COLORS.blue
+    badgeColor = '#ffffff'
+  } else if (hover && !answered && !disabled) {
+    border = COLORS.bluePale
+    bg = COLORS.bg
   }
+
+  const clickable = !answered && !disabled
 
   return (
     <div
       role="button"
-      tabIndex={answered ? -1 : 0}
-      onClick={onSelect}
+      aria-pressed={isSelected}
+      tabIndex={clickable ? 0 : -1}
+      onClick={clickable ? onSelect : undefined}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === ' ' || e.key === 'Enter')) {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -150,7 +194,8 @@ function Choice({ letter, text, state, onSelect }) {
         border: `2px solid ${border}`,
         background: bg,
         color,
-        cursor: answered ? 'default' : 'pointer',
+        cursor: clickable ? 'pointer' : 'default',
+        opacity: disabled && !isSelected ? 0.6 : 1,
         transition: 'all 0.15s ease',
         fontSize: '15px',
         lineHeight: '1.6',
@@ -184,9 +229,11 @@ function Choice({ letter, text, state, onSelect }) {
  *
  * @param {{
  *   question: import('../data/questions').Question,
- *   selectedIndex: number | null,
+ *   selected: number[],
  *   answered: boolean,
- *   onSelect: (idx: number) => void,
+ *   examMode: boolean,
+ *   onToggleChoice: (idx: number) => void,
+ *   onSubmit: () => void,
  *   bookmarked: boolean,
  *   onToggleBookmark: () => void,
  *   onJump: (num: number) => boolean,
@@ -194,21 +241,29 @@ function Choice({ letter, text, state, onSelect }) {
  */
 export default function QuestionCard({
   question,
-  selectedIndex,
+  selected,
   answered,
-  onSelect,
+  examMode,
+  onToggleChoice,
+  onSubmit,
   bookmarked,
   onToggleBookmark,
   onJump,
 }) {
+  const requiredCount = question.correctIndexes.length
+  const isMulti = requiredCount > 1
+  const reveal = answered && !examMode
+  // 「2つ選べ」で上限まで選んだら、未選択の選択肢は選べない
+  const capped = isMulti && selected.length >= requiredCount
+
   return (
     <section
       style={{
-        background: '#ffffff',
+        background: COLORS.card,
         borderRadius: '20px',
         padding: '32px',
         boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-        border: '1px solid #eef2f7',
+        border: `1px solid ${COLORS.cardBorder}`,
       }}
     >
       <div
@@ -218,9 +273,26 @@ export default function QuestionCard({
           justifyContent: 'space-between',
           gap: '12px',
           marginBottom: '18px',
+          flexWrap: 'wrap',
         }}
       >
-        <QuestionNumberBadge number={question.questionNumber} onJump={onJump} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <QuestionNumberBadge number={question.questionNumber} onJump={onJump} />
+          {question.subject && (
+            <span
+              style={{
+                padding: '5px 12px',
+                borderRadius: '999px',
+                background: '#f1f5f9',
+                color: COLORS.body,
+                fontSize: '12px',
+                fontWeight: 700,
+              }}
+            >
+              {question.subject}
+            </span>
+          )}
+        </div>
         <BookmarkStar active={bookmarked} onToggle={onToggleBookmark} />
       </div>
 
@@ -228,8 +300,8 @@ export default function QuestionCard({
         style={{
           fontSize: '18px',
           lineHeight: '1.9',
-          color: '#1e293b',
-          margin: '0 0 30px 0',
+          color: COLORS.text,
+          margin: '0 0 24px 0',
         }}
       >
         {question.segments.map((seg, i) => (
@@ -238,7 +310,7 @@ export default function QuestionCard({
             style={
               seg.u
                 ? {
-                    borderBottom: '2px solid #2563eb',
+                    borderBottom: `2px solid ${COLORS.blue}`,
                     paddingBottom: '1px',
                     fontWeight: 700,
                   }
@@ -250,6 +322,22 @@ export default function QuestionCard({
         ))}
       </p>
 
+      <QuestionImage url={question.imageUrl} />
+
+      {isMulti && !answered && (
+        <p
+          style={{
+            margin: '0 0 12px 0',
+            fontSize: '13px',
+            fontWeight: 700,
+            color: COLORS.blue,
+          }}
+        >
+          {requiredCount}つ選んでから「解答する」を押してください（選択中 {selected.length}/
+          {requiredCount}）
+        </p>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {question.choices.map((text, idx) => (
           <Choice
@@ -258,13 +346,39 @@ export default function QuestionCard({
             text={text}
             state={{
               answered,
-              isCorrect: idx === question.correctIndex,
-              isSelected: idx === selectedIndex,
+              reveal,
+              isCorrect: question.correctIndexes.includes(idx),
+              isSelected: selected.includes(idx),
+              disabled: capped && !selected.includes(idx),
             }}
-            onSelect={() => onSelect(idx)}
+            onSelect={() => onToggleChoice(idx)}
           />
         ))}
       </div>
+
+      {isMulti && !answered && (
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={selected.length !== requiredCount}
+          style={{
+            width: '100%',
+            marginTop: '16px',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.blue}`,
+            background: selected.length === requiredCount ? COLORS.blue : COLORS.blueLight,
+            color: selected.length === requiredCount ? '#ffffff' : COLORS.bluePale,
+            fontSize: '14px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: selected.length === requiredCount ? 'pointer' : 'default',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          解答する
+        </button>
+      )}
     </section>
   )
 }

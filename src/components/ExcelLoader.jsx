@@ -1,32 +1,41 @@
 import { useRef, useState } from 'react'
+import { COLORS, LIMITS } from '../constants'
 import { parseWorkbook } from '../utils/parseExcel'
 
 /**
  * Excel（.xlsx / .xls）読み込みボタン。
- * 選択されたファイルをパースし、成功時は onLoad(questions, fileName) を呼ぶ。
- * 失敗時はボタン下にエラーメッセージを表示する。
- *
- * @param {{ onLoad: (questions: import('../data/questions').Question[], fileName: string) => void }} props
+ * 選択されたファイルをパースし、成功時は onLoad(questions) を呼ぶ。
+ * 失敗時はボタン下にエラーメッセージ（原因と行番号）を表示する。
  */
 export default function ExcelLoader({ onLoad }) {
   const inputRef = useRef(null)
   const [hover, setHover] = useState(false)
-  const [error, setError] = useState('')
+  const [message, setMessage] = useState(null) // { type: 'ok'|'error', text }
+  const [busy, setBusy] = useState(false)
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
+    e.target.value = '' // 同じファイルを選び直せるようにする
     if (!file) return
-    setError('')
+
+    setMessage(null)
+    setBusy(true)
     try {
+      if (file.size > LIMITS.EXCEL_BYTES) {
+        throw new Error('ファイルが大きすぎます（15MBまで）。')
+      }
       const buffer = await file.arrayBuffer()
       const questions = await parseWorkbook(buffer)
       if (!questions.length) throw new Error('有効な問題が1件も見つかりませんでした。')
-      onLoad(questions, file.name)
+      onLoad(questions)
+      setMessage({ type: 'ok', text: `${questions.length}問を読み込みました。` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '読み込みに失敗しました。')
+      setMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : '読み込みに失敗しました。',
+      })
     } finally {
-      // 同じファイルを連続選択しても onChange が発火するようリセット
-      e.target.value = ''
+      setBusy(false)
     }
   }
 
@@ -37,24 +46,26 @@ export default function ExcelLoader({ onLoad }) {
         onClick={() => inputRef.current?.click()}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        disabled={busy}
+        title="自作の問題集（Excel）を読み込みます"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
           padding: '8px 16px',
           borderRadius: '10px',
-          border: '1px solid #2563eb',
-          background: hover ? '#2563eb' : '#eff6ff',
-          color: hover ? '#ffffff' : '#2563eb',
+          border: `1px solid ${COLORS.blue}`,
+          background: hover && !busy ? COLORS.blue : COLORS.blueLight,
+          color: hover && !busy ? '#ffffff' : COLORS.blue,
           fontSize: '13px',
           fontWeight: 700,
           fontFamily: 'inherit',
-          cursor: 'pointer',
+          cursor: busy ? 'progress' : 'pointer',
           transition: 'all 0.15s ease',
         }}
       >
         <span style={{ fontSize: '15px', lineHeight: 1 }}>&#128196;</span>
-        Excelを読み込む
+        {busy ? '読み込み中…' : 'Excelを読み込む'}
       </button>
       <input
         ref={inputRef}
@@ -63,9 +74,16 @@ export default function ExcelLoader({ onLoad }) {
         onChange={handleFile}
         style={{ display: 'none' }}
       />
-      {error && (
-        <span style={{ fontSize: '12px', color: '#dc2626', fontWeight: 700, maxWidth: '360px' }}>
-          {error}
+      {message && (
+        <span
+          style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            maxWidth: '360px',
+            color: message.type === 'error' ? COLORS.red : COLORS.green,
+          }}
+        >
+          {message.text}
         </span>
       )}
     </div>
