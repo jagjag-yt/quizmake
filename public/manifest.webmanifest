@@ -1,6 +1,6 @@
 {
-  "name": "QBオンライン風クイズアプリ",
-  "short_name": "クイズ演習",
+  "name": "quizmake",
+  "short_name": "quizmake",
   "description": "問題を解いて即座に解説を確認できる学習アプリ。ブックマーク・間隔反復・学習記録に対応しています。",
   "lang": "ja",
   "start_url": "./",
