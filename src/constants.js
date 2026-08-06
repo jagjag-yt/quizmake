@@ -45,6 +45,31 @@ export const LIMITS = {
   TEXT_CHARS: 5000,
 }
 
+/**
+ * レイアウトの切替条件。
+ * 1024px 以上（PC・iPad 横）はハンドオフどおりの余白、
+ * それ未満（iPad 縦など）は余白を詰めて内容の幅を確保する。
+ */
+export const COMPACT_QUERY = '(max-width: 1023px)'
+
+/** ホバーできる入力機器か（タッチ端末では一致しない）。 */
+export const HOVER_QUERY = '(hover: hover)'
+
+/**
+ * 余白のトークン。compact は iPad 縦などの中間幅で使う。
+ * 数値のみを持ち、単位は利用側で付ける。
+ */
+export const SPACING = {
+  wide: { pageX: 32, mainTop: 20, card: 32, gap: 24, headerY: 18 },
+  compact: { pageX: 20, mainTop: 14, card: 22, gap: 16, headerY: 14 },
+}
+
+/**
+ * タッチ操作で押しやすい最小サイズ（px）。
+ * iPad もタッチ端末のため、主要な操作はこの高さ以上を確保する。
+ */
+export const TAP_MIN = 44
+
 /** デザイントークン（ハンドオフ準拠）。 */
 export const COLORS = {
   bg: '#f8fafc',

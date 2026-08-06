@@ -1,7 +1,9 @@
-import { COLORS } from '../constants'
+import { COLORS, SPACING, TAP_MIN } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 
 const btnBase = {
   flex: 1,
+  minHeight: `${TAP_MIN}px`,
   padding: '12px 24px',
   borderRadius: '12px',
   fontSize: '14px',
@@ -10,6 +12,7 @@ const btnBase = {
   textAlign: 'center',
   userSelect: 'none',
   transition: 'all 0.15s ease',
+  WebkitTapHighlightColor: 'transparent',
 }
 
 /**
@@ -36,6 +39,8 @@ export default function FooterNav({
   onNext,
   onFinish,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
   // 本番モードでは解き直しをさせない（試験の再現）
   const canRetry = answered && !examMode
 
@@ -54,11 +59,11 @@ export default function FooterNav({
         width: '100%',
         maxWidth: '1400px',
         margin: '0 auto',
-        padding: '12px 32px 32px 32px',
+        padding: `12px ${space.pageX}px ${compact ? 20 : 32}px ${space.pageX}px`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
+        gap: compact ? '10px' : '16px',
       }}
     >
       <button

@@ -1,4 +1,5 @@
-import { COLORS } from '../constants'
+import { COLORS, SPACING, TAP_MIN } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 import { accuracyOf } from '../utils/stats'
 import { formatDuration } from '../utils/safe'
 
@@ -22,6 +23,7 @@ function Stat({ label, value, sub, color = COLORS.text }) {
 }
 
 const actionButton = (primary) => ({
+  minHeight: `${TAP_MIN}px`,
   padding: '12px 22px',
   borderRadius: '12px',
   border: `1px solid ${primary ? COLORS.blue : COLORS.border}`,
@@ -57,6 +59,8 @@ export default function SessionSummary({
   onOpenDashboard,
   onJumpTo,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
   const answered = answers.filter(Boolean).length
   const correct = answers.filter((a) => a?.correct).length
   const wrong = answered - correct
@@ -76,7 +80,7 @@ export default function SessionSummary({
         style={{
           background: COLORS.card,
           borderRadius: '20px',
-          padding: '32px',
+          padding: `${space.card}px`,
           boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
           border: `1px solid ${COLORS.cardBorder}`,
         }}
@@ -120,7 +124,7 @@ export default function SessionSummary({
         style={{
           background: COLORS.card,
           borderRadius: '20px',
-          padding: '32px',
+          padding: `${space.card}px`,
           boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
           border: `1px solid ${COLORS.cardBorder}`,
         }}

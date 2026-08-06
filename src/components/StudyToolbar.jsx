@@ -1,7 +1,9 @@
-import { COLORS, MODES, MODE_LABELS } from '../constants'
+import { COLORS, MODES, MODE_LABELS, SPACING, TAP_MIN } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 
 const selectStyle = {
-  padding: '6px 10px',
+  minHeight: `${TAP_MIN - 8}px`,
+  padding: '8px 10px',
   borderRadius: '10px',
   border: `1px solid ${COLORS.border}`,
   background: COLORS.card,
@@ -37,6 +39,9 @@ export default function StudyToolbar({
   onChangeExamMinutes,
   onRestart,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
+
   const modeButton = (key) => {
     const active = mode === key
     const count = counts[key] ?? 0
@@ -47,7 +52,8 @@ export default function StudyToolbar({
         title={MODE_LABELS[key].hint}
         onClick={() => onChangeMode(key)}
         style={{
-          padding: '6px 14px',
+          minHeight: `${TAP_MIN - 8}px`,
+          padding: '8px 14px',
           borderRadius: '999px',
           border: 'none',
           background: active ? COLORS.blue : 'transparent',
@@ -71,10 +77,10 @@ export default function StudyToolbar({
         width: '100%',
         maxWidth: '1400px',
         margin: '0 auto',
-        padding: '16px 32px 0 32px',
+        padding: `${compact ? 12 : 16}px ${space.pageX}px 0 ${space.pageX}px`,
         display: 'flex',
         alignItems: 'center',
-        gap: '18px',
+        gap: compact ? '12px' : '18px',
         flexWrap: 'wrap',
       }}
     >
@@ -167,7 +173,8 @@ export default function StudyToolbar({
         title="現在の条件で最初から出題し直します"
         style={{
           marginLeft: 'auto',
-          padding: '7px 16px',
+          minHeight: `${TAP_MIN - 8}px`,
+          padding: '8px 16px',
           borderRadius: '10px',
           border: `1px solid ${COLORS.blue}`,
           background: COLORS.blueLight,

@@ -1,4 +1,5 @@
-import { COLORS } from '../constants'
+import { COLORS, SPACING } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 import { BOX_LABELS } from '../utils/srs'
 
 /**
@@ -7,13 +8,14 @@ import { BOX_LABELS } from '../utils/srs'
  * （依存を増やさない＝ライセンス・脆弱性の管理対象を増やさないため）。
  */
 
-const card = {
+/** カードの外観。余白だけ画面幅に応じて差し替える。 */
+const cardStyle = (space) => ({
   background: COLORS.card,
   borderRadius: '20px',
-  padding: '28px 32px',
+  padding: `${space.card}px`,
   boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
   border: `1px solid ${COLORS.cardBorder}`,
-}
+})
 
 const cardTitle = {
   margin: '0 0 16px 0',
@@ -181,6 +183,8 @@ export default function Dashboard({
   dueCount,
   onResetAll,
 }) {
+  const compact = useCompactLayout()
+  const card = cardStyle(compact ? SPACING.compact : SPACING.wide)
   const studiedRatio = overview.totalQuestions
     ? overview.studied / overview.totalQuestions
     : 0

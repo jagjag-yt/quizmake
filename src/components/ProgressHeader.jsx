@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { COLORS, VIEWS } from '../constants'
+import { COLORS, SPACING, TAP_MIN, VIEWS } from '../constants'
+import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
 import { formatDuration } from '../utils/safe'
 
 /** 画面切替タブ（演習 / ダッシュボード）。 */
 function ViewTabs({ view, onChangeView }) {
   const tab = (active) => ({
-    padding: '6px 14px',
+    minHeight: `${TAP_MIN - 8}px`,
+    padding: '8px 16px',
     borderRadius: '999px',
     border: 'none',
     background: active ? COLORS.blue : 'transparent',
@@ -43,6 +45,7 @@ function ViewTabs({ view, onChangeView }) {
 /** 正答率の記録表示＋リセットボタン。 */
 function AccuracyStat({ accuracy, stats, onResetStats }) {
   const [hover, setHover] = useState(false)
+  const canHover = useCanHover()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span style={{ fontSize: '13px', color: COLORS.body }}>
@@ -62,11 +65,11 @@ function AccuracyStat({ accuracy, stats, onResetStats }) {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '24px',
-          height: '24px',
+          width: `${TAP_MIN - 8}px`,
+          height: `${TAP_MIN - 8}px`,
           borderRadius: '50%',
           border: `1px solid ${COLORS.border}`,
-          background: hover ? '#f1f5f9' : COLORS.card,
+          background: hover && canHover ? '#f1f5f9' : COLORS.card,
           color: COLORS.sub,
           fontSize: '13px',
           lineHeight: 1,
@@ -127,6 +130,8 @@ export default function ProgressHeader({
   remainingSec,
   children,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
   const fillPct = total > 0 ? (position / total) * 100 : 0
 
   return (
@@ -135,14 +140,21 @@ export default function ProgressHeader({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
+        gap: compact ? '10px' : '16px',
         flexWrap: 'wrap',
-        padding: '18px 32px',
+        padding: `${space.headerY}px ${space.pageX}px`,
         background: COLORS.card,
         borderBottom: `1px solid ${COLORS.border}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: compact ? '8px' : '12px',
+          flexWrap: 'wrap',
+        }}
+      >
         <ViewTabs view={view} onChangeView={onChangeView} />
         {children}
       </div>
