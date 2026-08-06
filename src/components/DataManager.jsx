@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { COLORS, LIMITS } from '../constants'
+import { COLORS, LIMITS, TAP_MIN } from '../constants'
 import { parseImport } from '../storage/store'
 import { dateKey } from '../utils/safe'
 
@@ -7,6 +7,7 @@ const smallButton = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '6px',
+  minHeight: `${TAP_MIN - 8}px`,
   padding: '8px 14px',
   borderRadius: '10px',
   border: `1px solid ${COLORS.border}`,

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { COLORS, LIMITS } from '../constants'
+import { COLORS, LIMITS, TAP_MIN } from '../constants'
+import { useCanHover } from '../hooks/useMediaQuery'
 import { parseWorkbook } from '../utils/parseExcel'
 
 /**
@@ -10,6 +11,7 @@ import { parseWorkbook } from '../utils/parseExcel'
 export default function ExcelLoader({ onLoad }) {
   const inputRef = useRef(null)
   const [hover, setHover] = useState(false)
+  const canHover = useCanHover()
   const [message, setMessage] = useState(null) // { type: 'ok'|'error', text }
   const [busy, setBusy] = useState(false)
 
@@ -52,11 +54,12 @@ export default function ExcelLoader({ onLoad }) {
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
+          minHeight: `${TAP_MIN - 8}px`,
           padding: '8px 16px',
           borderRadius: '10px',
           border: `1px solid ${COLORS.blue}`,
-          background: hover && !busy ? COLORS.blue : COLORS.blueLight,
-          color: hover && !busy ? '#ffffff' : COLORS.blue,
+          background: hover && canHover && !busy ? COLORS.blue : COLORS.blueLight,
+          color: hover && canHover && !busy ? '#ffffff' : COLORS.blue,
           fontSize: '13px',
           fontWeight: 700,
           fontFamily: 'inherit',

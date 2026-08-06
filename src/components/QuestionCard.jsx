@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { COLORS, LETTERS } from '../constants'
+import { COLORS, LETTERS, SPACING, TAP_MIN } from '../constants'
+import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
 
 /**
  * 「問題〇」バッジ。番号部分が入力欄になっており、番号を打って Enter で
@@ -40,6 +41,7 @@ function QuestionNumberBadge({ number, onJump }) {
       <input
         type="text"
         inputMode="numeric"
+        enterKeyHint="go"
         value={draft}
         onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
         onKeyDown={(e) => {
@@ -74,12 +76,14 @@ function BookmarkStar({ active, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      title={active ? 'ブックマークを解除（B）' : 'ブックマークに追加（B）'}
+      title={active ? 'ブックマークを解除（S）' : 'ブックマークに追加（S）'}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: '6px',
-        padding: '6px 12px',
+        minHeight: `${TAP_MIN}px`,
+        padding: '6px 14px',
         borderRadius: '999px',
         border: `1px solid ${active ? COLORS.amber : COLORS.border}`,
         background: active ? COLORS.amberLight : COLORS.card,
@@ -129,6 +133,9 @@ function QuestionImage({ url }) {
 /** 単一の選択肢。回答状態に応じて正誤色に切り替わる。 */
 function Choice({ letter, text, state, onSelect }) {
   const [hover, setHover] = useState(false)
+  // タッチ端末ではタップ後にホバー状態が残るため、ホバー演出自体を無効にする
+  const canHover = useCanHover()
+  const compact = useCompactLayout()
   const { answered, reveal, isCorrect, isSelected, disabled } = state
 
   // 既定（未回答）
@@ -164,7 +171,7 @@ function Choice({ letter, text, state, onSelect }) {
     color = COLORS.blue
     badgeBg = COLORS.blue
     badgeColor = '#ffffff'
-  } else if (hover && !answered && !disabled) {
+  } else if (hover && canHover && !answered && !disabled) {
     border = COLORS.bluePale
     bg = COLORS.bg
   }
@@ -188,13 +195,15 @@ function Choice({ letter, text, state, onSelect }) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '14px',
-        padding: '16px 20px',
+        gap: compact ? '12px' : '14px',
+        minHeight: `${TAP_MIN}px`,
+        padding: compact ? '14px 16px' : '16px 20px',
         borderRadius: '14px',
         border: `2px solid ${border}`,
         background: bg,
         color,
         cursor: clickable ? 'pointer' : 'default',
+        WebkitTapHighlightColor: 'transparent',
         opacity: disabled && !isSelected ? 0.6 : 1,
         transition: 'all 0.15s ease',
         fontSize: '15px',
@@ -250,6 +259,8 @@ export default function QuestionCard({
   onToggleBookmark,
   onJump,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
   const requiredCount = question.correctIndexes.length
   const isMulti = requiredCount > 1
   const reveal = answered && !examMode
@@ -261,7 +272,7 @@ export default function QuestionCard({
       style={{
         background: COLORS.card,
         borderRadius: '20px',
-        padding: '32px',
+        padding: `${space.card}px`,
         boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
         border: `1px solid ${COLORS.cardBorder}`,
       }}
@@ -298,7 +309,7 @@ export default function QuestionCard({
 
       <p
         style={{
-          fontSize: '18px',
+          fontSize: compact ? '17px' : '18px',
           lineHeight: '1.9',
           color: COLORS.text,
           margin: '0 0 24px 0',

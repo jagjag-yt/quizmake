@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { COLORS, LETTERS, MODES, MODE_LABELS, VIEWS } from './constants'
+import { COLORS, LETTERS, MODES, MODE_LABELS, SPACING, VIEWS } from './constants'
 import { QUESTIONS, questionKey } from './data/questions'
 import { useStudyData } from './hooks/useStudyData'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useCompactLayout } from './hooks/useMediaQuery'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
 import { boxDistribution, dailySeries, overview, streakDays, subjectStats } from './utils/stats'
@@ -75,6 +76,9 @@ const DEFAULT_OPTS = {
 
 export default function App() {
   const study = useStudyData()
+  // iPad 縦などの中間幅では余白を詰め、問題文と選択肢の幅を確保する
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
 
   // 出題データ（初期は同梱の問題。Excel 読み込みで差し替え）
   const [questions, setQuestions] = useState(QUESTIONS)
@@ -408,10 +412,10 @@ export default function App() {
           width: '100%',
           maxWidth: '1400px',
           margin: '0 auto',
-          padding: '20px 32px 12px 32px',
+          padding: `${space.mainTop}px ${space.pageX}px 12px ${space.pageX}px`,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: '24px',
+          gap: `${space.gap}px`,
           alignItems: 'stretch',
         }}
       >

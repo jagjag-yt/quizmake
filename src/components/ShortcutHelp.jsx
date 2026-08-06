@@ -1,4 +1,4 @@
-import { COLORS } from '../constants'
+import { COLORS, TAP_MIN } from '../constants'
 
 const SHORTCUTS = [
   ['a 〜 e / 1 〜 5', '選択肢を選ぶ'],
@@ -23,8 +23,8 @@ export default function ShortcutHelp({ open, onToggle }) {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '32px',
-          height: '32px',
+          width: `${TAP_MIN - 8}px`,
+          height: `${TAP_MIN - 8}px`,
           borderRadius: '50%',
           border: `1px solid ${open ? COLORS.blue : COLORS.border}`,
           background: open ? COLORS.blueLight : COLORS.card,

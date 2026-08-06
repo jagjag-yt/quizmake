@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { COLORS, LETTERS, LIMITS } from '../constants'
+import { COLORS, LETTERS, LIMITS, SPACING } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 
 /** 「解説」「基本事項」で共通の見出しスタイル。 */
 const sectionHeading = {
@@ -91,6 +92,8 @@ export default function ResultCard({
   note,
   onSaveNote,
 }) {
+  const compact = useCompactLayout()
+  const space = compact ? SPACING.compact : SPACING.wide
   const correctLetters = question.correctIndexes.map((i) => LETTERS[i]).join('・')
   const userLetters = [...selected].sort((a, b) => a - b).map((i) => LETTERS[i]).join('・')
   const isCorrect =
@@ -101,7 +104,7 @@ export default function ResultCard({
   const shell = {
     background: COLORS.card,
     borderRadius: '20px',
-    padding: '32px',
+    padding: `${space.card}px`,
     boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
     border: `1px solid ${COLORS.cardBorder}`,
     display: 'flex',
