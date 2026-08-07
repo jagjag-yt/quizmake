@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { COLORS, LETTERS, MODES, MODE_LABELS, SPACING, VIEWS } from './constants'
-import { QUESTIONS, questionKey } from './data/questions'
+import { questionKey } from './data/questions'
 import { useStudyData } from './hooks/useStudyData'
+import { useQuestionPool } from './hooks/useQuestionPool'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useCompactLayout } from './hooks/useMediaQuery'
+import { exportQuestionsToXlsx } from './utils/exportExcel'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
 import { boxDistribution, dailySeries, overview, streakDays, subjectStats } from './utils/stats'
@@ -18,6 +20,11 @@ import DataManager from './components/DataManager'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
 import Dashboard from './components/Dashboard'
+import QuestionsView from './components/QuestionsView'
+import EditorView from './components/EditorView'
+import ExportModal from './components/ExportModal'
+import ToastHost from './components/Toast'
+import { useToast } from './hooks/useToast'
 
 /** 科目・タグの絞り込み条件に合致するか。 */
 function matchesFilters(q, subject, tag) {
@@ -76,21 +83,25 @@ const DEFAULT_OPTS = {
 
 export default function App() {
   const study = useStudyData()
+  // 作成分と読込分をまとめた出題プール（localStorage に永続化）
+  const pool = useQuestionPool()
+  const toast = useToast()
   // iPad 縦などの中間幅では余白を詰め、問題文と選択肢の幅を確保する
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
 
-  // 出題データ（初期は同梱の問題。Excel 読み込みで差し替え）
-  const [questions, setQuestions] = useState(QUESTIONS)
+  const questions = pool.questions
   const [view, setView] = useState(VIEWS.QUIZ)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [exportOpen, setExportOpen] = useState(false)
 
   // 出題条件
   const [opts, setOpts] = useState(DEFAULT_OPTS)
 
   // セッションと進行状態
   const [session, setSession] = useState(() =>
-    createSession(QUESTIONS, study.dataRef.current.records, DEFAULT_OPTS),
+    createSession(pool.questionsRef.current, study.dataRef.current.records, DEFAULT_OPTS),
   )
   const [answers, setAnswers] = useState({}) // { [問題インデックス]: 回答記録 }
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -232,10 +243,12 @@ export default function App() {
     setDraft([])
   }, [answered, session.examMode, currentIndex])
 
-  /** 「問題〇」への番号ジャンプ。 */
+  /** 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。 */
   const jumpToNumber = useCallback(
     (num) => {
-      const idx = session.questions.findIndex((q) => q.questionNumber === num)
+      const idx = session.questions.findIndex(
+        (q) => String(q.questionNumber) === String(num),
+      )
       if (idx === -1) return false
       goTo(idx)
       return true
@@ -243,14 +256,56 @@ export default function App() {
     [session.questions, goTo],
   )
 
-  /** Excel 読み込み：出題データを差し替え、条件をリセットして開始。 */
+  /**
+   * Excel 読み込み：プールへ追加し（番号が衝突したら枝番）、
+   * 読み込んだ問題で演習を始められるようにする。
+   */
   const loadQuestions = useCallback(
     (loaded) => {
-      setQuestions(loaded)
+      pool.importQuestions(loaded)
       setOpts(DEFAULT_OPTS)
-      startSession(DEFAULT_OPTS, { source: loaded })
+      startSession(DEFAULT_OPTS, { source: [...pool.questionsRef.current, ...loaded] })
+      toast.show({
+        tone: 'success',
+        title: `${loaded.length}問を読み込みました`,
+        description: '設問一覧とクイズ作成から編集できます',
+      })
     },
-    [startSession],
+    [pool, startSession, toast],
+  )
+
+  /** 一覧などから、指定した問題リストで演習を始める。 */
+  const startQuizWith = useCallback(
+    (list, { shuffle = false, startAtId = null } = {}) => {
+      if (!list.length) return
+      const ordered = shuffle ? shuffled(list) : list
+      startSession({ ...opts, examMode: false }, { explicitList: ordered })
+      if (startAtId) {
+        const idx = ordered.findIndex((q) => q.id === startAtId)
+        if (idx > 0) setCurrentIndex(idx)
+      }
+    },
+    [opts, startSession],
+  )
+
+  /** Excel 書き出し。 */
+  const runExport = useCallback(
+    async (list) => {
+      setExportOpen(false)
+      try {
+        const { fileName, count } = await exportQuestionsToXlsx(list)
+        toast.show({
+          tone: 'success',
+          title: `${fileName} を書き出しました`,
+          description: 'ダウンロードフォルダに保存されました',
+        })
+        return count
+      } catch {
+        toast.show({ tone: 'error', title: '書き出しに失敗しました' })
+        return 0
+      }
+    },
+    [toast],
   )
 
   /** 結果画面から「間違えた問題を復習」。 */
@@ -358,11 +413,14 @@ export default function App() {
         onChangeView={setView}
         position={total > 0 ? currentIndex + 1 : 0}
         total={total}
+        questionTotal={questions.length}
         accuracy={dashboard.overview.accuracy}
         stats={study.data.totals}
         onResetStats={study.resetStats}
         examMode={session.examMode}
         remainingSec={remainingSec}
+        savedAt={pool.savedAt}
+        onExport={() => setExportOpen(true)}
       >
         <ExcelLoader onLoad={loadQuestions} />
         <DataManager onExport={study.exportJson} onImport={study.importData} />
@@ -419,7 +477,54 @@ export default function App() {
           alignItems: 'stretch',
         }}
       >
-        {view === VIEWS.DASHBOARD ? (
+        {view === VIEWS.QUESTIONS ? (
+          <QuestionsView
+            questions={questions}
+            getRecord={study.getRecord}
+            onToggleBookmark={study.toggleBookmark}
+            onSaveNote={study.setNote}
+            onStartQuiz={startQuizWith}
+            onImportClick={() => document.querySelector('input[accept=".xlsx,.xls"]')?.click()}
+            onCreateClick={() => {
+              setEditingId(pool.addQuestion())
+              setView(VIEWS.EDITOR)
+            }}
+            onBulkBookmark={(ids) => {
+              const picked = questions.filter((q) => ids.includes(q.id))
+              picked.forEach((q) => {
+                const rec = study.getRecord(questionKey(q))
+                if (!rec.bookmarked) study.toggleBookmark(questionKey(q))
+              })
+              toast.show({
+                tone: 'info',
+                title: `${picked.length}問にブックマークを付けました`,
+                actionLabel: '元に戻す',
+                onAction: () =>
+                  picked.forEach((q) => study.toggleBookmark(questionKey(q))),
+              })
+            }}
+            onBulkTag={(ids, tag) => {
+              pool.addTagToQuestions(ids, tag)
+              toast.show({ tone: 'info', title: `${ids.length}問に「${tag}」を付与しました` })
+            }}
+            loading={false}
+          />
+        ) : view === VIEWS.EDITOR ? (
+          <EditorView
+            questions={questions}
+            authored={pool.authored}
+            imported={pool.imported}
+            selectedId={editingId}
+            onSelect={setEditingId}
+            onAdd={pool.addQuestion}
+            onUpdate={pool.updateQuestion}
+            onRemove={pool.removeQuestion}
+            onDuplicate={pool.duplicateQuestion}
+            onReorderAuthored={pool.reorderAuthored}
+            onImportClick={() => document.querySelector('input[accept=".xlsx,.xls"]')?.click()}
+            subjects={subjects}
+          />
+        ) : view === VIEWS.DASHBOARD ? (
           <Dashboard
             overview={dashboard.overview}
             series={dashboard.series}
@@ -496,6 +601,16 @@ export default function App() {
           onFinish={finish}
         />
       )}
+
+      {exportOpen && (
+        <ExportModal
+          questions={questions}
+          onClose={() => setExportOpen(false)}
+          onExport={runExport}
+        />
+      )}
+
+      <ToastHost toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   )
 }

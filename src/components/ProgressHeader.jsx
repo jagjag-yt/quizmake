@@ -1,13 +1,13 @@
-import { useState } from 'react'
-import { COLORS, SPACING, TAP_MIN, VIEWS } from '../constants'
+import { useEffect, useRef, useState } from 'react'
+import { COLORS, SPACING, TABS, TAP_MIN, VIEWS } from '../constants'
 import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
 import { formatDuration } from '../utils/safe'
 
-/** 画面切替タブ（演習 / ダッシュボード）。 */
-function ViewTabs({ view, onChangeView }) {
+/** 画面切替タブ（設問一覧 / 演習 / クイズ作成 / 学習記録）。 */
+function ViewTabs({ view, onChangeView, compact }) {
   const tab = (active) => ({
     minHeight: `${TAP_MIN - 8}px`,
-    padding: '8px 16px',
+    padding: compact ? '8px 12px' : '8px 16px',
     borderRadius: '999px',
     border: 'none',
     background: active ? COLORS.blue : 'transparent',
@@ -16,43 +16,53 @@ function ViewTabs({ view, onChangeView }) {
     fontWeight: 700,
     fontFamily: 'inherit',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
     transition: 'all 0.15s ease',
   })
   return (
     <div
+      role="tablist"
       style={{
         display: 'inline-flex',
         gap: '2px',
         padding: '3px',
         borderRadius: '999px',
-        background: '#f1f5f9',
+        background: COLORS.chipTrack,
       }}
     >
-      <button type="button" style={tab(view === VIEWS.QUIZ)} onClick={() => onChangeView(VIEWS.QUIZ)}>
-        演習
-      </button>
-      <button
-        type="button"
-        style={tab(view === VIEWS.DASHBOARD)}
-        onClick={() => onChangeView(VIEWS.DASHBOARD)}
-      >
-        学習記録
-      </button>
+      {TABS.map((t) => {
+        // 演習の続きである結果画面も「演習」タブを選択中として扱う
+        const active = view === t.view || (t.view === VIEWS.QUIZ && view === VIEWS.SUMMARY)
+        return (
+          <button
+            key={t.view}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            style={tab(active)}
+            onClick={() => onChangeView(t.view)}
+          >
+            {compact ? t.tablet : t.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
 
-/** 正答率の記録表示＋リセットボタン。 */
-function AccuracyStat({ accuracy, stats, onResetStats }) {
+/** 正答率の記録表示＋リセットボタン（全画面で共通）。 */
+function AccuracyStat({ accuracy, stats, onResetStats, compact }) {
   const [hover, setHover] = useState(false)
   const canHover = useCanHover()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontSize: '13px', color: COLORS.body }}>
+      <span style={{ fontSize: '13px', color: COLORS.body, whiteSpace: 'nowrap' }}>
         正答率 <b style={{ color: COLORS.blue, fontSize: '14px' }}>{accuracy}%</b>{' '}
-        <span style={{ color: COLORS.muted }}>
-          （{stats.correct}/{stats.answered}）
-        </span>
+        {!compact && (
+          <span style={{ color: COLORS.muted }}>
+            （{stats.correct}/{stats.answered}）
+          </span>
+        )}
       </span>
       <button
         type="button"
@@ -69,7 +79,7 @@ function AccuracyStat({ accuracy, stats, onResetStats }) {
           height: `${TAP_MIN - 8}px`,
           borderRadius: '50%',
           border: `1px solid ${COLORS.border}`,
-          background: hover && canHover ? '#f1f5f9' : COLORS.card,
+          background: hover && canHover ? COLORS.chipTrack : COLORS.card,
           color: COLORS.sub,
           fontSize: '13px',
           lineHeight: 1,
@@ -95,7 +105,7 @@ function ExamTimer({ remainingSec }) {
         gap: '6px',
         padding: '4px 12px',
         borderRadius: '999px',
-        background: danger ? COLORS.redLight : '#f1f5f9',
+        background: danger ? COLORS.redLight : COLORS.chipTrack,
         color: danger ? COLORS.red : COLORS.body,
         fontSize: '13px',
         fontWeight: 700,
@@ -107,14 +117,85 @@ function ExamTimer({ remainingSec }) {
   )
 }
 
+/** タブレットで補助ボタンをまとめる「⋯」メニュー。 */
+function OverflowMenu({ children }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="その他の操作"
+        aria-expanded={open}
+        style={{
+          width: `${TAP_MIN - 8}px`,
+          height: `${TAP_MIN - 8}px`,
+          borderRadius: '10px',
+          border: `1px solid ${open ? COLORS.blue : COLORS.border}`,
+          background: open ? COLORS.blueLight : COLORS.card,
+          color: open ? COLORS.blue : COLORS.sub,
+          fontSize: '16px',
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          lineHeight: 1,
+        }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '42px',
+            left: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            padding: '14px',
+            borderRadius: '14px',
+            background: COLORS.card,
+            border: `1px solid ${COLORS.border}`,
+            boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
- * 上部ヘッダー：左に画面切替と各種ボタン、右に正答率・進捗。
+ * 上部ヘッダー。
+ * 左：画面タブ ＋ Excel 系の共通ボタン
+ * 右：タブごとに出し分け（SPEC の NAV / right-slot は TAB-CONDITIONAL）
  *
  * @param {{
  *   view: string, onChangeView: (v: string) => void,
- *   position: number, total: number,
+ *   position: number, total: number, questionTotal: number,
  *   accuracy: number, stats: { answered: number, correct: number }, onResetStats: () => void,
  *   examMode: boolean, remainingSec: number|null,
+ *   savedAt: Date|null, onExport: () => void,
  *   children?: React.ReactNode,
  * }} props
  */
@@ -123,16 +204,23 @@ export default function ProgressHeader({
   onChangeView,
   position,
   total,
+  questionTotal,
   accuracy,
   stats,
   onResetStats,
   examMode,
   remainingSec,
+  savedAt,
+  onExport,
   children,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const fillPct = total > 0 ? (position / total) * 100 : 0
+
+  const savedLabel = savedAt
+    ? `${String(savedAt.getHours()).padStart(2, '0')}:${String(savedAt.getMinutes()).padStart(2, '0')}`
+    : null
 
   return (
     <header
@@ -155,8 +243,8 @@ export default function ProgressHeader({
           flexWrap: 'wrap',
         }}
       >
-        <ViewTabs view={view} onChangeView={onChangeView} />
-        {children}
+        <ViewTabs view={view} onChangeView={onChangeView} compact={compact} />
+        {compact ? <OverflowMenu>{children}</OverflowMenu> : children}
       </div>
 
       <div
@@ -165,35 +253,81 @@ export default function ProgressHeader({
           flexDirection: 'column',
           alignItems: 'flex-end',
           gap: '6px',
-          minWidth: '220px',
+          minWidth: compact ? 0 : '220px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {examMode && remainingSec != null && <ExamTimer remainingSec={remainingSec} />}
-          <AccuracyStat accuracy={accuracy} stats={stats} onResetStats={onResetStats} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {view === VIEWS.QUIZ && examMode && remainingSec != null && (
+            <ExamTimer remainingSec={remainingSec} />
+          )}
+
+          {view === VIEWS.EDITOR ? (
+            <>
+              <span style={{ fontSize: '12.5px', color: COLORS.sub, whiteSpace: 'nowrap' }}>
+                {savedLabel ? `✓ 自動保存済み ${savedLabel}` : '✓ 自動保存'}
+              </span>
+              <button
+                type="button"
+                onClick={onExport}
+                style={{
+                  minHeight: `${TAP_MIN - 8}px`,
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  border: `1px solid ${COLORS.blue}`,
+                  background: COLORS.blue,
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ⬇ {compact ? '書き出す' : 'Excelに書き出す'}
+              </button>
+            </>
+          ) : (
+            <AccuracyStat
+              accuracy={accuracy}
+              stats={stats}
+              onResetStats={onResetStats}
+              compact={compact}
+            />
+          )}
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue }}>
-          演習 {position}/{total}問目
-        </span>
-        <div
-          style={{
-            width: '220px',
-            height: '6px',
-            borderRadius: '999px',
-            background: COLORS.border,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              borderRadius: '999px',
-              background: COLORS.blue,
-              width: `${fillPct}%`,
-              transition: 'width 0.2s ease',
-            }}
-          />
-        </div>
+
+        {view === VIEWS.QUIZ && (
+          <>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue }}>
+              演習 {position}/{total}問目
+            </span>
+            <div
+              style={{
+                width: '220px',
+                height: '6px',
+                borderRadius: '999px',
+                background: COLORS.border,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: '999px',
+                  background: COLORS.blue,
+                  width: `${fillPct}%`,
+                  transition: 'width 0.2s ease',
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {view === VIEWS.QUESTIONS && (
+          <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue }}>
+            全 {questionTotal} 問
+          </span>
+        )}
       </div>
     </header>
   )

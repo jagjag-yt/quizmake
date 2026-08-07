@@ -1,4 +1,4 @@
-import { LIMITS } from '../constants'
+import { LIMITS, ORIGIN } from '../constants'
 import { sanitizeImageUrl, toText } from '../utils/safe'
 
 /**
@@ -19,6 +19,7 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
  * @property {string}   subject          科目（絞り込み・成績集計に使用）
  * @property {string[]} tags             タグ（絞り込みに使用）
  * @property {string|null} imageUrl      問題画像（検証済みURLのみ保持）
+ * @property {'authored'|'imported'} origin  アプリ内で作成したか、外部から読み込んだか
  */
 
 /** @type {Question[]} */
@@ -118,6 +119,14 @@ const RAW_QUESTIONS = [
   },
 ]
 
+/** プール内で問題を識別するIDを発行する。 */
+export function newQuestionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+
 /**
  * 問題オブジェクトを表示・採点に使える形へ整える。
  * 同梱データと Excel 由来データの差異（欠けた項目・古い形式）をここで吸収する。
@@ -154,10 +163,19 @@ export function normalizeQuestion(raw, index = 0) {
     ? [...new Set(raw.tags.map((t) => toText(t, 40)).filter(Boolean))].slice(0, 10)
     : []
 
+  // 問題番号は通常は数値だが、取り込み時の衝突回避で「12-2」形式の文字列にもなる
+  const rawNumber = raw.questionNumber
+  const questionNumber =
+    typeof rawNumber === 'string' && /^\d+-\d+$/.test(rawNumber.trim())
+      ? rawNumber.trim()
+      : Number.isFinite(Number(rawNumber))
+        ? Number(rawNumber)
+        : index + 1
+
   return {
-    questionNumber: Number.isFinite(Number(raw.questionNumber))
-      ? Number(raw.questionNumber)
-      : index + 1,
+    // プール内で問題を一意に識別する。問題文はキーにできない（編集中に変わるため）
+    id: toText(raw.id, 40) || newQuestionId(),
+    questionNumber,
     segments,
     choices,
     correctIndexes,
@@ -169,6 +187,7 @@ export function normalizeQuestion(raw, index = 0) {
     subject: toText(raw.subject, 60),
     tags,
     imageUrl: sanitizeImageUrl(raw.imageUrl),
+    origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
   }
 }
 
@@ -188,3 +207,76 @@ export const questionKey = (q) => (q?.segments ?? []).map((s) => s.text).join(''
 
 /** 正解が複数ある（「2つ選べ」形式）か。 */
 export const isMultiAnswer = (q) => (q?.correctIndexes?.length ?? 0) > 1
+
+// ---------------------------------------------------------------------------
+// 下線（キーワード強調）の相互変換
+//
+// エディタ側は「素のテキスト＋下線範囲」で保持し、保存・出題時は segments に
+// 変換する。範囲（位置）で持つことで、同じ語句が複数回出てくる問題文でも
+// 意図した箇所だけに下線を引ける（キーワード文字列の一致では誤爆する）。
+// ---------------------------------------------------------------------------
+
+/** segments を素のテキストへ。 */
+export const segmentsToText = (segments) =>
+  (segments ?? []).map((s) => s.text).join('')
+
+/** segments から下線範囲（[{start,end}]）を取り出す。 */
+export function segmentsToMarks(segments) {
+  const marks = []
+  let pos = 0
+  for (const seg of segments ?? []) {
+    const len = seg.text.length
+    if (seg.u && len > 0) marks.push({ start: pos, end: pos + len })
+    pos += len
+  }
+  return marks
+}
+
+/** 重なり・隣接した範囲をまとめ、開始位置で整列する。 */
+export function normalizeMarks(marks, textLength) {
+  const cleaned = (marks ?? [])
+    .map((m) => ({
+      start: Math.max(0, Math.min(textLength, Math.floor(m.start))),
+      end: Math.max(0, Math.min(textLength, Math.floor(m.end))),
+    }))
+    .filter((m) => m.end > m.start)
+    .sort((a, b) => a.start - b.start)
+
+  const merged = []
+  for (const m of cleaned) {
+    const last = merged[merged.length - 1]
+    if (last && m.start <= last.end) last.end = Math.max(last.end, m.end)
+    else merged.push({ ...m })
+  }
+  return merged
+}
+
+/** 素のテキストと下線範囲から segments を組み立てる（隣接する同種は結合）。 */
+export function buildSegmentsFromMarks(text, marks) {
+  const src = String(text ?? '')
+  if (!src) return [{ text: '', u: false }]
+
+  const ranges = normalizeMarks(marks, src.length)
+  const segments = []
+  let pos = 0
+  for (const m of ranges) {
+    if (m.start > pos) segments.push({ text: src.slice(pos, m.start), u: false })
+    segments.push({ text: src.slice(m.start, m.end), u: true })
+    pos = m.end
+  }
+  if (pos < src.length) segments.push({ text: src.slice(pos), u: false })
+
+  // 空要素を捨て、隣接する同種を結合する
+  const out = []
+  for (const seg of segments) {
+    if (!seg.text) continue
+    const last = out[out.length - 1]
+    if (last && last.u === seg.u) last.text += seg.text
+    else out.push({ ...seg })
+  }
+  return out.length ? out : [{ text: src, u: false }]
+}
+
+/** 下線が引かれた語句の一覧（Excel の「下線キーワード」列に対応）。 */
+export const underlineKeywords = (segments) =>
+  (segments ?? []).filter((s) => s.u && s.text).map((s) => s.text)

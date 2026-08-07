@@ -6,6 +6,23 @@ export const STORAGE_KEY = 'quizmake.data.v2'
 export const LEGACY_BOOKMARKS_KEY = 'quizmake.bookmarks.v1'
 export const LEGACY_STATS_KEY = 'quizmake.stats.v1'
 
+/** 出題プール（作成分＋読込分）の保存キー。 */
+export const POOL_KEY = 'quizmake.pool.v1'
+
+/** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
+export const LIST_STATE_KEY = 'quizmake.listState.v1'
+
+/** 問題の出どころ。 */
+export const ORIGIN = {
+  AUTHORED: 'authored',
+  IMPORTED: 'imported',
+}
+
+export const ORIGIN_LABELS = {
+  [ORIGIN.AUTHORED]: '作成',
+  [ORIGIN.IMPORTED]: '読込',
+}
+
 /** 出題モード。 */
 export const MODES = {
   ALL: 'all',
@@ -24,10 +41,69 @@ export const MODE_LABELS = {
 
 /** 画面（ビュー）。 */
 export const VIEWS = {
+  QUESTIONS: 'questions',
   QUIZ: 'quiz',
   SUMMARY: 'summary',
+  EDITOR: 'editor',
   DASHBOARD: 'dashboard',
 }
+
+/**
+ * ヘッダーのタブ。順序は SPEC の NAV に従う。
+ * tablet はタブレット幅での短縮ラベル。
+ */
+export const TABS = [
+  { view: VIEWS.QUESTIONS, label: '設問一覧', tablet: '一覧' },
+  { view: VIEWS.QUIZ, label: '演習', tablet: '演習' },
+  { view: VIEWS.EDITOR, label: 'クイズ作成', tablet: '作成' },
+  { view: VIEWS.DASHBOARD, label: '学習記録', tablet: '記録' },
+]
+
+/** 設問一覧の「状況」フィルタ。 */
+export const STATUS_FILTERS = {
+  ALL: 'all',
+  UNSTUDIED: 'unstudied',
+  WRONG: 'wrong',
+  BOOKMARKED: 'bookmarked',
+}
+
+export const STATUS_FILTER_LABELS = {
+  [STATUS_FILTERS.ALL]: 'すべて',
+  [STATUS_FILTERS.UNSTUDIED]: '未学習',
+  [STATUS_FILTERS.WRONG]: '要復習',
+  [STATUS_FILTERS.BOOKMARKED]: '★ブックマーク',
+}
+
+/** 設問一覧の並び順。 */
+export const SORTS = {
+  NUMBER: 'number',
+  ACCURACY: 'accuracy',
+  LAST_STUDIED: 'lastStudied',
+}
+
+export const SORT_LABELS = {
+  [SORTS.NUMBER]: '問題番号順',
+  [SORTS.ACCURACY]: '正答率順',
+  [SORTS.LAST_STUDIED]: '最終学習日順',
+}
+
+/** Excel 書き出しの列（この順序・この見出し文字列で出力する）。 */
+export const EXPORT_COLUMNS = [
+  '問題番号',
+  '科目',
+  'タグ',
+  '問題文',
+  '下線キーワード',
+  '画像URL',
+  '選択肢a',
+  '選択肢b',
+  '選択肢c',
+  '選択肢d',
+  '選択肢e',
+  '正解',
+  '解説',
+  '基本事項',
+]
 
 /** 入力データの上限（DoS・メモリ枯渇の予防）。 */
 export const LIMITS = {
@@ -89,6 +165,11 @@ export const COLORS = {
   red: '#dc2626',
   redLight: '#fef2f2',
   redDark: '#991b1b',
+  chipTrack: '#f1f5f9',
+  rowHover: '#f8fafc',
+  rowBorder: '#f1f5f9',
+  scrim: 'rgba(15,23,42,0.28)',
+  dashed: '#cbd5e1',
   amber: '#f59e0b',
   amberLight: '#fffbeb',
   amberDark: '#b45309',

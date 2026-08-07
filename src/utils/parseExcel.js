@@ -1,5 +1,5 @@
 import { LETTERS, LIMITS } from '../constants'
-import { normalizeQuestion } from '../data/questions'
+import { buildSegmentsFromMarks, normalizeQuestion } from '../data/questions'
 import { isPlainObject, sanitizeMap, toText } from './safe'
 
 /**
@@ -110,25 +110,52 @@ function splitLines(value) {
     .filter(Boolean)
 }
 
-/** 正規表現用のエスケープ。 */
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** 文字列 needle が現れる位置をすべて返す。 */
+function occurrences(text, needle) {
+  const found = []
+  if (!needle) return found
+  let from = 0
+  for (;;) {
+    const i = text.indexOf(needle, from)
+    if (i === -1) break
+    found.push(i)
+    from = i + needle.length
+  }
+  return found
 }
 
 /**
  * 問題文を下線キーワードの区切りで segments 配列へ分割する。
- * キーワードに一致する部分は u:true（下線強調）。
+ *
+ * キーワードの書き方は2通り:
+ * - `ST上昇`    … 一致する箇所すべてに下線（手入力しやすい既定の書き方）
+ * - `ST上昇@2`  … 2番目に現れる箇所だけに下線（位置指定）
+ *
+ * 位置指定は、アプリが書き出すときに「同じ語句が複数あり、その一部だけに
+ * 下線が引かれている」場合にだけ自動で付く。読み込み → 書き出し → 読み込みで
+ * 下線の位置が変わらないようにするための記法。
  */
 export function buildSegments(text, keywords) {
   const kws = keywords.filter(Boolean)
   if (!kws.length) return [{ text, u: false }]
-  // 長いキーワードを優先（部分一致の取りこぼしを防ぐ）
-  const escaped = [...kws].sort((a, b) => b.length - a.length).map(escapeRegExp)
-  const re = new RegExp(`(${escaped.join('|')})`, 'g')
-  return text
-    .split(re)
-    .filter((part) => part !== '')
-    .map((part) => ({ text: part, u: kws.includes(part) }))
+
+  const marks = []
+  for (const raw of kws) {
+    const m = /^(.*?)@(\d+)$/.exec(raw)
+    const word = m ? m[1] : raw
+    const nth = m ? Number(m[2]) : null
+    if (!word) continue
+
+    const positions = occurrences(text, word)
+    if (nth) {
+      const pos = positions[nth - 1]
+      if (pos != null) marks.push({ start: pos, end: pos + word.length })
+    } else {
+      for (const pos of positions) marks.push({ start: pos, end: pos + word.length })
+    }
+  }
+
+  return buildSegmentsFromMarks(text, marks)
 }
 
 /** 正解表記1つ（a〜e / 1〜5 / 選択肢テキスト）を choices 内インデックスへ解決する。 */
