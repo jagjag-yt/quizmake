@@ -294,7 +294,7 @@ function TagInput({ tags, onChange }) {
 }
 
 /** 右ペインの演習プレビュー（演習画面と同じ見た目）。 */
-function Preview({ question, mode, position, total, pad }) {
+function Preview({ question, groupName, mode, position, total, pad }) {
   const multi = question.correctIndexes.length > 1
   const heading = {
     fontSize: '14px',
@@ -308,7 +308,7 @@ function Preview({ question, mode, position, total, pad }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={card(pad)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
-          {question.subject && <span style={pill(COLORS.chipTrack, COLORS.body)}>{question.subject}</span>}
+          {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
           {multi && <span style={pill(COLORS.blueLight, COLORS.blue)}>2つ選べ</span>}
           <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 700, color: COLORS.blue }}>
             {position} / {total}問目
@@ -426,7 +426,10 @@ export default function EditorView({
   onDuplicate,
   onReorderAuthored,
   onImportClick,
-  subjects,
+  groups,
+  activeGroupId,
+  onChangeActiveGroup,
+  onCreateGroup,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
@@ -534,6 +537,53 @@ export default function EditorView({
 
   const sidebarItems = poolFilter === ORIGIN.AUTHORED ? authored : imported
 
+  // ---------- グループが1つも無いとき（作成はグループが先） ----------
+  if (!groups.length) {
+    return (
+      <div
+        style={{
+          gridColumn: '1 / -1',
+          ...card(space.card),
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '14px',
+          padding: '56px 32px',
+          textAlign: 'center',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '999px', background: COLORS.blueLight, color: COLORS.blue, fontSize: '26px' }}>
+          🗂
+        </span>
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
+          まずグループをつくる
+        </p>
+        <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
+          問題はかならずグループに入ります。教科書の単元や範囲など、
+          <br />
+          まとまりの名前でグループを作ってください。
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            const name = window.prompt('グループ名を入力してください')
+            if (name && name.trim()) onCreateGroup(name.trim())
+          }}
+          style={{ ...input, width: 'auto', padding: '0 22px', border: `1px solid ${COLORS.blue}`, background: COLORS.blue, color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
+        >
+          ＋ グループを作成
+        </button>
+        <button
+          type="button"
+          onClick={onImportClick}
+          style={{ border: 'none', background: 'transparent', color: COLORS.sub, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          または Excelを読み込む（1ファイル＝1グループ）
+        </button>
+      </div>
+    )
+  }
+
   // ---------- 0問のとき ----------
   if (!authored.length && !question) {
     return (
@@ -562,7 +612,7 @@ export default function EditorView({
         </p>
         <button
           type="button"
-          onClick={() => onSelect(onAdd())}
+          onClick={() => onSelect(onAdd(activeGroupId))}
           style={{ ...input, width: 'auto', padding: '0 22px', border: `1px solid ${COLORS.blue}`, background: COLORS.blue, color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
         >
           ＋ 問題を作成
@@ -580,13 +630,29 @@ export default function EditorView({
 
   const sidebar = (
     <div style={{ ...card(16), display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
+      <div>
+        <div style={label}>追加先のグループ</div>
+        <select
+          value={activeGroupId ?? ''}
+          onChange={(e) => onChangeActiveGroup(e.target.value)}
+          style={{ ...input, marginTop: '6px', cursor: 'pointer' }}
+        >
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>作成した問題</span>
         <span style={{ fontSize: '12px', color: COLORS.sub }}>{authored.length}問</span>
         <button
           type="button"
           onClick={() => {
-            const id = onAdd()
+            const id = onAdd(activeGroupId)
+            if (!id) return
             onSelect(id)
             setPoolFilter(ORIGIN.AUTHORED)
             setDrawerOpen(false)
@@ -659,7 +725,7 @@ export default function EditorView({
                   {head}
                 </div>
                 <div style={{ fontSize: '11.5px', color: COLORS.muted }}>
-                  {q.subject || '科目未設定'} · {q.choices.length}択
+                  {groups.find((g) => g.id === q.groupId)?.name ?? '未分類'} · {q.choices.length}択
                 </div>
               </button>
               {invalid && (
@@ -704,22 +770,35 @@ export default function EditorView({
       </div>
 
       <div>
-        <div style={label}>科目</div>
-        <input
-          list="quizmake-subjects"
-          value={question.subject}
-          onChange={(e) => onUpdate(question.id, { subject: e.target.value })}
-          placeholder="科目を選択または入力"
-          data-shortcut-ignore="true"
-          style={{ ...input, marginTop: '6px' }}
-        />
-        <datalist id="quizmake-subjects">
-          {subjects.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
+        <div style={label}>グループ</div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+          <select
+            value={question.groupId}
+            onChange={(e) => onUpdate(question.id, { groupId: e.target.value })}
+            style={{ ...input, flex: '1 1 200px', cursor: 'pointer' }}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              const name = window.prompt('新しいグループ名を入力してください')
+              if (name && name.trim()) {
+                const id = onCreateGroup(name.trim())
+                if (id) onUpdate(question.id, { groupId: id })
+              }
+            }}
+            style={{ ...input, width: 'auto', padding: '0 14px', fontWeight: 700, cursor: 'pointer', color: COLORS.blue, border: `1px solid ${COLORS.blue}`, background: COLORS.blueLight }}
+          >
+            ＋ 新規
+          </button>
+        </div>
         <div style={{ fontSize: '11.5px', color: COLORS.muted, marginTop: '4px' }}>
-          既存から選択、入力で新規追加
+          この問題が入るグループ。「＋ 新規」で作成できます
         </div>
       </div>
 
@@ -954,6 +1033,7 @@ export default function EditorView({
       </div>
       <Preview
         question={question}
+        groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
         mode={previewMode}
         position={question.questionNumber}
         total={questions.length}

@@ -250,6 +250,7 @@ function Choice({ letter, text, state, onSelect }) {
  */
 export default function QuestionCard({
   question,
+  groupName,
   selected,
   answered,
   examMode,
@@ -289,7 +290,7 @@ export default function QuestionCard({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <QuestionNumberBadge number={question.questionNumber} onJump={onJump} />
-          {question.subject && (
+          {groupName && (
             <span
               style={{
                 padding: '5px 12px',
@@ -300,7 +301,7 @@ export default function QuestionCard({
                 fontWeight: 700,
               }}
             >
-              {question.subject}
+              {groupName}
             </span>
           )}
         </div>

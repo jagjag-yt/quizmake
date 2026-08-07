@@ -6,8 +6,15 @@ export const STORAGE_KEY = 'quizmake.data.v2'
 export const LEGACY_BOOKMARKS_KEY = 'quizmake.bookmarks.v1'
 export const LEGACY_STATS_KEY = 'quizmake.stats.v1'
 
-/** 出題プール（作成分＋読込分）の保存キー。 */
-export const POOL_KEY = 'quizmake.pool.v1'
+/** 出題プール（グループ＋問題）の保存キー。v1 は移行元。 */
+export const POOL_KEY = 'quizmake.pool.v2'
+export const LEGACY_POOL_KEY = 'quizmake.pool.v1'
+
+/** グループ名の最大文字数。 */
+export const GROUP_NAME_MAX = 60
+
+/** グループが未指定の問題をまとめる既定グループの名前。 */
+export const DEFAULT_GROUP_NAME = '未分類'
 
 /** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
 export const LIST_STATE_KEY = 'quizmake.listState.v1'
@@ -87,10 +94,12 @@ export const SORT_LABELS = {
   [SORTS.LAST_STUDIED]: '最終学習日順',
 }
 
-/** Excel 書き出しの列（この順序・この見出し文字列で出力する）。 */
+/**
+ * Excel 書き出しの列（この順序・この見出し文字列で出力する）。
+ * グループは「1ファイル＝1グループ」で表すため、列には持たない。
+ */
 export const EXPORT_COLUMNS = [
   '問題番号',
-  '科目',
   'タグ',
   '問題文',
   '下線キーワード',

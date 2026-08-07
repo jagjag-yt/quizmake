@@ -91,6 +91,7 @@ function NoteField({ noteKey, note, onSave }) {
  */
 export default function QuestionDetail({
   question,
+  groupName,
   record,
   noteKey,
   onToggleBookmark,
@@ -111,7 +112,7 @@ export default function QuestionDetail({
         <span style={{ fontSize: '15px', fontWeight: 700, color: COLORS.text }}>
           問題 {question.questionNumber}
         </span>
-        {question.subject && <span style={pill(COLORS.chipTrack, COLORS.body)}>{question.subject}</span>}
+        {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
         <span style={pill(COLORS.blueLight, COLORS.blue)}>
           {ORIGIN_LABELS[question.origin] ?? '読込'}
         </span>

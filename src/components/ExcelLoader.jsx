@@ -29,7 +29,9 @@ export default function ExcelLoader({ onLoad }) {
       const buffer = await file.arrayBuffer()
       const questions = await parseWorkbook(buffer)
       if (!questions.length) throw new Error('有効な問題が1件も見つかりませんでした。')
-      onLoad(questions)
+      // 1ファイル＝1グループ。拡張子を除いたファイル名をグループ名にする
+      const groupName = file.name.replace(/\.[^.]+$/, '')
+      onLoad(questions, groupName)
       setMessage({ type: 'ok', text: `${questions.length}問を読み込みました。` })
     } catch (err) {
       setMessage({

@@ -15,13 +15,12 @@ import { isPlainObject, safeJsonParse } from '../utils/safe'
 import QuestionDetail, { BoxMeter, StatusBadge } from './QuestionDetail'
 
 const ROW_H = 56
-const GRID = '40px 68px 92px 1fr 118px 78px 62px 36px'
+const GRID = '40px 68px 1fr 118px 78px 62px 36px'
 /** 固定列(494px)＋余白を確保できる最小幅。これ未満は横スクロールにする。 */
-const MIN_TABLE_W = 760
+const MIN_TABLE_W = 680
 
 const DEFAULT_STATE = {
   search: '',
-  subject: '',
   tag: '',
   sort: SORTS.NUMBER,
   statuses: [STATUS_FILTERS.ALL],
@@ -117,6 +116,9 @@ function StatusChips({ statuses, onChange }) {
 }
 
 export default function QuestionsView({
+  group,
+  onBackToGroups,
+  onSplit,
   questions,
   getRecord,
   onToggleBookmark,
@@ -153,10 +155,6 @@ export default function QuestionsView({
     }
   }, [state])
 
-  const subjects = useMemo(
-    () => [...new Set(questions.map((q) => q.subject).filter(Boolean))].sort(),
-    [questions],
-  )
   const tags = useMemo(
     () => [...new Set(questions.flatMap((q) => q.tags))].sort(),
     [questions],
@@ -165,16 +163,10 @@ export default function QuestionsView({
   const rows = useMemo(() => {
     const keyword = state.search.trim().toLowerCase()
     const list = questions.filter((q) => {
-      if (state.subject && q.subject !== state.subject) return false
       if (state.tag && !q.tags.includes(state.tag)) return false
 
       if (keyword) {
-        const haystack = [
-          segmentsToText(q.segments),
-          q.explanation,
-          q.tags.join(' '),
-          q.subject,
-        ]
+        const haystack = [segmentsToText(q.segments), q.explanation, q.tags.join(' ')]
           .join(' ')
           .toLowerCase()
         if (!haystack.includes(keyword)) return false
@@ -386,6 +378,7 @@ export default function QuestionsView({
   const detailNode = selected ? (
     <QuestionDetail
       question={selected.q}
+      groupName={group?.name ?? ''}
       record={selected.rec}
       noteKey={questionKey(selected.q)}
       onToggleBookmark={() => onToggleBookmark(questionKey(selected.q))}
@@ -397,6 +390,40 @@ export default function QuestionsView({
 
   return (
     <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* グループ見出し（1階層目へ戻る） */}
+      <div
+        style={{
+          ...cardStyle(compact ? 14 : 16),
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBackToGroups}
+          style={{
+            minHeight: `${TAP_MIN - 8}px`,
+            padding: '0 14px',
+            borderRadius: '10px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            color: COLORS.body,
+            fontSize: '12.5px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          ← グループ一覧
+        </button>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: COLORS.text }}>
+          {group?.name ?? 'グループ'}
+        </span>
+        <span style={{ fontSize: '12.5px', color: COLORS.sub }}>{questions.length}問</span>
+      </div>
+
       {/* フィルタバー */}
       <div style={cardStyle(compact ? 16 : 20)}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -412,12 +439,6 @@ export default function QuestionsView({
               style={{ ...controlBase, width: '100%', paddingLeft: '32px' }}
             />
           </div>
-          <select value={state.subject} onChange={(e) => patch({ subject: e.target.value })} aria-label="科目で絞り込み" style={{ ...controlBase, cursor: 'pointer' }}>
-            <option value="">科目：すべて</option>
-            {subjects.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
           <select value={state.tag} onChange={(e) => patch({ tag: e.target.value })} aria-label="タグで絞り込み" style={{ ...controlBase, cursor: 'pointer' }}>
             <option value="">タグ：すべて</option>
             {tags.map((t) => (
@@ -488,7 +509,6 @@ export default function QuestionsView({
               >
                 番号 ⇅
               </button>
-              <span>科目</span>
               <span>問題文</span>
               <span>タグ</span>
               <span>学習状況</span>
@@ -538,23 +558,6 @@ export default function QuestionsView({
                   />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text, fontVariantNumeric: 'tabular-nums' }}>
                     {q.questionNumber}
-                  </span>
-                  <span
-                    style={{
-                      justifySelf: 'start',
-                      maxWidth: '100%',
-                      padding: '4px 10px',
-                      borderRadius: '999px',
-                      background: COLORS.chipTrack,
-                      color: COLORS.body,
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {q.subject || '未分類'}
                   </span>
                   <span style={{ fontSize: '13.5px', color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {segmentsToText(q.segments) || '（無題の問題）'}
@@ -698,6 +701,23 @@ export default function QuestionsView({
             style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             タグを付与
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const name = window.prompt(
+                `選択した${checkedIds.length}問を新しいグループへ分割します。
+グループ名を入力してください。`,
+                group?.name ? `${group.name} 分割` : '',
+              )
+              if (name && name.trim()) {
+                onSplit(checkedIds, name.trim())
+                setCheckedIds([])
+              }
+            }}
+            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            ⇱ 別グループへ分割
           </button>
           <button
             type="button"

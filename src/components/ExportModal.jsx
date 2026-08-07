@@ -26,7 +26,7 @@ function Stat({ label, value }) {
  * Excel 書き出し前の確認ダイアログ。
  * 対象範囲の選択と、不備のある問題の警告を出してから書き出す。
  */
-export default function ExportModal({ questions, onClose, onExport }) {
+export default function ExportModal({ questions, groups = [], onClose, onExport }) {
   const [scope, setScope] = useState('all')
   const dialogRef = useRef(null)
 
@@ -34,7 +34,14 @@ export default function ExportModal({ questions, onClose, onExport }) {
     () => questions.filter((q) => q.origin === ORIGIN.AUTHORED),
     [questions],
   )
-  const target = scope === 'authored' ? authored : questions
+  const target =
+    scope === 'authored'
+      ? authored
+      : scope.startsWith('group:')
+        ? questions.filter((q) => q.groupId === scope.slice(6))
+        : questions
+  const scopeGroupName =
+    scope.startsWith('group:') ? groups.find((g) => g.id === scope.slice(6))?.name : ''
 
   const invalid = useMemo(
     () =>
@@ -136,6 +143,36 @@ export default function ExportModal({ questions, onClose, onExport }) {
           ))}
         </div>
 
+        {groups.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub }}>
+              グループで絞る
+            </span>
+            <select
+              value={scope.startsWith('group:') ? scope : ''}
+              onChange={(e) => setScope(e.target.value || 'all')}
+              style={{
+                minHeight: '36px',
+                padding: '0 10px',
+                borderRadius: '10px',
+                border: `1px solid ${COLORS.border}`,
+                background: COLORS.card,
+                color: COLORS.text,
+                fontSize: '13px',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">絞らない</option>
+              {groups.map((g) => (
+                <option key={g.id} value={`group:${g.id}`}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {invalid.length > 0 && (
           <div
             style={{
@@ -199,7 +236,7 @@ export default function ExportModal({ questions, onClose, onExport }) {
           </button>
           <button
             type="button"
-            onClick={() => onExport(target)}
+            onClick={() => onExport(target, scopeGroupName)}
             disabled={!target.length}
             style={{
               minHeight: `${TAP_MIN}px`,

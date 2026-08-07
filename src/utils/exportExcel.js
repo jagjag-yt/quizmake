@@ -64,7 +64,6 @@ export function questionToRow(q) {
   const choices = q.choices ?? []
   const row = {
     問題番号: q.questionNumber ?? '',
-    科目: q.subject ?? '',
     タグ: (q.tags ?? []).join(','),
     問題文: segmentsToText(q.segments),
     // 複数箇所ある場合は改行区切り（読み込み側は改行でも「、」でも分割できる）
@@ -81,21 +80,25 @@ export function questionToRow(q) {
   return row
 }
 
-/** ファイル名。例: quizmake_120問.xlsx */
-export const exportFileName = (count) => `quizmake_${count}問.xlsx`
+/** ファイル名。例: quizmake_120問.xlsx / quizmake_循環器_20問.xlsx */
+export function exportFileName(count, groupName) {
+  // ファイル名に使えない文字は落とす
+  const safe = String(groupName ?? '').replace(/[/:*?"<>|\\]/g, '').trim()
+  return safe ? `quizmake_${safe}_${count}問.xlsx` : `quizmake_${count}問.xlsx`
+}
 
 /**
  * 書き出しを実行し、ブラウザにダウンロードさせる。
  * @param {import('../data/questions').Question[]} questions
  * @returns {Promise<{ fileName: string, count: number }>}
  */
-export async function exportQuestionsToXlsx(questions) {
+export async function exportQuestionsToXlsx(questions, { groupName } = {}) {
   const XLSX = await import('xlsx')
 
   const rows = questions.map(questionToRow)
   const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXPORT_COLUMNS })
   worksheet['!cols'] = [
-    { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 46 }, { wch: 20 }, { wch: 18 },
+    { wch: 10 }, { wch: 20 }, { wch: 46 }, { wch: 20 }, { wch: 18 },
     { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
     { wch: 8 }, { wch: 50 }, { wch: 44 },
   ]
@@ -108,7 +111,7 @@ export async function exportQuestionsToXlsx(questions) {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
   const url = URL.createObjectURL(blob)
-  const fileName = exportFileName(questions.length)
+  const fileName = exportFileName(questions.length, groupName)
 
   const a = document.createElement('a')
   a.href = url

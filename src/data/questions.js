@@ -16,7 +16,7 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
  * @property {number}   correctIndex     先頭の正解インデックス（単一選択時の互換用）
  * @property {string}   explanation      解説文
  * @property {string[]} keyPoints        「基本事項」の箇条書き
- * @property {string}   subject          科目（絞り込み・成績集計に使用）
+ * @property {string}   groupId          所属グループのID（旧「科目」の置き換え）
  * @property {string[]} tags             タグ（絞り込みに使用）
  * @property {string|null} imageUrl      問題画像（検証済みURLのみ保持）
  * @property {'authored'|'imported'} origin  アプリ内で作成したか、外部から読み込んだか
@@ -26,7 +26,7 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
 const RAW_QUESTIONS = [
   {
     questionNumber: 1,
-    subject: '循環器',
+    group: '循環器',
     tags: ['心電図', '虚血性心疾患'],
     segments: [
       { text: '急性心筋梗塞の発症直後（', u: false },
@@ -47,7 +47,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 2,
-    subject: '消化器',
+    group: '消化器',
     tags: ['肝臓', '生理学'],
     segments: [
       { text: '肝臓の機能', u: true },
@@ -71,7 +71,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 3,
-    subject: '代謝・内分泌',
+    group: '代謝・内分泌',
     tags: ['糖尿病', '検査値'],
     segments: [
       { text: '空腹時血糖値', u: true },
@@ -95,7 +95,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 4,
-    subject: '薬理',
+    group: '薬理',
     tags: ['抗菌薬', '副作用'],
     segments: [
       { text: 'アミノグリコシド系抗菌薬', u: true },
@@ -184,15 +184,15 @@ export function normalizeQuestion(raw, index = 0) {
     keyPoints: Array.isArray(raw.keyPoints)
       ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 20)
       : [],
-    subject: toText(raw.subject, 60),
+    groupId: toText(raw.groupId, 40),
     tags,
     imageUrl: sanitizeImageUrl(raw.imageUrl),
     origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
   }
 }
 
-/** 同梱の問題（正規化済み）。 */
-export const QUESTIONS = RAW_QUESTIONS.map(normalizeQuestion)
+/** 同梱の問題（初期プールの種。group はグループ名の文字列）。 */
+export const SEED_QUESTIONS = RAW_QUESTIONS
 
 /**
  * 問題を一意に識別する安定キー（問題文の全文）。

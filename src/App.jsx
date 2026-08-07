@@ -8,7 +8,7 @@ import { useCompactLayout } from './hooks/useMediaQuery'
 import { exportQuestionsToXlsx } from './utils/exportExcel'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
-import { boxDistribution, dailySeries, overview, streakDays, subjectStats } from './utils/stats'
+import { boxDistribution, dailySeries, groupStats, overview, streakDays } from './utils/stats'
 import ProgressHeader from './components/ProgressHeader'
 import StudyToolbar from './components/StudyToolbar'
 import QuestionCard from './components/QuestionCard'
@@ -21,21 +21,22 @@ import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
 import Dashboard from './components/Dashboard'
 import QuestionsView from './components/QuestionsView'
+import GroupsView from './components/GroupsView'
 import EditorView from './components/EditorView'
 import ExportModal from './components/ExportModal'
 import ToastHost from './components/Toast'
 import { useToast } from './hooks/useToast'
 
-/** 科目・タグの絞り込み条件に合致するか。 */
-function matchesFilters(q, subject, tag) {
-  if (subject && q.subject !== subject) return false
+/** グループ・タグの絞り込み条件に合致するか。 */
+function matchesFilters(q, groupId, tag) {
+  if (groupId && q.groupId !== groupId) return false
   if (tag && !q.tags.includes(tag)) return false
   return true
 }
 
 /** 出題モード・絞り込み・出題数から、実際に出す問題を選ぶ。 */
-function selectQuestions(source, records, { mode, subject, tag, limit }) {
-  let list = source.filter((q) => matchesFilters(q, subject, tag))
+function selectQuestions(source, records, { mode, groupId, tag, limit }) {
+  let list = source.filter((q) => matchesFilters(q, groupId, tag))
 
   if (mode === MODES.BOOKMARKED) {
     list = list.filter((q) => records[questionKey(q)]?.bookmarked)
@@ -74,7 +75,7 @@ function createSession(source, records, opts) {
 
 const DEFAULT_OPTS = {
   mode: MODES.ALL,
-  subject: '',
+  groupId: '',
   tag: '',
   limit: 0,
   examMode: false,
@@ -94,6 +95,9 @@ export default function App() {
   const [view, setView] = useState(VIEWS.QUIZ)
   const [helpOpen, setHelpOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  // 設問一覧で開いているグループ（null ならグループ一覧を表示）
+  const [openGroupId, setOpenGroupId] = useState(null)
+  const [editorGroupId, setEditorGroupId] = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
 
   // 出題条件
@@ -101,7 +105,7 @@ export default function App() {
 
   // セッションと進行状態
   const [session, setSession] = useState(() =>
-    createSession(pool.questionsRef.current, study.dataRef.current.records, DEFAULT_OPTS),
+    createSession(pool.poolRef.current.questions, study.dataRef.current.records, DEFAULT_OPTS),
   )
   const [answers, setAnswers] = useState({}) // { [問題インデックス]: 回答記録 }
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -261,14 +265,15 @@ export default function App() {
    * 読み込んだ問題で演習を始められるようにする。
    */
   const loadQuestions = useCallback(
-    (loaded) => {
-      pool.importQuestions(loaded)
+    (loaded, groupName) => {
+      const groupId = pool.importQuestions(loaded, { groupName })
       setOpts(DEFAULT_OPTS)
-      startSession(DEFAULT_OPTS, { source: [...pool.questionsRef.current, ...loaded] })
+      startSession(DEFAULT_OPTS, { source: [...pool.poolRef.current.questions, ...loaded] })
+      setOpenGroupId(groupId)
       toast.show({
         tone: 'success',
         title: `${loaded.length}問を読み込みました`,
-        description: '設問一覧とクイズ作成から編集できます',
+        description: `グループ「${groupName}」として追加しました`,
       })
     },
     [pool, startSession, toast],
@@ -290,10 +295,10 @@ export default function App() {
 
   /** Excel 書き出し。 */
   const runExport = useCallback(
-    async (list) => {
+    async (list, groupName) => {
       setExportOpen(false)
       try {
-        const { fileName, count } = await exportQuestionsToXlsx(list)
+        const { fileName, count } = await exportQuestionsToXlsx(list, { groupName })
         toast.show({
           tone: 'success',
           title: `${fileName} を書き出しました`,
@@ -323,17 +328,35 @@ export default function App() {
   }, [study])
 
   // --- 一覧・集計 ---
-  const subjects = useMemo(
-    () => [...new Set(questions.map((q) => q.subject).filter(Boolean))].sort(),
-    [questions],
+  const groupNameOf = useCallback(
+    (q) => pool.groups.find((g) => g.id === q?.groupId)?.name ?? '',
+    [pool.groups],
   )
+
+  /** 設問一覧で開いているグループと、その中の問題。 */
+  const openGroup = useMemo(
+    () => pool.groups.find((g) => g.id === openGroupId) ?? null,
+    [pool.groups, openGroupId],
+  )
+  const groupQuestions = useMemo(
+    () => (openGroupId ? questions.filter((q) => q.groupId === openGroupId) : questions),
+    [questions, openGroupId],
+  )
+
+  /** クイズ作成で「追加先」に選ばれているグループ。 */
+  const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
+
+  /** ヘッダーの Excel 読み込みボタンを押す。 */
+  const openFilePicker = useCallback(() => {
+    document.querySelector('input[accept=".xlsx,.xls"]')?.click()
+  }, [])
   const tags = useMemo(
     () => [...new Set(questions.flatMap((q) => q.tags))].sort(),
     [questions],
   )
 
   const counts = useMemo(() => {
-    const base = questions.filter((q) => matchesFilters(q, opts.subject, opts.tag))
+    const base = questions.filter((q) => matchesFilters(q, opts.groupId, opts.tag))
     const rec = (q) => records[questionKey(q)]
     return {
       [MODES.ALL]: base.length,
@@ -341,17 +364,17 @@ export default function App() {
       [MODES.WRONG]: base.filter((q) => rec(q)?.lastResult === 'incorrect').length,
       [MODES.DUE]: base.filter((q) => isDue(rec(q))).length,
     }
-  }, [questions, opts.subject, opts.tag, records])
+  }, [questions, opts.groupId, opts.tag, records])
 
   const dashboard = useMemo(
     () => ({
       overview: overview(questions, records, questionKey, study.data.totals),
       series: dailySeries(study.data.daily, 30),
-      subjects: subjectStats(questions, records, questionKey),
+      groups: groupStats(questions, records, questionKey, pool.groups),
       boxes: boxDistribution(questions, records, questionKey),
       streak: streakDays(study.data.daily),
     }),
-    [questions, records, study.data.totals, study.data.daily],
+    [questions, records, study.data.totals, study.data.daily, pool.groups],
   )
 
   // --- キーボードショートカット（演習画面のみ） ---
@@ -448,9 +471,9 @@ export default function App() {
           mode={opts.mode}
           onChangeMode={(mode) => updateOpts({ mode })}
           counts={counts}
-          subjects={subjects}
-          subject={opts.subject}
-          onChangeSubject={(subject) => updateOpts({ subject })}
+          groups={pool.groups}
+          groupId={opts.groupId}
+          onChangeGroup={(groupId) => updateOpts({ groupId })}
           tags={tags}
           tag={opts.tag}
           onChangeTag={(tag) => updateOpts({ tag })}
@@ -477,16 +500,52 @@ export default function App() {
           alignItems: 'stretch',
         }}
       >
-        {view === VIEWS.QUESTIONS ? (
-          <QuestionsView
+        {view === VIEWS.QUESTIONS && !openGroup ? (
+          <GroupsView
+            groups={pool.groups}
             questions={questions}
+            getRecord={study.getRecord}
+            onOpenGroup={setOpenGroupId}
+            onCreateGroup={(name) => {
+              const id = pool.addGroup(name)
+              toast.show({ tone: 'success', title: `グループ「${name}」を作成しました` })
+              return id
+            }}
+            onRenameGroup={pool.renameGroup}
+            onRemoveGroup={(id) => {
+              pool.removeGroup(id)
+              toast.show({ tone: 'info', title: 'グループを削除しました' })
+            }}
+            onMergeGroups={(ids, name) => {
+              pool.mergeGroups(ids, name)
+              toast.show({
+                tone: 'success',
+                title: `${ids.length}個のグループを「${name}」に統合しました`,
+              })
+            }}
+            onStartQuiz={startQuizWith}
+            onImportClick={openFilePicker}
+          />
+        ) : view === VIEWS.QUESTIONS ? (
+          <QuestionsView
+            group={openGroup}
+            onBackToGroups={() => setOpenGroupId(null)}
+            onSplit={(ids, name) => {
+              pool.splitGroup(ids, name)
+              toast.show({
+                tone: 'success',
+                title: `${ids.length}問を「${name}」に分割しました`,
+              })
+            }}
+            questions={groupQuestions}
             getRecord={study.getRecord}
             onToggleBookmark={study.toggleBookmark}
             onSaveNote={study.setNote}
             onStartQuiz={startQuizWith}
-            onImportClick={() => document.querySelector('input[accept=".xlsx,.xls"]')?.click()}
+            onImportClick={openFilePicker}
             onCreateClick={() => {
-              setEditingId(pool.addQuestion())
+              setEditorGroupId(openGroupId)
+              setEditingId(pool.addQuestion(openGroupId))
               setView(VIEWS.EDITOR)
             }}
             onBulkBookmark={(ids) => {
@@ -521,14 +580,22 @@ export default function App() {
             onRemove={pool.removeQuestion}
             onDuplicate={pool.duplicateQuestion}
             onReorderAuthored={pool.reorderAuthored}
-            onImportClick={() => document.querySelector('input[accept=".xlsx,.xls"]')?.click()}
-            subjects={subjects}
+            onImportClick={openFilePicker}
+            groups={pool.groups}
+            activeGroupId={activeEditorGroupId}
+            onChangeActiveGroup={setEditorGroupId}
+            onCreateGroup={(name) => {
+              const id = pool.addGroup(name)
+              setEditorGroupId(id)
+              toast.show({ tone: 'success', title: `グループ「${name}」を作成しました` })
+              return id
+            }}
           />
         ) : view === VIEWS.DASHBOARD ? (
           <Dashboard
             overview={dashboard.overview}
             series={dashboard.series}
-            subjects={dashboard.subjects}
+            groups={dashboard.groups}
             boxes={dashboard.boxes}
             streak={dashboard.streak}
             dueCount={counts[MODES.DUE]}
@@ -551,6 +618,7 @@ export default function App() {
           <>
             <QuestionCard
               question={displayQuestion}
+              groupName={groupNameOf(baseQuestion)}
               selected={selected}
               answered={answered}
               examMode={session.examMode}
@@ -584,7 +652,7 @@ export default function App() {
                     : '絞り込み条件に合う問題がありません。条件を変えてください。'
             }
             actionLabel="全問題に戻る"
-            onAction={() => updateOpts({ mode: MODES.ALL, subject: '', tag: '' })}
+            onAction={() => updateOpts({ mode: MODES.ALL, groupId: '', tag: '' })}
           />
         )}
       </main>
@@ -605,6 +673,7 @@ export default function App() {
       {exportOpen && (
         <ExportModal
           questions={questions}
+          groups={pool.groups}
           onClose={() => setExportOpen(false)}
           onExport={runExport}
         />
