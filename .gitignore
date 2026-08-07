@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# デザインのバンドルHTML（7.5MB・参照用。履歴を肥大化させるため追跡しない）
+quizmake-new-screens.html

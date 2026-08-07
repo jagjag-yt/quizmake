@@ -1,16 +1,17 @@
 import { LETTERS, LIMITS } from '../constants'
-import { normalizeQuestion } from '../data/questions'
+import { buildSegmentsFromMarks, normalizeQuestion } from '../data/questions'
 import { isPlainObject, sanitizeMap, toText } from './safe'
 
 /**
  * Excel（.xlsx / .xls）ファイルを問題データ配列（Question[]）へ変換する。
  *
  * 想定するシート構成（1行目がヘッダー、2行目以降が1問1行）:
- *   | 問題番号 | 科目 | タグ | 問題文 | 下線キーワード | 画像URL |
+ *   | 問題番号 | タグ | 問題文 | 下線キーワード | 画像URL |
  *   | 選択肢a〜e | 正解 | 解説 | 基本事項 |
  *
  * - 問題番号   : 省略可（省略時は上から自動採番）
- * - 科目・タグ : 省略可。絞り込みと成績集計に使う（タグは「、」区切りで複数可）
+ * - タグ       : 省略可。絞り込みに使う（「、」区切りで複数可）
+ * - グループ   : 列では持たない。1ファイル＝1グループとして取り込む
  * - 下線キーワード : 問題文中で下線強調したい語句を「、」「,」または改行で区切って列挙
  * - 画像URL    : 省略可。http(s) と画像のdata URLのみ受け付ける（安全でない値は無視）
  * - 選択肢a〜e : 空欄はスキップ（2〜5択に対応）
@@ -63,7 +64,6 @@ const FIELD_ALIASES = {
   correct: ['正解', '答え', '解答', 'answer', 'correct'],
   explanation: ['解説', 'explanation', '説明'],
   keyPoints: ['基本事項', 'ポイント', 'keypoints', 'points'],
-  subject: ['科目', '分野', 'カテゴリ', 'subject', 'category'],
   tags: ['タグ', 'tags', 'tag'],
   imageUrl: ['画像url', '画像', '図', 'image', 'imageurl', 'image_url'],
 }
@@ -110,25 +110,52 @@ function splitLines(value) {
     .filter(Boolean)
 }
 
-/** 正規表現用のエスケープ。 */
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** 文字列 needle が現れる位置をすべて返す。 */
+function occurrences(text, needle) {
+  const found = []
+  if (!needle) return found
+  let from = 0
+  for (;;) {
+    const i = text.indexOf(needle, from)
+    if (i === -1) break
+    found.push(i)
+    from = i + needle.length
+  }
+  return found
 }
 
 /**
  * 問題文を下線キーワードの区切りで segments 配列へ分割する。
- * キーワードに一致する部分は u:true（下線強調）。
+ *
+ * キーワードの書き方は2通り:
+ * - `ST上昇`    … 一致する箇所すべてに下線（手入力しやすい既定の書き方）
+ * - `ST上昇@2`  … 2番目に現れる箇所だけに下線（位置指定）
+ *
+ * 位置指定は、アプリが書き出すときに「同じ語句が複数あり、その一部だけに
+ * 下線が引かれている」場合にだけ自動で付く。読み込み → 書き出し → 読み込みで
+ * 下線の位置が変わらないようにするための記法。
  */
 export function buildSegments(text, keywords) {
   const kws = keywords.filter(Boolean)
   if (!kws.length) return [{ text, u: false }]
-  // 長いキーワードを優先（部分一致の取りこぼしを防ぐ）
-  const escaped = [...kws].sort((a, b) => b.length - a.length).map(escapeRegExp)
-  const re = new RegExp(`(${escaped.join('|')})`, 'g')
-  return text
-    .split(re)
-    .filter((part) => part !== '')
-    .map((part) => ({ text: part, u: kws.includes(part) }))
+
+  const marks = []
+  for (const raw of kws) {
+    const m = /^(.*?)@(\d+)$/.exec(raw)
+    const word = m ? m[1] : raw
+    const nth = m ? Number(m[2]) : null
+    if (!word) continue
+
+    const positions = occurrences(text, word)
+    if (nth) {
+      const pos = positions[nth - 1]
+      if (pos != null) marks.push({ start: pos, end: pos + word.length })
+    } else {
+      for (const pos of positions) marks.push({ start: pos, end: pos + word.length })
+    }
+  }
+
+  return buildSegmentsFromMarks(text, marks)
 }
 
 /** 正解表記1つ（a〜e / 1〜5 / 選択肢テキスト）を choices 内インデックスへ解決する。 */
@@ -194,7 +221,6 @@ function rowToQuestion(rawRow, i) {
       correctIndexes,
       explanation: pick(row, FIELD_ALIASES.explanation),
       keyPoints: splitLines(pick(row, FIELD_ALIASES.keyPoints)),
-      subject: pick(row, FIELD_ALIASES.subject),
       tags: splitTokens(pick(row, FIELD_ALIASES.tags)),
       imageUrl: pick(row, FIELD_ALIASES.imageUrl),
     },

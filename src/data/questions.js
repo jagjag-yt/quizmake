@@ -1,4 +1,4 @@
-import { LIMITS } from '../constants'
+import { LIMITS, ORIGIN } from '../constants'
 import { sanitizeImageUrl, toText } from '../utils/safe'
 
 /**
@@ -16,16 +16,17 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
  * @property {number}   correctIndex     先頭の正解インデックス（単一選択時の互換用）
  * @property {string}   explanation      解説文
  * @property {string[]} keyPoints        「基本事項」の箇条書き
- * @property {string}   subject          科目（絞り込み・成績集計に使用）
+ * @property {string}   groupId          所属グループのID（旧「科目」の置き換え）
  * @property {string[]} tags             タグ（絞り込みに使用）
  * @property {string|null} imageUrl      問題画像（検証済みURLのみ保持）
+ * @property {'authored'|'imported'} origin  アプリ内で作成したか、外部から読み込んだか
  */
 
 /** @type {Question[]} */
 const RAW_QUESTIONS = [
   {
     questionNumber: 1,
-    subject: '循環器',
+    group: '循環器',
     tags: ['心電図', '虚血性心疾患'],
     segments: [
       { text: '急性心筋梗塞の発症直後（', u: false },
@@ -46,7 +47,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 2,
-    subject: '消化器',
+    group: '消化器',
     tags: ['肝臓', '生理学'],
     segments: [
       { text: '肝臓の機能', u: true },
@@ -70,7 +71,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 3,
-    subject: '代謝・内分泌',
+    group: '代謝・内分泌',
     tags: ['糖尿病', '検査値'],
     segments: [
       { text: '空腹時血糖値', u: true },
@@ -94,7 +95,7 @@ const RAW_QUESTIONS = [
   },
   {
     questionNumber: 4,
-    subject: '薬理',
+    group: '薬理',
     tags: ['抗菌薬', '副作用'],
     segments: [
       { text: 'アミノグリコシド系抗菌薬', u: true },
@@ -117,6 +118,14 @@ const RAW_QUESTIONS = [
     ],
   },
 ]
+
+/** プール内で問題を識別するIDを発行する。 */
+export function newQuestionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
 
 /**
  * 問題オブジェクトを表示・採点に使える形へ整える。
@@ -154,10 +163,19 @@ export function normalizeQuestion(raw, index = 0) {
     ? [...new Set(raw.tags.map((t) => toText(t, 40)).filter(Boolean))].slice(0, 10)
     : []
 
+  // 問題番号は通常は数値だが、取り込み時の衝突回避で「12-2」形式の文字列にもなる
+  const rawNumber = raw.questionNumber
+  const questionNumber =
+    typeof rawNumber === 'string' && /^\d+-\d+$/.test(rawNumber.trim())
+      ? rawNumber.trim()
+      : Number.isFinite(Number(rawNumber))
+        ? Number(rawNumber)
+        : index + 1
+
   return {
-    questionNumber: Number.isFinite(Number(raw.questionNumber))
-      ? Number(raw.questionNumber)
-      : index + 1,
+    // プール内で問題を一意に識別する。問題文はキーにできない（編集中に変わるため）
+    id: toText(raw.id, 40) || newQuestionId(),
+    questionNumber,
     segments,
     choices,
     correctIndexes,
@@ -166,14 +184,15 @@ export function normalizeQuestion(raw, index = 0) {
     keyPoints: Array.isArray(raw.keyPoints)
       ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 20)
       : [],
-    subject: toText(raw.subject, 60),
+    groupId: toText(raw.groupId, 40),
     tags,
     imageUrl: sanitizeImageUrl(raw.imageUrl),
+    origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
   }
 }
 
-/** 同梱の問題（正規化済み）。 */
-export const QUESTIONS = RAW_QUESTIONS.map(normalizeQuestion)
+/** 同梱の問題（初期プールの種。group はグループ名の文字列）。 */
+export const SEED_QUESTIONS = RAW_QUESTIONS
 
 /**
  * 問題を一意に識別する安定キー（問題文の全文）。
@@ -188,3 +207,76 @@ export const questionKey = (q) => (q?.segments ?? []).map((s) => s.text).join(''
 
 /** 正解が複数ある（「2つ選べ」形式）か。 */
 export const isMultiAnswer = (q) => (q?.correctIndexes?.length ?? 0) > 1
+
+// ---------------------------------------------------------------------------
+// 下線（キーワード強調）の相互変換
+//
+// エディタ側は「素のテキスト＋下線範囲」で保持し、保存・出題時は segments に
+// 変換する。範囲（位置）で持つことで、同じ語句が複数回出てくる問題文でも
+// 意図した箇所だけに下線を引ける（キーワード文字列の一致では誤爆する）。
+// ---------------------------------------------------------------------------
+
+/** segments を素のテキストへ。 */
+export const segmentsToText = (segments) =>
+  (segments ?? []).map((s) => s.text).join('')
+
+/** segments から下線範囲（[{start,end}]）を取り出す。 */
+export function segmentsToMarks(segments) {
+  const marks = []
+  let pos = 0
+  for (const seg of segments ?? []) {
+    const len = seg.text.length
+    if (seg.u && len > 0) marks.push({ start: pos, end: pos + len })
+    pos += len
+  }
+  return marks
+}
+
+/** 重なり・隣接した範囲をまとめ、開始位置で整列する。 */
+export function normalizeMarks(marks, textLength) {
+  const cleaned = (marks ?? [])
+    .map((m) => ({
+      start: Math.max(0, Math.min(textLength, Math.floor(m.start))),
+      end: Math.max(0, Math.min(textLength, Math.floor(m.end))),
+    }))
+    .filter((m) => m.end > m.start)
+    .sort((a, b) => a.start - b.start)
+
+  const merged = []
+  for (const m of cleaned) {
+    const last = merged[merged.length - 1]
+    if (last && m.start <= last.end) last.end = Math.max(last.end, m.end)
+    else merged.push({ ...m })
+  }
+  return merged
+}
+
+/** 素のテキストと下線範囲から segments を組み立てる（隣接する同種は結合）。 */
+export function buildSegmentsFromMarks(text, marks) {
+  const src = String(text ?? '')
+  if (!src) return [{ text: '', u: false }]
+
+  const ranges = normalizeMarks(marks, src.length)
+  const segments = []
+  let pos = 0
+  for (const m of ranges) {
+    if (m.start > pos) segments.push({ text: src.slice(pos, m.start), u: false })
+    segments.push({ text: src.slice(m.start, m.end), u: true })
+    pos = m.end
+  }
+  if (pos < src.length) segments.push({ text: src.slice(pos), u: false })
+
+  // 空要素を捨て、隣接する同種を結合する
+  const out = []
+  for (const seg of segments) {
+    if (!seg.text) continue
+    const last = out[out.length - 1]
+    if (last && last.u === seg.u) last.text += seg.text
+    else out.push({ ...seg })
+  }
+  return out.length ? out : [{ text: src, u: false }]
+}
+
+/** 下線が引かれた語句の一覧（Excel の「下線キーワード」列に対応）。 */
+export const underlineKeywords = (segments) =>
+  (segments ?? []).filter((s) => s.u && s.text).map((s) => s.text)

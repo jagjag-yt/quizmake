@@ -47,16 +47,19 @@ export function streakDays(daily) {
 }
 
 /**
- * 科目別の成績。出題データと記録を突き合わせる。
+ * グループ別の成績。出題データと記録を突き合わせる。
  * @param {import('../data/questions').Question[]} questions
  * @param {Record<string, object>} records
  * @param {(q: any) => string} keyOf
+ * @param {Array<{id: string, name: string}>} groups
  */
-export function subjectStats(questions, records, keyOf) {
+export function groupStats(questions, records, keyOf, groups = []) {
+  const names = new Map(groups.map((g) => [g.id, g.name]))
   const map = new Map()
   for (const q of questions) {
-    const subject = q.subject || '未分類'
-    const cur = map.get(subject) ?? { subject, total: 0, studied: 0, answered: 0, correct: 0 }
+    const id = q.groupId
+    const name = names.get(id) ?? '未分類'
+    const cur = map.get(id) ?? { id, name, total: 0, studied: 0, answered: 0, correct: 0 }
     cur.total += 1
     const r = records[keyOf(q)]
     if (r?.attempts) {
@@ -64,7 +67,7 @@ export function subjectStats(questions, records, keyOf) {
       cur.answered += r.attempts
       cur.correct += r.correct
     }
-    map.set(subject, cur)
+    map.set(id, cur)
   }
   return [...map.values()]
     .map((s) => ({ ...s, accuracy: accuracyOf(s.correct, s.answered) }))

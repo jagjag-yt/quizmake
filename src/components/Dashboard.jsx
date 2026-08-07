@@ -167,7 +167,7 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
  * @param {{
  *   overview: ReturnType<typeof import('../utils/stats').overview>,
  *   series: ReturnType<typeof import('../utils/stats').dailySeries>,
- *   subjects: ReturnType<typeof import('../utils/stats').subjectStats>,
+ *   groups: ReturnType<typeof import('../utils/stats').groupStats>,
  *   boxes: { counts: number[], unstudied: number },
  *   streak: number,
  *   dueCount: number,
@@ -177,7 +177,7 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
 export default function Dashboard({
   overview,
   series,
-  subjects,
+  groups,
   boxes,
   streak,
   dueCount,
@@ -262,17 +262,17 @@ export default function Dashboard({
       </section>
 
       <section style={card}>
-        <h3 style={cardTitle}>科目別の正答率</h3>
-        {subjects.length === 0 ? (
+        <h3 style={cardTitle}>グループ別の正答率</h3>
+        {groups.length === 0 ? (
           <p style={{ margin: 0, fontSize: '13px', color: COLORS.muted }}>
             まだ学習記録がありません。
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {subjects.map((s) => (
+            {groups.map((s) => (
               <BarRow
-                key={s.subject}
-                label={s.subject}
+                key={s.id}
+                label={s.name}
                 ratio={s.answered ? s.correct / s.answered : 0}
                 valueText={s.answered ? `${s.accuracy}%` : '未学習'}
                 sub={s.answered ? `(${s.correct}/${s.answered})` : `(0/${s.total}問)`}
