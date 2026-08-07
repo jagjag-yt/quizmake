@@ -134,6 +134,8 @@ export default function QuestionsView({
 
   const [state, setState] = useState(loadListState)
   const [selectedId, setSelectedId] = useState(null)
+  // 詳細は常時表示せず、行を選んだときだけパネルで開く
+  const [panelOpen, setPanelOpen] = useState(false)
   const [checkedIds, setCheckedIds] = useState([])
   const [focusIndex, setFocusIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
@@ -231,8 +233,11 @@ export default function QuestionsView({
 
   const openDetail = useCallback((id, index) => {
     setSelectedId(id)
+    setPanelOpen(true)
     if (typeof index === 'number') setFocusIndex(index)
   }, [])
+
+  const closeDetail = useCallback(() => setPanelOpen(false), [])
 
   const goRelative = useCallback(
     (delta) => {
@@ -243,11 +248,11 @@ export default function QuestionsView({
     [rows, selectedIndex],
   )
 
-  // タブレットのパネルは Esc で閉じ、開いている間はフォーカスを閉じ込める
+  // 詳細パネルは Esc で閉じ、開いている間はフォーカスを閉じ込める
   useEffect(() => {
-    if (!compact || !selectedId) return undefined
+    if (!panelOpen || !selectedId) return undefined
     const onKey = (e) => {
-      if (e.key === 'Escape') setSelectedId(null)
+      if (e.key === 'Escape') setPanelOpen(false)
       if (e.key === 'Tab' && panelRef.current) {
         const focusables = panelRef.current.querySelectorAll(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -266,7 +271,7 @@ export default function QuestionsView({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [compact, selectedId])
+  }, [panelOpen, selectedId])
 
   const onGridKeyDown = (e) => {
     if (!rows.length) return
@@ -274,7 +279,7 @@ export default function QuestionsView({
       e.preventDefault()
       const next = Math.max(0, Math.min(rows.length - 1, focusIndex + (e.key === 'ArrowDown' ? 1 : -1)))
       setFocusIndex(next)
-      if (!compact) setSelectedId(rows[next].q.id)
+      setSelectedId(rows[next].q.id)
       const top = next * ROW_H
       if (scrollRef.current) {
         const el = scrollRef.current
@@ -435,16 +440,8 @@ export default function QuestionsView({
         </div>
       </div>
 
-      <div
-        style={{
-          display: compact ? 'block' : 'grid',
-          // 設計値は 812 / 544。ページ幅が足りないときは比率を保ったまま縮める
-          gridTemplateColumns: compact ? undefined : 'minmax(0, 812px) minmax(0, 544px)',
-          gap: '20px',
-          alignItems: 'start',
-          justifyContent: 'center',
-        }}
-      >
+      {/* 一覧は全幅。詳細は行を選んだときだけパネルで開く */}
+      <div>
         {/* 一覧テーブル */}
         <div style={{ ...cardStyle(0), overflow: 'hidden', minWidth: 0 }}>
           <div
@@ -617,26 +614,20 @@ export default function QuestionsView({
           </div>
         </div>
 
-        {/* 詳細（デスクトップは右に固定表示） */}
-        {!compact && (
-          <div style={{ position: 'sticky', top: '24px', ...cardStyle(0), overflow: 'hidden' }}>
-            {detailNode ?? (
-              <div style={{ padding: '56px 32px', textAlign: 'center', color: COLORS.muted, fontSize: '14px' }}>
-                行を選ぶと、ここに詳細が表示されます
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* 絞り込み結果から演習を始める */}
+      {/* 絞り込み結果から演習を始める（常に画面下部に表示） */}
       <div
         style={{
           ...cardStyle(compact ? 16 : 20),
+          position: 'sticky',
+          bottom: '12px',
+          zIndex: 30,
           display: 'flex',
           alignItems: 'center',
           gap: '12px',
           flexWrap: 'wrap',
+          boxShadow: '0 -4px 16px rgba(15,23,42,0.08)',
         }}
       >
         <span style={{ fontSize: '13.5px', color: COLORS.body }}>
@@ -668,7 +659,8 @@ export default function QuestionsView({
           style={{
             position: 'fixed',
             left: '50%',
-            bottom: '24px',
+            // 下部に常時表示している演習開始バーの上に重ねる
+            bottom: '104px',
             transform: 'translateX(-50%)',
             zIndex: 50,
             display: 'flex',
@@ -728,11 +720,11 @@ export default function QuestionsView({
         </div>
       )}
 
-      {/* タブレット：詳細は右からのパネル */}
-      {compact && selected && (
+      {/* 詳細は右からのパネル（行を選んだときだけ開く） */}
+      {panelOpen && selected && (
         <>
           <div
-            onClick={() => setSelectedId(null)}
+            onClick={closeDetail}
             style={{ position: 'fixed', inset: 0, background: COLORS.scrim, zIndex: 45 }}
           />
           <div
@@ -766,7 +758,7 @@ export default function QuestionsView({
                 borderBottom: `1px solid ${COLORS.border}`,
               }}
             >
-              <button type="button" onClick={() => setSelectedId(null)} aria-label="閉じる" style={{ width: `${TAP_MIN}px`, height: `${TAP_MIN}px`, borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.body, fontFamily: 'inherit', cursor: 'pointer' }}>✕</button>
+              <button type="button" onClick={closeDetail} aria-label="閉じる" style={{ width: `${TAP_MIN}px`, height: `${TAP_MIN}px`, borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.body, fontFamily: 'inherit', cursor: 'pointer' }}>✕</button>
               <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
                 問題 {selected.q.questionNumber}
               </span>
