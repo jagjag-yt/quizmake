@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { COLORS, LETTERS, MODES, MODE_LABELS, SPACING, VIEWS } from './constants'
-import { questionKey } from './data/questions'
+import { COLORS, LETTERS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, VIEWS } from './constants'
+import { isCloze, isGraded, questionKey } from './data/questions'
+import { hiddenCount } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -8,7 +9,7 @@ import { useCompactLayout } from './hooks/useMediaQuery'
 import { exportQuestionsToXlsx } from './utils/exportExcel'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
-import { boxDistribution, dailySeries, groupStats, overview, streakDays } from './utils/stats'
+import { boxDistribution, clozeStats, dailySeries, groupStats, overview, streakDays } from './utils/stats'
 import ProgressHeader from './components/ProgressHeader'
 import StudyToolbar from './components/StudyToolbar'
 import QuestionCard from './components/QuestionCard'
@@ -24,6 +25,8 @@ import QuestionsView from './components/QuestionsView'
 import GroupsView from './components/GroupsView'
 import EditorView from './components/EditorView'
 import ExportModal from './components/ExportModal'
+import ClozeQuizView from './components/ClozeQuizView'
+import TypePickerDialog from './components/TypePickerDialog'
 import ToastHost from './components/Toast'
 import { useToast } from './hooks/useToast'
 
@@ -35,8 +38,13 @@ function matchesFilters(q, groupId, tag) {
 }
 
 /** 出題モード・絞り込み・出題数から、実際に出す問題を選ぶ。 */
-function selectQuestions(source, records, { mode, groupId, tag, limit }) {
+function selectQuestions(source, records, { mode, groupId, tag, limit, qtype }) {
   let list = source.filter((q) => matchesFilters(q, groupId, tag))
+
+  // 種別で絞る。「すべて」のときは採点できる選択式だけを対象にする（SPEC D3）
+  if (qtype === QUESTION_TYPES.CLOZE) list = list.filter(isCloze)
+  else if (qtype === QUESTION_TYPES.CHOICE) list = list.filter(isGraded)
+  else if (mode !== MODES.BOOKMARKED) list = list.filter(isGraded)
 
   if (mode === MODES.BOOKMARKED) {
     list = list.filter((q) => records[questionKey(q)]?.bookmarked)
@@ -64,7 +72,7 @@ function createSession(source, records, opts) {
   const startedAt = Date.now()
   return {
     questions: list,
-    orders: list.map((q) => makeOrder(q.choices.length)),
+    orders: list.map((q) => (q.choices ? makeOrder(q.choices.length) : [])),
     mode: opts.mode,
     examMode: opts.examMode,
     startedAt,
@@ -74,6 +82,7 @@ function createSession(source, records, opts) {
 }
 
 const DEFAULT_OPTS = {
+  qtype: 'all',
   mode: MODES.ALL,
   groupId: '',
   tag: '',
@@ -110,15 +119,19 @@ export default function App() {
   const [answers, setAnswers] = useState({}) // { [問題インデックス]: 回答記録 }
   const [currentIndex, setCurrentIndex] = useState(0)
   const [draft, setDraft] = useState([]) // 「2つ選べ」で選択中の選択肢
+  // 虫食いで開いているマーカーの番号（問題を移ると閉じ直す）
+  const [openedIds, setOpenedIds] = useState(() => new Set())
+  const [typePickerOpen, setTypePickerOpen] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [finishedAt, setFinishedAt] = useState(null)
 
   const records = study.data.records
   const total = session.questions.length
   const baseQuestion = session.questions[currentIndex] ?? null
-  const displayQuestion = baseQuestion
-    ? reorderQuestion(baseQuestion, session.orders[currentIndex])
-    : null
+  const displayQuestion =
+    baseQuestion && !isCloze(baseQuestion)
+      ? reorderQuestion(baseQuestion, session.orders[currentIndex])
+      : baseQuestion
 
   const answerRec = answers[currentIndex] ?? null
   const answered = answerRec != null
@@ -170,6 +183,14 @@ export default function App() {
     if (view === VIEWS.QUIZ && session.deadline && nowTs >= session.deadline) finish()
   }, [view, session.deadline, nowTs, finish])
 
+  // 虫食いを表示したら閲覧日を記録する（採点はしない: SPEC R1）
+  useEffect(() => {
+    if (view === VIEWS.QUIZ && baseQuestion && isCloze(baseQuestion) && key) {
+      study.markViewed(key)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, key])
+
   const remainingSec = session.deadline
     ? Math.max(0, Math.ceil((session.deadline - nowTs) / 1000))
     : null
@@ -201,7 +222,7 @@ export default function App() {
   /** 選択肢のクリック。単一選択は即採点、複数選択はトグル。 */
   const toggleChoice = useCallback(
     (idx) => {
-      if (!displayQuestion || answered) return
+      if (!displayQuestion || answered || isCloze(displayQuestion)) return
       const need = displayQuestion.correctIndexes.length
       if (need <= 1) {
         submitAnswer([idx])
@@ -219,16 +240,19 @@ export default function App() {
   const goTo = useCallback((idx) => {
     setCurrentIndex(idx)
     setDraft([])
+    setOpenedIds(new Set())
   }, [])
 
   const goPrev = useCallback(() => {
     setCurrentIndex((i) => Math.max(0, i - 1))
     setDraft([])
+    setOpenedIds(new Set())
   }, [])
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(total - 1, i + 1))
     setDraft([])
+    setOpenedIds(new Set())
   }, [total])
 
   /** リトライ：この問題の回答を取り消し、選択肢を並べ直す。 */
@@ -241,11 +265,30 @@ export default function App() {
     })
     setSession((prev) => {
       const orders = [...prev.orders]
-      orders[currentIndex] = makeOrder(prev.questions[currentIndex].choices.length)
+      const q = prev.questions[currentIndex]
+      orders[currentIndex] = q.choices ? makeOrder(q.choices.length) : []
       return { ...prev, orders }
     })
     setDraft([])
   }, [answered, session.examMode, currentIndex])
+
+  /** 虫食いのマーカーを1つ開閉する。 */
+  const toggleMarker = useCallback((n) => {
+    setOpenedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
+      return next
+    })
+  }, [])
+
+  const openAllMarkers = useCallback(() => {
+    if (!baseQuestion || !isCloze(baseQuestion)) return
+    const n = hiddenCount(baseQuestion.paras)
+    setOpenedIds(new Set(Array.from({ length: n }, (_, i) => i + 1)))
+  }, [baseQuestion])
+
+  const closeAllMarkers = useCallback(() => setOpenedIds(new Set()), [])
 
   /** 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。 */
   const jumpToNumber = useCallback(
@@ -356,15 +399,22 @@ export default function App() {
   )
 
   const counts = useMemo(() => {
-    const base = questions.filter((q) => matchesFilters(q, opts.groupId, opts.tag))
+    const scoped = questions.filter((q) => matchesFilters(q, opts.groupId, opts.tag))
+    const base =
+      opts.qtype === QUESTION_TYPES.CLOZE
+        ? scoped.filter(isCloze)
+        : opts.qtype === QUESTION_TYPES.CHOICE
+          ? scoped.filter(isGraded)
+          : scoped
+    const graded = base.filter(isGraded)
     const rec = (q) => records[questionKey(q)]
     return {
       [MODES.ALL]: base.length,
       [MODES.BOOKMARKED]: base.filter((q) => rec(q)?.bookmarked).length,
-      [MODES.WRONG]: base.filter((q) => rec(q)?.lastResult === 'incorrect').length,
-      [MODES.DUE]: base.filter((q) => isDue(rec(q))).length,
+      [MODES.WRONG]: graded.filter((q) => rec(q)?.lastResult === 'incorrect').length,
+      [MODES.DUE]: graded.filter((q) => isDue(rec(q))).length,
     }
-  }, [questions, opts.groupId, opts.tag, records])
+  }, [questions, opts.groupId, opts.tag, opts.qtype, records])
 
   const dashboard = useMemo(
     () => ({
@@ -372,6 +422,7 @@ export default function App() {
       series: dailySeries(study.data.daily, 30),
       groups: groupStats(questions, records, questionKey, pool.groups),
       boxes: boxDistribution(questions, records, questionKey),
+      cloze: clozeStats(questions, records, questionKey),
       streak: streakDays(study.data.daily),
     }),
     [questions, records, study.data.totals, study.data.daily, pool.groups],
@@ -381,10 +432,18 @@ export default function App() {
   const shortcutHandlers = useMemo(
     () => ({
       onChoice: (idx) => {
-        if (displayQuestion && idx < displayQuestion.choices.length) toggleChoice(idx)
+        // 虫食いには選択肢が無いので、この操作は選択式のときだけ効かせる
+        if (displayQuestion && !isCloze(displayQuestion) && idx < displayQuestion.choices.length) {
+          toggleChoice(idx)
+        }
       },
       onEnter: () => {
         if (!displayQuestion) return
+        if (isCloze(displayQuestion)) {
+          if (currentIndex >= total - 1) finish()
+          else goNext()
+          return
+        }
         const need = displayQuestion.correctIndexes.length
         if (!answered && need > 1 && draft.length === need) {
           submitAnswer(draft)
@@ -442,6 +501,7 @@ export default function App() {
         onResetStats={study.resetStats}
         examMode={session.examMode}
         remainingSec={remainingSec}
+        clozeMode={!!displayQuestion && isCloze(displayQuestion)}
         savedAt={pool.savedAt}
         onExport={() => setExportOpen(true)}
       >
@@ -468,6 +528,17 @@ export default function App() {
 
       {view === VIEWS.QUIZ && (
         <StudyToolbar
+          qtype={opts.qtype}
+          onChangeType={(qtype) =>
+            updateOpts(
+              // 虫食いは採点前提のモードを選べないため、全問題へ戻す
+              qtype === QUESTION_TYPES.CLOZE &&
+                opts.mode !== MODES.ALL &&
+                opts.mode !== MODES.BOOKMARKED
+                ? { qtype, mode: MODES.ALL, examMode: false }
+                : { qtype },
+            )
+          }
           mode={opts.mode}
           onChangeMode={(mode) => updateOpts({ mode })}
           counts={counts}
@@ -545,7 +616,7 @@ export default function App() {
             onImportClick={openFilePicker}
             onCreateClick={() => {
               setEditorGroupId(openGroupId)
-              setEditingId(pool.addQuestion(openGroupId))
+              setTypePickerOpen(true)
               setView(VIEWS.EDITOR)
             }}
             onBulkBookmark={(ids) => {
@@ -572,10 +643,9 @@ export default function App() {
           <EditorView
             questions={questions}
             authored={pool.authored}
-            imported={pool.imported}
             selectedId={editingId}
             onSelect={setEditingId}
-            onAdd={pool.addQuestion}
+            onAdd={() => setTypePickerOpen(true)}
             onUpdate={pool.updateQuestion}
             onRemove={pool.removeQuestion}
             onDuplicate={pool.duplicateQuestion}
@@ -599,6 +669,7 @@ export default function App() {
             boxes={dashboard.boxes}
             streak={dashboard.streak}
             dueCount={counts[MODES.DUE]}
+            cloze={dashboard.cloze}
             onResetAll={resetAll}
           />
         ) : view === VIEWS.SUMMARY ? (
@@ -613,6 +684,26 @@ export default function App() {
               goTo(i)
               setView(VIEWS.QUIZ)
             }}
+          />
+        ) : displayQuestion && isCloze(displayQuestion) ? (
+          <ClozeQuizView
+            question={displayQuestion}
+            groupName={groupNameOf(baseQuestion)}
+            position={currentIndex + 1}
+            total={total}
+            record={record}
+            noteKey={key}
+            onToggleBookmark={() => study.toggleBookmark(key)}
+            onSaveNote={(note) => study.setNote(key, note)}
+            onPrev={goPrev}
+            onNext={goNext}
+            isFirst={currentIndex === 0}
+            isLast={currentIndex === total - 1}
+            onFinish={finish}
+            openedIds={openedIds}
+            onToggleMarker={toggleMarker}
+            onOpenAll={openAllMarkers}
+            onCloseAll={closeAllMarkers}
           />
         ) : displayQuestion ? (
           <>
@@ -657,7 +748,7 @@ export default function App() {
         )}
       </main>
 
-      {view === VIEWS.QUIZ && displayQuestion && (
+      {view === VIEWS.QUIZ && displayQuestion && !isCloze(displayQuestion) && (
         <FooterNav
           isFirst={currentIndex === 0}
           isLast={currentIndex === total - 1}
@@ -667,6 +758,23 @@ export default function App() {
           onRetry={retry}
           onNext={goNext}
           onFinish={finish}
+        />
+      )}
+
+      {typePickerOpen && (
+        <TypePickerDialog
+          groups={pool.groups}
+          defaultGroupId={activeEditorGroupId}
+          onCancel={() => setTypePickerOpen(false)}
+          onCreate={({ groupId, type }) => {
+            const id = pool.addQuestion(groupId, type)
+            setTypePickerOpen(false)
+            setEditorGroupId(groupId)
+            if (id) {
+              setEditingId(id)
+              setView(VIEWS.EDITOR)
+            }
+          }}
         />
       )}
 

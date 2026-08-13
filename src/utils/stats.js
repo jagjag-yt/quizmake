@@ -1,3 +1,4 @@
+import { isGraded } from '../data/questions'
 import { addDays, dateKey } from './safe'
 import { MAX_BOX } from './srs'
 
@@ -56,7 +57,8 @@ export function streakDays(daily) {
 export function groupStats(questions, records, keyOf, groups = []) {
   const names = new Map(groups.map((g) => [g.id, g.name]))
   const map = new Map()
-  for (const q of questions) {
+  // 採点しない虫食いは正答率の母数に入れない（SPEC R1）
+  for (const q of questions.filter(isGraded)) {
     const id = q.groupId
     const name = names.get(id) ?? '未分類'
     const cur = map.get(id) ?? { id, name, total: 0, studied: 0, answered: 0, correct: 0 }
@@ -81,7 +83,8 @@ export function groupStats(questions, records, keyOf, groups = []) {
 export function boxDistribution(questions, records, keyOf) {
   const counts = Array.from({ length: MAX_BOX + 1 }, () => 0)
   let unstudied = 0
-  for (const q of questions) {
+  // 定着度は採点結果から決まるため、虫食いは数えない（SPEC R1）
+  for (const q of questions.filter(isGraded)) {
     const r = records[keyOf(q)]
     if (!r?.attempts) {
       unstudied += 1
@@ -98,7 +101,8 @@ export function overview(questions, records, keyOf, totals) {
   let studied = 0
   let bookmarked = 0
   let wrong = 0
-  for (const q of questions) {
+  // 学習済み・要復習の集計は採点対象（選択式）のみ。ブックマークは両方数える
+  for (const q of questions.filter(isGraded)) {
     const r = records[keyOf(q)]
     if (r?.bookmarked) bookmarked += 1
     if (r?.attempts) {
@@ -106,8 +110,11 @@ export function overview(questions, records, keyOf, totals) {
       if (r.lastResult === 'incorrect') wrong += 1
     }
   }
+  const graded = questions.filter(isGraded)
+  bookmarked = questions.filter((q) => records[keyOf(q)]?.bookmarked).length
+
   return {
-    totalQuestions: questions.length,
+    totalQuestions: graded.length,
     studied,
     bookmarked,
     wrong,
@@ -115,4 +122,28 @@ export function overview(questions, records, keyOf, totals) {
     correct: totals?.correct ?? 0,
     accuracy: accuracyOf(totals?.correct ?? 0, totals?.answered ?? 0),
   }
+}
+
+/**
+ * 虫食いの集計（採点しないため、正答率などとは別枠で出す）。
+ * @returns {{ total:number, viewedThisWeek:number, unviewed:number, lastViewedAt:string|null }}
+ */
+export function clozeStats(questions, records, keyOf) {
+  const list = questions.filter((q) => !isGraded(q))
+  const today = dateKey()
+  const weekAgo = addDays(today, -6)
+  let viewedThisWeek = 0
+  let unviewed = 0
+  let lastViewedAt = null
+
+  for (const q of list) {
+    const viewedAt = records[keyOf(q)]?.viewedAt ?? null
+    if (!viewedAt) {
+      unviewed += 1
+      continue
+    }
+    if (viewedAt >= weekAgo) viewedThisWeek += 1
+    if (!lastViewedAt || viewedAt > lastViewedAt) lastViewedAt = viewedAt
+  }
+  return { total: list.length, viewedThisWeek, unviewed, lastViewedAt }
 }

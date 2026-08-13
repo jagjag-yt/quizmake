@@ -48,6 +48,8 @@ export function emptyRecord() {
     dueAt: null,
     note: '',
     bookmarked: false,
+    // 虫食い問題を最後に開いた日（採点しないため attempts とは別に持つ）
+    viewedAt: null,
   }
 }
 
@@ -77,6 +79,7 @@ function normalizeRecord(raw) {
     dueAt: isDateKey(raw.dueAt) ? raw.dueAt : null,
     note: toText(raw.note, LIMITS.NOTE_CHARS),
     bookmarked: raw.bookmarked === true,
+    viewedAt: isDateKey(raw.viewedAt) ? raw.viewedAt : null,
   }
 }
 
@@ -91,7 +94,7 @@ function normalizeRecords(raw) {
     const rec = normalizeRecord(value)
     // 何も情報が無い記録は保存しない（容量の無駄）
     if (!rec) continue
-    if (!rec.attempts && !rec.bookmarked && !rec.note) continue
+    if (!rec.attempts && !rec.bookmarked && !rec.note && !rec.viewedAt) continue
     out[key] = rec
     count += 1
   }
@@ -269,6 +272,8 @@ export function mergeData(base, incoming) {
       dueAt: newer.dueAt,
       note: cur.note || inc.note,
       bookmarked: cur.bookmarked || inc.bookmarked,
+      viewedAt:
+        (inc.viewedAt ?? '') > (cur.viewedAt ?? '') ? inc.viewedAt : cur.viewedAt,
     }
   }
 

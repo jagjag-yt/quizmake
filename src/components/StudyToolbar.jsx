@@ -1,4 +1,4 @@
-import { COLORS, MODES, MODE_LABELS, SPACING, TAP_MIN } from '../constants'
+import { COLORS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, TAP_MIN, TYPE_LABELS } from '../constants'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
 const selectStyle = {
@@ -22,6 +22,8 @@ const labelStyle = {
 
 /** 出題条件のバー：モード・グループ/タグ絞り込み・出題数・本番モード。 */
 export default function StudyToolbar({
+  qtype,
+  onChangeType,
   mode,
   onChangeMode,
   counts,
@@ -42,26 +44,32 @@ export default function StudyToolbar({
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
 
+  // 採点前提のモードは、種別が「虫食い」のときは選べない（SPEC D3）
+  const gradedOnly = (key) => key !== MODES.ALL && key !== MODES.BOOKMARKED
+  const clozeOnly = qtype === QUESTION_TYPES.CLOZE
+
   const modeButton = (key) => {
     const active = mode === key
     const count = counts[key] ?? 0
+    const disabled = clozeOnly && gradedOnly(key)
     return (
       <button
         key={key}
         type="button"
         title={MODE_LABELS[key].hint}
-        onClick={() => onChangeMode(key)}
+        disabled={disabled}
+        onClick={() => !disabled && onChangeMode(key)}
         style={{
           minHeight: `${TAP_MIN - 8}px`,
           padding: '8px 14px',
           borderRadius: '999px',
           border: 'none',
           background: active ? COLORS.blue : 'transparent',
-          color: active ? '#ffffff' : COLORS.sub,
+          color: disabled ? COLORS.dashed : active ? '#ffffff' : COLORS.sub,
           fontSize: '13px',
           fontWeight: 700,
           fontFamily: 'inherit',
-          cursor: 'pointer',
+          cursor: disabled ? 'default' : 'pointer',
           transition: 'all 0.15s ease',
         }}
       >
@@ -84,16 +92,74 @@ export default function StudyToolbar({
         flexWrap: 'wrap',
       }}
     >
-      <div
-        style={{
-          display: 'inline-flex',
-          gap: '2px',
-          padding: '3px',
-          borderRadius: '999px',
-          background: '#f1f5f9',
-        }}
-      >
-        {Object.values(MODES).map(modeButton)}
+      <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={labelStyle}>種別</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            gap: '2px',
+            padding: '3px',
+            borderRadius: '999px',
+            background: COLORS.chipTrack,
+          }}
+        >
+          {[
+            { key: 'all', text: 'すべて' },
+            { key: QUESTION_TYPES.CHOICE, text: TYPE_LABELS[QUESTION_TYPES.CHOICE] },
+            { key: QUESTION_TYPES.CLOZE, text: TYPE_LABELS[QUESTION_TYPES.CLOZE] },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onChangeType(t.key)}
+              style={{
+                minHeight: `${TAP_MIN - 8}px`,
+                padding: '8px 14px',
+                borderRadius: '999px',
+                border: 'none',
+                background: qtype === t.key ? COLORS.blue : 'transparent',
+                color: qtype === t.key ? '#ffffff' : COLORS.sub,
+                fontSize: '13px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {t.text}
+            </button>
+          ))}
+        </span>
+      </div>
+
+      {clozeOnly && (
+        <div
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            background: COLORS.amberLight,
+            color: COLORS.amberDark,
+            fontSize: '12.5px',
+            lineHeight: 1.8,
+          }}
+        >
+          要復習・今日の復習・本番モードは採点前提のため、種別が「虫食い」のときは選べません。「すべて」では選択式のみが対象になります。
+        </div>
+      )}
+
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+        <span style={labelStyle}>範囲</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            gap: '2px',
+            padding: '3px',
+            borderRadius: '999px',
+            background: COLORS.chipTrack,
+          }}
+        >
+          {Object.values(MODES).map(modeButton)}
+        </span>
       </div>
 
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -144,10 +210,13 @@ export default function StudyToolbar({
         <input
           type="checkbox"
           checked={examMode}
+          disabled={clozeOnly}
           onChange={(e) => onChangeExamMode(e.target.checked)}
-          style={{ accentColor: COLORS.blue, cursor: 'pointer' }}
+          style={{ accentColor: COLORS.blue, cursor: clozeOnly ? 'default' : 'pointer' }}
         />
-        <span style={labelStyle}>本番モード</span>
+        <span style={{ ...labelStyle, color: clozeOnly ? COLORS.dashed : COLORS.sub }}>
+          本番モード
+        </span>
       </label>
 
       {examMode && (

@@ -25,3 +25,7 @@ dist-ssr
 
 # デザインのバンドルHTML（7.5MB・参照用。履歴を肥大化させるため追跡しない）
 quizmake-new-screens.html
+
+# デザインの受け渡しフォルダ（7.5MBのバンドルHTMLを含むため追跡しない。SPECはリポジトリ直下に置く）
+受け渡し用/
+quizmake_取扱説明書.pdf

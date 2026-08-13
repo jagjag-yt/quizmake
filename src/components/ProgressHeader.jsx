@@ -210,6 +210,7 @@ export default function ProgressHeader({
   onResetStats,
   examMode,
   remainingSec,
+  clozeMode,
   savedAt,
   onExport,
   children,
@@ -261,7 +262,11 @@ export default function ProgressHeader({
             <ExamTimer remainingSec={remainingSec} />
           )}
 
-          {view === VIEWS.EDITOR ? (
+          {view === VIEWS.QUIZ && clozeMode ? (
+            <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub, whiteSpace: 'nowrap' }}>
+              虫食いは採点対象外
+            </span>
+          ) : view === VIEWS.EDITOR ? (
             <>
               <span style={{ fontSize: '12.5px', color: COLORS.sub, whiteSpace: 'nowrap' }}>
                 {savedLabel ? `✓ 自動保存済み ${savedLabel}` : '✓ 自動保存'}
@@ -299,7 +304,7 @@ export default function ProgressHeader({
         {view === VIEWS.QUIZ && (
           <>
             <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue }}>
-              演習 {position}/{total}問目
+              {clozeMode ? '虫食い' : '演習'} {position}/{total}問目
             </span>
             <div
               style={{

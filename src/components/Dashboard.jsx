@@ -181,6 +181,7 @@ export default function Dashboard({
   boxes,
   streak,
   dueCount,
+  cloze,
   onResetAll,
 }) {
   const compact = useCompactLayout()
@@ -306,6 +307,36 @@ export default function Dashboard({
           ))}
         </div>
       </section>
+
+      {cloze && cloze.total > 0 && (
+        <section style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <h3 style={{ ...cardTitle, margin: 0 }}>虫食い</h3>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: '999px',
+                background: COLORS.chipTrack,
+                color: COLORS.body,
+                fontSize: '12px',
+                fontWeight: 700,
+              }}
+            >
+              採点対象外
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Stat label="持っている問題" value={`${cloze.total} 問`} />
+            <Stat label="今週見た問題" value={`${cloze.viewedThisWeek} 問`} color={COLORS.blue} />
+            <Stat label="まだ見ていない" value={`${cloze.unviewed} 問`} color={COLORS.muted} />
+          </div>
+          <div style={{ marginTop: '12px', fontSize: '12px', color: COLORS.muted }}>
+            {cloze.lastViewedAt
+              ? `最終学習 ${cloze.lastViewedAt.replace(/-/g, '/')}`
+              : 'まだ学習していません'}
+          </div>
+        </section>
+      )}
 
       <section style={card}>
         <h3 style={cardTitle}>データの管理</h3>
