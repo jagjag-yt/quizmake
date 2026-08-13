@@ -73,6 +73,23 @@ export function useStudyData() {
     })
   }, [])
 
+  /**
+   * 虫食い問題を「見た」ことだけを記録する。
+   * 採点はしないので attempts / correct / box / totals には一切触れない（SPEC R1）。
+   */
+  const markViewed = useCallback((key) => {
+    if (!key) return
+    setData((prev) => {
+      const cur = prev.records[key] ?? emptyRecord()
+      const today = dateKey()
+      if (cur.viewedAt === today) return prev
+      return {
+        ...prev,
+        records: withRecord(prev.records, key, { ...cur, viewedAt: today }),
+      }
+    })
+  }, [])
+
   const toggleBookmark = useCallback((key) => {
     if (!key) return
     setData((prev) => {
@@ -123,6 +140,7 @@ export function useStudyData() {
   const actions = useMemo(
     () => ({
       recordAnswer,
+      markViewed,
       toggleBookmark,
       setNote,
       resetStats,
@@ -130,7 +148,7 @@ export function useStudyData() {
       importData,
       exportJson,
     }),
-    [recordAnswer, toggleBookmark, setNote, resetStats, resetAll, importData, exportJson],
+    [recordAnswer, markViewed, toggleBookmark, setNote, resetStats, resetAll, importData, exportJson],
   )
 
   return { data, dataRef, getRecord, saveError, ...actions }

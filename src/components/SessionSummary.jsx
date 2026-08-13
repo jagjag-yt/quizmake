@@ -1,5 +1,7 @@
 import { COLORS, SPACING, TAP_MIN } from '../constants'
 import { useCompactLayout } from '../hooks/useMediaQuery'
+import { clozeHeadline } from '../data/cloze'
+import { isCloze } from '../data/questions'
 import { accuracyOf } from '../utils/stats'
 import { formatDuration } from '../utils/safe'
 
@@ -144,7 +146,7 @@ export default function SessionSummary({
                 : status === 'wrong'
                   ? COLORS.redLight
                   : COLORS.bg
-            const text = q.segments.map((s) => s.text).join('')
+            const text = isCloze(q) ? clozeHeadline(q) : q.segments.map((s) => s.text).join('')
             return (
               <button
                 key={`${q.questionNumber}-${i}`}

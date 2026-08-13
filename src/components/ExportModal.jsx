@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { COLORS, EXPORT_COLUMNS, ORIGIN, TAP_MIN } from '../constants'
+import { isGraded } from '../data/questions'
 import { validateQuestion } from '../hooks/useQuestionPool'
 
 /** 指標タイル。 */
@@ -30,16 +31,19 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
   const [scope, setScope] = useState('all')
   const dialogRef = useRef(null)
 
+  // 虫食いは Excel に書き出さない（SPEC R4）
+  const exportable = useMemo(() => questions.filter(isGraded), [questions])
+  const excludedCount = questions.length - exportable.length
   const authored = useMemo(
-    () => questions.filter((q) => q.origin === ORIGIN.AUTHORED),
-    [questions],
+    () => exportable.filter((q) => q.origin === ORIGIN.AUTHORED),
+    [exportable],
   )
   const target =
     scope === 'authored'
       ? authored
       : scope.startsWith('group:')
-        ? questions.filter((q) => q.groupId === scope.slice(6))
-        : questions
+        ? exportable.filter((q) => q.groupId === scope.slice(6))
+        : exportable
   const scopeGroupName =
     scope.startsWith('group:') ? groups.find((g) => g.id === scope.slice(6))?.name : ''
 
@@ -104,8 +108,24 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <Stat label="書き出す問題" value={`${target.length} 問`} />
-          <Stat label="うち作成分" value={`${authored.length} 問`} />
+          <Stat label={excludedCount ? '対象外' : 'うち作成分'} value={`${excludedCount || authored.length} 問`} />
         </div>
+
+        {excludedCount > 0 && (
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '14px 16px',
+              borderRadius: '14px',
+              background: COLORS.chipTrack,
+              color: COLORS.body,
+              fontSize: '12.5px',
+              lineHeight: 1.8,
+            }}
+          >
+            虫食い問題 {excludedCount}問は書き出されません。Excelの13列は選択式のための形式のため、虫食いはアプリ内にのみ保存されます（削除はされません）。
+          </div>
+        )}
 
         <div
           style={{
@@ -118,7 +138,7 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
           }}
         >
           {[
-            { key: 'all', text: `全問（${questions.length}）` },
+            { key: 'all', text: `全問（${exportable.length}）` },
             { key: 'authored', text: `作成分のみ（${authored.length}）` },
           ].map((t) => (
             <button
@@ -251,7 +271,7 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
               cursor: target.length ? 'pointer' : 'default',
             }}
           >
-            ⬇ 書き出す
+            ⬇ {target.length}問を書き出す
           </button>
         </div>
       </div>

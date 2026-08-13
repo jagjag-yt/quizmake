@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { COLORS, LETTERS, ORIGIN, SPACING, TAP_MIN } from '../constants'
+import { COLORS, LETTERS, ORIGIN, QUESTION_TYPES, SPACING, TAP_MIN, TYPE_LABELS } from '../constants'
 import {
   buildSegmentsFromMarks,
   segmentsToMarks,
   segmentsToText,
 } from '../data/questions'
+import { clozeHeadline, hiddenCount } from '../data/cloze'
+import { isCloze } from '../data/questions'
 import { useCompactLayout } from '../hooks/useMediaQuery'
+import ClozeEditor from './ClozeEditor'
 import { validateQuestion } from '../hooks/useQuestionPool'
 import { isSafeImageUrl } from '../utils/safe'
 
@@ -417,7 +420,6 @@ function Preview({ question, groupName, mode, position, total, pad }) {
 export default function EditorView({
   questions,
   authored,
-  imported,
   selectedId,
   onSelect,
   onAdd,
@@ -433,7 +435,7 @@ export default function EditorView({
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
-  const [poolFilter, setPoolFilter] = useState(ORIGIN.AUTHORED)
+  const [poolFilter, setPoolFilter] = useState('all')
   const [previewMode, setPreviewMode] = useState('before')
   const [tabletPane, setTabletPane] = useState('edit')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -445,17 +447,23 @@ export default function EditorView({
     [questions, selectedId],
   )
 
-  const text = question ? segmentsToText(question.segments) : ''
-  const marks = useMemo(() => (question ? segmentsToMarks(question.segments) : []), [question])
+  const text = question && !isCloze(question) ? segmentsToText(question.segments) : ''
+  const marks = useMemo(
+    () => (question && !isCloze(question) ? segmentsToMarks(question.segments) : []),
+    [question],
+  )
   const errors = question ? validateQuestion(question) : []
   const textInvalid = touched.text && !text.trim()
   const choiceInvalid =
     touched.choices &&
-    (question?.choices.filter((c) => c.trim()).length < 2 || !question?.correctIndexes.length)
+    !isCloze(question ?? {}) &&
+    ((question?.choices?.filter((c) => c.trim()).length ?? 0) < 2 ||
+      !(question?.correctIndexes?.length ?? 0))
 
   // 画像URLの読み込み確認（入力が落ち着いてから）
+  const imageUrl = question && !isCloze(question) ? question.imageUrl : null
   useEffect(() => {
-    const url = question?.imageUrl
+    const url = imageUrl
     if (!url) {
       setImageState('idle')
       return undefined
@@ -468,7 +476,7 @@ export default function EditorView({
       img.src = url
     }, 400)
     return () => clearTimeout(timer)
-  }, [question?.imageUrl])
+  }, [imageUrl])
 
   const setText = useCallback(
     (nextText, nextMarks) => {
@@ -535,7 +543,13 @@ export default function EditorView({
     onUpdate(question.id, { keyPoints })
   }
 
-  const sidebarItems = poolFilter === ORIGIN.AUTHORED ? authored : imported
+  const groupScoped = activeGroupId
+    ? questions.filter((q) => q.groupId === activeGroupId)
+    : questions
+  const choiceCount = groupScoped.filter((q) => !isCloze(q)).length
+  const clozeCount = groupScoped.filter(isCloze).length
+  const sidebarItems =
+    poolFilter === 'all' ? groupScoped : groupScoped.filter((q) => q.type === poolFilter)
 
   // ---------- グループが1つも無いとき（作成はグループが先） ----------
   if (!groups.length) {
@@ -666,8 +680,9 @@ export default function EditorView({
 
       <div style={{ display: 'inline-flex', gap: '2px', padding: '3px', borderRadius: '999px', background: COLORS.chipTrack }}>
         {[
-          { key: ORIGIN.AUTHORED, text: `作成 ${authored.length}` },
-          { key: ORIGIN.IMPORTED, text: `読込 ${imported.length}` },
+          { key: 'all', text: 'すべて' },
+          { key: QUESTION_TYPES.CHOICE, text: `選択式 ${choiceCount}` },
+          { key: QUESTION_TYPES.CLOZE, text: `虫食い ${clozeCount}` },
         ].map((t) => (
           <button
             key={t.key}
@@ -694,7 +709,9 @@ export default function EditorView({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
         {sidebarItems.map((q, i) => {
           const invalid = validateQuestion(q).length > 0
-          const head = segmentsToText(q.segments) || '（無題の問題）'
+          const head = isCloze(q)
+            ? clozeHeadline(q)
+            : segmentsToText(q.segments) || '（無題の問題）'
           const active = q.id === selectedId
           return (
             <Sortable
@@ -725,9 +742,23 @@ export default function EditorView({
                   {head}
                 </div>
                 <div style={{ fontSize: '11.5px', color: COLORS.muted }}>
-                  {groups.find((g) => g.id === q.groupId)?.name ?? '未分類'} · {q.choices.length}択
+                  {groups.find((g) => g.id === q.groupId)?.name ?? '未分類'} ·{' '}
+                  {isCloze(q) ? `${hiddenCount(q.paras)}か所` : `${q.choices.length}択`}
                 </div>
               </button>
+              <span
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: isCloze(q) ? COLORS.blueLight : COLORS.chipTrack,
+                  color: isCloze(q) ? COLORS.blue : COLORS.body,
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {TYPE_LABELS[q.type]}
+              </span>
               {invalid && (
                 <span title="入力に不備があります" style={{ color: COLORS.red, fontWeight: 700, fontSize: '13px' }}>!</span>
               )}
@@ -762,50 +793,83 @@ export default function EditorView({
     </div>
   )
 
-  const editor = question ? (
+  const groupField = question ? (
+    <div>
+      <div style={label}>グループ</div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+        <select
+          value={question.groupId}
+          onChange={(e) => onUpdate(question.id, { groupId: e.target.value })}
+          style={{ ...input, flex: '1 1 200px', cursor: 'pointer' }}
+        >
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => {
+            const name = window.prompt('新しいグループ名を入力してください')
+            if (name && name.trim()) {
+              const id = onCreateGroup(name.trim())
+              if (id) onUpdate(question.id, { groupId: id })
+            }
+          }}
+          style={{ ...input, width: 'auto', padding: '0 14px', fontWeight: 700, cursor: 'pointer', color: COLORS.blue, border: `1px solid ${COLORS.blue}`, background: COLORS.blueLight }}
+        >
+          ＋ 新規
+        </button>
+      </div>
+      <div style={{ fontSize: '11.5px', color: COLORS.muted, marginTop: '4px' }}>
+        この問題が入るグループ。「＋ 新規」で作成できます
+      </div>
+    </div>
+  ) : null
+
+  const tagField = question ? (
+    <div>
+      <div style={{ ...label, marginBottom: '6px' }}>タグ</div>
+      <TagInput tags={question.tags} onChange={(tags) => onUpdate(question.id, { tags })} />
+    </div>
+  ) : null
+
+  // 虫食いは専用エディタ（本文・隠す・文字色）に差し替える
+  const clozePanes =
+    question && isCloze(question)
+      ? {
+          editor: (
+            <ClozeEditor
+              question={question}
+              onUpdate={onUpdate}
+              groupSlot={groupField}
+              tagsSlot={tagField}
+              pane="editor"
+            />
+          ),
+          preview: (
+            <ClozeEditor
+              question={question}
+              onUpdate={onUpdate}
+              groupSlot={groupField}
+              tagsSlot={tagField}
+              pane="preview"
+            />
+          ),
+        }
+      : null
+
+  const editor = question && !isCloze(question) ? (
     <div style={{ ...card(space.card), display: 'flex', flexDirection: 'column', gap: '18px', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '15px', fontWeight: 700, color: COLORS.text }}>問題を編集</span>
         <span style={pill(COLORS.chipTrack, COLORS.body)}>問題番号 {question.questionNumber}（自動）</span>
       </div>
 
-      <div>
-        <div style={label}>グループ</div>
-        <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-          <select
-            value={question.groupId}
-            onChange={(e) => onUpdate(question.id, { groupId: e.target.value })}
-            style={{ ...input, flex: '1 1 200px', cursor: 'pointer' }}
-          >
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => {
-              const name = window.prompt('新しいグループ名を入力してください')
-              if (name && name.trim()) {
-                const id = onCreateGroup(name.trim())
-                if (id) onUpdate(question.id, { groupId: id })
-              }
-            }}
-            style={{ ...input, width: 'auto', padding: '0 14px', fontWeight: 700, cursor: 'pointer', color: COLORS.blue, border: `1px solid ${COLORS.blue}`, background: COLORS.blueLight }}
-          >
-            ＋ 新規
-          </button>
-        </div>
-        <div style={{ fontSize: '11.5px', color: COLORS.muted, marginTop: '4px' }}>
-          この問題が入るグループ。「＋ 新規」で作成できます
-        </div>
-      </div>
+      {groupField}
 
-      <div>
-        <div style={{ ...label, marginBottom: '6px' }}>タグ</div>
-        <TagInput tags={question.tags} onChange={(tags) => onUpdate(question.id, { tags })} />
-      </div>
+      {tagField}
 
       <div onBlur={() => setTouched((t) => ({ ...t, text: true }))}>
         <QuestionTextField text={text} marks={marks} onChange={setText} invalid={textInvalid} />
@@ -1000,7 +1064,7 @@ export default function EditorView({
     </div>
   )
 
-  const previewPane = question ? (
+  const previewPane = question && !isCloze(question) ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>演習画面プレビュー</span>
@@ -1082,7 +1146,9 @@ export default function EditorView({
           </span>
         </div>
 
-        {tabletPane === 'edit' ? editor : previewPane}
+        {tabletPane === 'edit'
+          ? (clozePanes ? clozePanes.editor : editor)
+          : (clozePanes ? clozePanes.preview : previewPane)}
 
         {drawerOpen && (
           <>
@@ -1097,6 +1163,9 @@ export default function EditorView({
   }
 
   // ---------- デスクトップ 3ペイン ----------
+  const editorPane = clozePanes ? clozePanes.editor : editor
+  const previewNode = clozePanes ? clozePanes.preview : previewPane
+
   return (
     <div
       style={{
@@ -1108,8 +1177,8 @@ export default function EditorView({
       }}
     >
       <div style={{ position: 'sticky', top: '24px' }}>{sidebar}</div>
-      {editor}
-      <div style={{ position: 'sticky', top: '24px' }}>{previewPane}</div>
+      {editorPane}
+      <div style={{ position: 'sticky', top: '24px' }}>{previewNode}</div>
     </div>
   )
 }

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
+import { clozeHeadline, hiddenCount, withMarkerIndexes } from '../data/cloze'
+import { isCloze } from '../data/questions'
+import { shouldInline } from '../utils/clozeRender'
 
 /** 見出し（h14b + 下線）。 */
 const heading = {
@@ -85,6 +88,57 @@ function NoteField({ noteKey, note, onSave }) {
   )
 }
 
+/** 詳細パネルでの虫食い本文（一括で開閉する）。 */
+function ClozeDetailBody({ paras, opened }) {
+  const indexed = withMarkerIndexes(paras)
+  return (
+    <div style={{ fontSize: '16px', lineHeight: 2.0, color: COLORS.text }}>
+      {indexed.map((para, pi) => (
+        <p key={pi} style={{ margin: pi === 0 ? 0 : '1.1em 0 0 0' }}>
+          {para.map((run, ri) =>
+            run.hide ? (
+              <span
+                key={ri}
+                style={{
+                  display: shouldInline(run.text) ? 'inline' : 'inline-block',
+                  boxDecorationBreak: 'clone',
+                  WebkitBoxDecorationBreak: 'clone',
+                  padding: '0 6px',
+                  margin: '0 4px',
+                  borderRadius: 0,
+                  lineHeight: 1.35,
+                  background: opened ? COLORS.blueLight : COLORS.blue,
+                  color: opened ? run.color : 'transparent',
+                  boxShadow: opened ? `inset 0 -2px 0 ${COLORS.bluePale}` : 'none',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    verticalAlign: 'top',
+                    marginRight: '4px',
+                    color: opened ? COLORS.text : '#ffffff',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {run.markerIndex}
+                </span>
+                {run.text}
+              </span>
+            ) : (
+              <span key={ri} style={{ color: run.color }}>
+                {run.text}
+              </span>
+            ),
+          )}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 /**
  * 設問の詳細プレビュー。
  * デスクトップでは右カラムに常時表示、タブレットでは右からのパネルに入れる。
@@ -99,6 +153,7 @@ export default function QuestionDetail({
   onStartFromHere,
   cardPadding = 32,
 }) {
+  const [clozeOpen, setClozeOpen] = useState(true)
   const meta = record?.attempts
     ? `${record.attempts}回中${record.correct}回正解${
         record.lastAnsweredAt ? ` · 最終 ${record.lastAnsweredAt.replace(/-/g, '/')}` : ''
@@ -113,6 +168,14 @@ export default function QuestionDetail({
           問題 {question.questionNumber}
         </span>
         {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
+        <span
+          style={pill(
+            isCloze(question) ? COLORS.blueLight : COLORS.chipTrack,
+            isCloze(question) ? COLORS.blue : COLORS.body,
+          )}
+        >
+          {isCloze(question) ? '虫食い' : '選択式'}
+        </span>
         <span style={pill(COLORS.blueLight, COLORS.blue)}>
           {ORIGIN_LABELS[question.origin] ?? '読込'}
         </span>
@@ -158,6 +221,55 @@ export default function QuestionDetail({
         </button>
       </div>
 
+      {isCloze(question) ? (
+        <>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: COLORS.text }}>
+            {clozeHeadline(question)}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={pill(COLORS.chipTrack, COLORS.body)}>
+              隠す箇所 {hiddenCount(question.paras)} か所
+            </span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                display: 'inline-flex',
+                gap: '2px',
+                padding: '3px',
+                borderRadius: '999px',
+                background: COLORS.chipTrack,
+              }}
+            >
+              {[
+                { key: true, text: '答えを表示' },
+                { key: false, text: '隠す' },
+              ].map((t) => (
+                <button
+                  key={String(t.key)}
+                  type="button"
+                  onClick={() => setClozeOpen(t.key)}
+                  style={{
+                    minHeight: '34px',
+                    padding: '0 14px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    background: clozeOpen === t.key ? COLORS.blue : 'transparent',
+                    color: clozeOpen === t.key ? '#ffffff' : COLORS.sub,
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {t.text}
+                </button>
+              ))}
+            </span>
+          </div>
+          <ClozeDetailBody paras={question.paras} opened={clozeOpen} />
+        </>
+      ) : (
+      <>
       {/* 問題文 */}
       <p style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
         {question.segments.map((seg, i) => (
@@ -283,17 +395,22 @@ export default function QuestionDetail({
         </div>
       )}
 
+      </>
+      )}
+
       <div>
         <h3 style={heading}>自分メモ</h3>
         <NoteField noteKey={noteKey} note={record?.note ?? ''} onSave={onSaveNote} />
       </div>
 
+      {!isCloze(question) && (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: COLORS.muted }}>
         <span>定着度</span>
         <BoxMeter box={record?.box} />
         <span>·</span>
         <span>{meta}</span>
       </div>
+      )}
     </div>
   )
 }

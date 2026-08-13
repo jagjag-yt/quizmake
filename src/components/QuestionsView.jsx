@@ -2,25 +2,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   COLORS,
   LIST_STATE_KEY,
+  QUESTION_TYPES,
   SORTS,
   SORT_LABELS,
+  TYPE_LABELS,
   SPACING,
   STATUS_FILTERS,
   STATUS_FILTER_LABELS,
   TAP_MIN,
 } from '../constants'
-import { questionKey, segmentsToText } from '../data/questions'
+import { clozeHiddenCount, isCloze, questionKey, segmentsToText } from '../data/questions'
+import { clozeHeadline } from '../data/cloze'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import { isPlainObject, safeJsonParse } from '../utils/safe'
 import QuestionDetail, { BoxMeter, StatusBadge } from './QuestionDetail'
 
 const ROW_H = 56
-const GRID = '40px 68px 1fr 118px 78px 62px 36px'
+const GRID = '40px 68px 76px 1fr 118px 78px 62px 36px'
 /** 固定列(494px)＋余白を確保できる最小幅。これ未満は横スクロールにする。 */
-const MIN_TABLE_W = 680
+const MIN_TABLE_W = 760
 
 const DEFAULT_STATE = {
   search: '',
+  type: 'all',
   tag: '',
   sort: SORTS.NUMBER,
   statuses: [STATUS_FILTERS.ALL],
@@ -163,10 +167,15 @@ export default function QuestionsView({
   const rows = useMemo(() => {
     const keyword = state.search.trim().toLowerCase()
     const list = questions.filter((q) => {
+      if (state.type !== 'all' && q.type !== state.type) return false
       if (state.tag && !q.tags.includes(state.tag)) return false
 
       if (keyword) {
-        const haystack = [segmentsToText(q.segments), q.explanation, q.tags.join(' ')]
+        const haystack = [
+          isCloze(q) ? clozeHeadline(q) : segmentsToText(q.segments),
+          isCloze(q) ? '' : q.explanation,
+          q.tags.join(' '),
+        ]
           .join(' ')
           .toLowerCase()
         if (!haystack.includes(keyword)) return false
@@ -439,6 +448,16 @@ export default function QuestionsView({
               style={{ ...controlBase, width: '100%', paddingLeft: '32px' }}
             />
           </div>
+          <select
+            value={state.type}
+            onChange={(e) => patch({ type: e.target.value })}
+            aria-label="種別で絞り込み"
+            style={{ ...controlBase, cursor: 'pointer' }}
+          >
+            <option value="all">種別：すべて</option>
+            <option value={QUESTION_TYPES.CHOICE}>種別：選択式</option>
+            <option value={QUESTION_TYPES.CLOZE}>種別：虫食い</option>
+          </select>
           <select value={state.tag} onChange={(e) => patch({ tag: e.target.value })} aria-label="タグで絞り込み" style={{ ...controlBase, cursor: 'pointer' }}>
             <option value="">タグ：すべて</option>
             {tags.map((t) => (
@@ -509,6 +528,7 @@ export default function QuestionsView({
               >
                 番号 ⇅
               </button>
+              <span>種別</span>
               <span>問題文</span>
               <span>タグ</span>
               <span>学習状況</span>
@@ -559,14 +579,40 @@ export default function QuestionsView({
                   <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text, fontVariantNumeric: 'tabular-nums' }}>
                     {q.questionNumber}
                   </span>
+                  <span
+                    style={{
+                      justifySelf: 'start',
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      background: isCloze(q) ? COLORS.blueLight : COLORS.chipTrack,
+                      color: isCloze(q) ? COLORS.blue : COLORS.body,
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {TYPE_LABELS[q.type]}
+                  </span>
                   <span style={{ fontSize: '13.5px', color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {segmentsToText(q.segments) || '（無題の問題）'}
+                    {isCloze(q)
+                      ? clozeHeadline(q)
+                      : segmentsToText(q.segments) || '（無題の問題）'}
                   </span>
                   <span style={{ fontSize: '11.5px', color: COLORS.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {q.tags.map((t) => `#${t}`).join(' ')}
                   </span>
-                  <StatusBadge record={rec} />
-                  <BoxMeter box={rec.box} />
+                  {isCloze(q) ? (
+                    <span style={{ fontSize: '11.5px', color: COLORS.muted }}>— 採点なし</span>
+                  ) : (
+                    <StatusBadge record={rec} />
+                  )}
+                  {isCloze(q) ? (
+                    <span style={{ fontSize: '11.5px', color: COLORS.sub }}>
+                      隠す {clozeHiddenCount(q)} か所
+                    </span>
+                  ) : (
+                    <BoxMeter box={rec.box} />
+                  )}
                   <button
                     type="button"
                     onClick={(e) => {

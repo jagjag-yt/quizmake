@@ -19,6 +19,38 @@ export const DEFAULT_GROUP_NAME = '未分類'
 /** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
 export const LIST_STATE_KEY = 'quizmake.listState.v1'
 
+/** 問題タイプ（作成後に変更できない構造上の区別）。 */
+export const QUESTION_TYPES = {
+  CHOICE: 'choice',
+  CLOZE: 'cloze',
+}
+
+export const TYPE_LABELS = {
+  [QUESTION_TYPES.CHOICE]: '選択式',
+  [QUESTION_TYPES.CLOZE]: '虫食い',
+}
+
+/**
+ * 虫食いの文字色パレット（6色）。
+ * すべて白背景でコントラスト比 4.5:1 以上。自由な色指定は用意しない。
+ */
+export const TEXT_COLORS = [
+  { name: '標準', value: '#1e293b' },
+  { name: '青', value: '#2563eb' },
+  { name: '緑', value: '#166534' },
+  { name: '赤', value: '#991b1b' },
+  { name: '橙', value: '#b45309' },
+  { name: '灰', value: '#64748b' },
+]
+
+export const DEFAULT_TEXT_COLOR = '#1e293b'
+
+/** 虫食いの見出し・本文の上限。 */
+export const CLOZE_LIMITS = {
+  TITLE_CHARS: 120,
+  BODY_CHARS: 20000,
+}
+
 /** 問題の出どころ。 */
 export const ORIGIN = {
   AUTHORED: 'authored',

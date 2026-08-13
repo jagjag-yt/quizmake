@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_GROUP_NAME, GROUP_NAME_MAX, LIMITS, ORIGIN } from '../constants'
+import { DEFAULT_GROUP_NAME, GROUP_NAME_MAX, LIMITS, ORIGIN, QUESTION_TYPES } from '../constants'
 import { newQuestionId, normalizeQuestion } from '../data/questions'
 import {
   cloneQuestion,
@@ -13,8 +13,23 @@ import {
 } from '../storage/pool'
 import { toText } from '../utils/safe'
 
-/** 作成直後の空の問題。 */
-function emptyQuestion(questionNumber, groupId) {
+/** 作成直後の空の問題（タイプごとに必要な項目だけ持たせる）。 */
+function emptyQuestion(questionNumber, groupId, type = QUESTION_TYPES.CHOICE) {
+  if (type === QUESTION_TYPES.CLOZE) {
+    return normalizeQuestion(
+      {
+        id: newQuestionId(),
+        type: QUESTION_TYPES.CLOZE,
+        questionNumber,
+        groupId,
+        title: '',
+        paras: [[]],
+        tags: [],
+        origin: ORIGIN.AUTHORED,
+      },
+      0,
+    )
+  }
   return normalizeQuestion(
     {
       id: newQuestionId(),
@@ -36,6 +51,15 @@ function emptyQuestion(questionNumber, groupId) {
 /** 出題・書き出しの対象として妥当か（不備があると書き出し時に警告する）。 */
 export function validateQuestion(q) {
   const errors = []
+  if (q.type === QUESTION_TYPES.CLOZE) {
+    const body = (q.paras ?? [])
+      .map((para) => (para ?? []).map((r) => r.text).join(''))
+      .join('')
+      .trim()
+    if (!body) errors.push('文章が未入力')
+    // 隠す箇所0か所はエラーにしない（あとから隠す使い方を妨げないため）
+    return errors
+  }
   const text = (q.segments ?? []).map((s) => s.text).join('').trim()
   const choices = (q.choices ?? []).filter((c) => c.trim())
   if (!text) errors.push('問題文が未入力')
@@ -181,11 +205,11 @@ export function useQuestionPool() {
   // ---------- 問題 ----------
 
   /** 問題を1問追加して、その id を返す。 */
-  const addQuestion = useCallback((groupId) => {
+  const addQuestion = useCallback((groupId, type = QUESTION_TYPES.CHOICE) => {
     const current = poolRef.current
     const target = groupId ?? current.groups[0]?.id
     if (!target) return null
-    const created = emptyQuestion(nextQuestionNumber(current.questions), target)
+    const created = emptyQuestion(nextQuestionNumber(current.questions), target, type)
     setPool((prev) => ({ ...prev, questions: [...prev.questions, created] }))
     return created.id
   }, [])

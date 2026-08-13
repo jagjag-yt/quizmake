@@ -1,4 +1,5 @@
-import { LIMITS, ORIGIN } from '../constants'
+import { CLOZE_LIMITS, LIMITS, ORIGIN, QUESTION_TYPES } from '../constants'
+import { hiddenCount, normalizeParas } from './cloze'
 import { sanitizeImageUrl, toText } from '../utils/safe'
 
 /**
@@ -20,6 +21,11 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
  * @property {string[]} tags             タグ（絞り込みに使用）
  * @property {string|null} imageUrl      問題画像（検証済みURLのみ保持）
  * @property {'authored'|'imported'} origin  アプリ内で作成したか、外部から読み込んだか
+ * @property {'choice'|'cloze'} type  問題タイプ（作成後は変更しない）
+ *
+ * 虫食い（type:'cloze'）は上記のうち choices / correctIndexes / explanation /
+ * keyPoints / imageUrl を使わず、代わりに title と paras を持つ。
+ * 採点しないため、正答率・要復習・今日の復習・定着度の計算からは常に外す。
  */
 
 /** @type {Question[]} */
@@ -136,6 +142,35 @@ export function newQuestionId() {
  * @returns {Question}
  */
 export function normalizeQuestion(raw, index = 0) {
+  // 問題番号は通常は数値だが、取り込み時の衝突回避で「12-2」形式の文字列にもなる
+  const rawNum = raw.questionNumber
+  const number =
+    typeof rawNum === 'string' && /^\d+-\d+$/.test(rawNum.trim())
+      ? rawNum.trim()
+      : Number.isFinite(Number(rawNum))
+        ? Number(rawNum)
+        : index + 1
+
+  const common = {
+    id: toText(raw.id, 40) || newQuestionId(),
+    questionNumber: number,
+    groupId: toText(raw.groupId, 40),
+    tags: Array.isArray(raw.tags)
+      ? [...new Set(raw.tags.map((t) => toText(t, 40)).filter(Boolean))].slice(0, 10)
+      : [],
+    origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
+  }
+
+  // 虫食いは選択肢を持たない別構造
+  if (raw.type === QUESTION_TYPES.CLOZE) {
+    return {
+      ...common,
+      type: QUESTION_TYPES.CLOZE,
+      title: toText(raw.title, CLOZE_LIMITS.TITLE_CHARS),
+      paras: normalizeParas(raw.paras),
+    }
+  }
+
   const choices = Array.isArray(raw.choices)
     ? raw.choices.map((c) => toText(c, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 5)
     : []
@@ -159,23 +194,9 @@ export function normalizeQuestion(raw, index = 0) {
     ),
   ].sort((a, b) => a - b)
 
-  const tags = Array.isArray(raw.tags)
-    ? [...new Set(raw.tags.map((t) => toText(t, 40)).filter(Boolean))].slice(0, 10)
-    : []
-
-  // 問題番号は通常は数値だが、取り込み時の衝突回避で「12-2」形式の文字列にもなる
-  const rawNumber = raw.questionNumber
-  const questionNumber =
-    typeof rawNumber === 'string' && /^\d+-\d+$/.test(rawNumber.trim())
-      ? rawNumber.trim()
-      : Number.isFinite(Number(rawNumber))
-        ? Number(rawNumber)
-        : index + 1
-
   return {
-    // プール内で問題を一意に識別する。問題文はキーにできない（編集中に変わるため）
-    id: toText(raw.id, 40) || newQuestionId(),
-    questionNumber,
+    ...common,
+    type: QUESTION_TYPES.CHOICE,
     segments,
     choices,
     correctIndexes,
@@ -184,10 +205,7 @@ export function normalizeQuestion(raw, index = 0) {
     keyPoints: Array.isArray(raw.keyPoints)
       ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 20)
       : [],
-    groupId: toText(raw.groupId, 40),
-    tags,
     imageUrl: sanitizeImageUrl(raw.imageUrl),
-    origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
   }
 }
 
@@ -203,7 +221,30 @@ export const SEED_QUESTIONS = RAW_QUESTIONS
  * @param {Question} q
  * @returns {string}
  */
-export const questionKey = (q) => (q?.segments ?? []).map((s) => s.text).join('')
+/** 段落の区切り（改行）とキー内の区切り。エスケープを使わず定義する。 */
+const PARA_SEP = String.fromCharCode(10)
+const KEY_SEP = String.fromCharCode(31)
+
+export const questionKey = (q) => {
+  // 虫食いは segments を持たないため、見出しと本文からキーを作る。
+  // 接頭辞を付けて選択式のキーと衝突しないようにする。
+  if (q?.type === QUESTION_TYPES.CLOZE) {
+    const body = (q.paras ?? [])
+      .map((para) => (para ?? []).map((r) => r.text).join(''))
+      .join(PARA_SEP)
+    return `cloze:${q.title ?? ''}${KEY_SEP}${body}`
+  }
+  return (q?.segments ?? []).map((s) => s.text).join('')
+}
+
+/** 虫食い問題か。 */
+export const isCloze = (q) => q?.type === QUESTION_TYPES.CLOZE
+
+/** 採点の対象になる問題か（虫食いは常に対象外）。 */
+export const isGraded = (q) => !isCloze(q)
+
+/** 一覧・演習で使う「隠す箇所」の数。 */
+export const clozeHiddenCount = (q) => (isCloze(q) ? hiddenCount(q.paras) : 0)
 
 /** 正解が複数ある（「2つ選べ」形式）か。 */
 export const isMultiAnswer = (q) => (q?.correctIndexes?.length ?? 0) > 1
