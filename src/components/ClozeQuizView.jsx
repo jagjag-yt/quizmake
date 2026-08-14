@@ -97,11 +97,6 @@ export default function ClozeQuizView({
           }}
         >
           {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
-          {question.tags.map((t) => (
-            <span key={t} style={{ fontSize: '11.5px', color: COLORS.muted }}>
-              #{t}
-            </span>
-          ))}
           <span style={{ marginLeft: 'auto', fontSize: '12.5px', color: COLORS.sub }}>
             {hiddenTotal}か所中 {opened}か所 表示中
           </span>

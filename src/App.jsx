@@ -30,16 +30,15 @@ import TypePickerDialog from './components/TypePickerDialog'
 import ToastHost from './components/Toast'
 import { useToast } from './hooks/useToast'
 
-/** グループ・タグの絞り込み条件に合致するか。 */
-function matchesFilters(q, groupId, tag) {
+/** グループの絞り込み条件に合致するか。 */
+function matchesFilters(q, groupId) {
   if (groupId && q.groupId !== groupId) return false
-  if (tag && !q.tags.includes(tag)) return false
   return true
 }
 
 /** 出題モード・絞り込み・出題数から、実際に出す問題を選ぶ。 */
-function selectQuestions(source, records, { mode, groupId, tag, limit, qtype }) {
-  let list = source.filter((q) => matchesFilters(q, groupId, tag))
+function selectQuestions(source, records, { mode, groupId, limit, qtype }) {
+  let list = source.filter((q) => matchesFilters(q, groupId))
 
   // 種別で絞る。「すべて」のときは採点できる選択式だけを対象にする（SPEC D3）
   if (qtype === QUESTION_TYPES.CLOZE) list = list.filter(isCloze)
@@ -85,7 +84,6 @@ const DEFAULT_OPTS = {
   qtype: 'all',
   mode: MODES.ALL,
   groupId: '',
-  tag: '',
   limit: 0,
   examMode: false,
   examMinutes: 0,
@@ -400,13 +398,8 @@ export default function App() {
   const openFilePicker = useCallback(() => {
     document.querySelector('input[accept=".xlsx,.xls"]')?.click()
   }, [])
-  const tags = useMemo(
-    () => [...new Set(questions.flatMap((q) => q.tags))].sort(),
-    [questions],
-  )
-
   const counts = useMemo(() => {
-    const scoped = questions.filter((q) => matchesFilters(q, opts.groupId, opts.tag))
+    const scoped = questions.filter((q) => matchesFilters(q, opts.groupId))
     const base =
       opts.qtype === QUESTION_TYPES.CLOZE
         ? scoped.filter(isCloze)
@@ -421,7 +414,7 @@ export default function App() {
       [MODES.WRONG]: graded.filter((q) => rec(q)?.lastResult === 'incorrect').length,
       [MODES.DUE]: graded.filter((q) => isDue(rec(q))).length,
     }
-  }, [questions, opts.groupId, opts.tag, opts.qtype, records])
+  }, [questions, opts.groupId, opts.qtype, records])
 
   const dashboard = useMemo(
     () => ({
@@ -552,9 +545,6 @@ export default function App() {
           groups={pool.groups}
           groupId={opts.groupId}
           onChangeGroup={(groupId) => updateOpts({ groupId })}
-          tags={tags}
-          tag={opts.tag}
-          onChangeTag={(tag) => updateOpts({ tag })}
           limit={opts.limit}
           onChangeLimit={(limit) => updateOpts({ limit })}
           examMode={opts.examMode}
@@ -626,6 +616,20 @@ export default function App() {
               setTypePickerOpen(true)
               setView(VIEWS.EDITOR)
             }}
+            groups={pool.groups}
+            onDuplicate={(ids) => {
+              ids.forEach((id) => pool.duplicateQuestion(id))
+              toast.show({ tone: 'success', title: `${ids.length}問を複製しました` })
+            }}
+            onMoveToGroup={(ids, groupId) => {
+              const name = pool.groups.find((g) => g.id === groupId)?.name ?? ''
+              pool.moveQuestionsToGroup(ids, groupId)
+              toast.show({ tone: 'success', title: `${ids.length}問を「${name}」へ移動しました` })
+            }}
+            onDelete={(ids) => {
+              ids.forEach((id) => pool.removeQuestion(id))
+              toast.show({ tone: 'info', title: `${ids.length}問を削除しました` })
+            }}
             onBulkBookmark={(ids) => {
               const picked = questions.filter((q) => ids.includes(q.id))
               picked.forEach((q) => {
@@ -639,10 +643,6 @@ export default function App() {
                 onAction: () =>
                   picked.forEach((q) => study.toggleBookmark(questionKey(q))),
               })
-            }}
-            onBulkTag={(ids, tag) => {
-              pool.addTagToQuestions(ids, tag)
-              toast.show({ tone: 'info', title: `${ids.length}問に「${tag}」を付与しました` })
             }}
             loading={false}
           />
@@ -750,7 +750,7 @@ export default function App() {
                     : '絞り込み条件に合う問題がありません。条件を変えてください。'
             }
             actionLabel="全問題に戻る"
-            onAction={() => updateOpts({ mode: MODES.ALL, groupId: '', tag: '' })}
+            onAction={() => updateOpts({ mode: MODES.ALL, groupId: '' })}
           />
         )}
       </main>

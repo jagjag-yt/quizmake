@@ -18,14 +18,13 @@ import { isPlainObject, safeJsonParse } from '../utils/safe'
 import QuestionDetail, { BoxMeter, StatusBadge } from './QuestionDetail'
 
 const ROW_H = 56
-const GRID = '40px 68px 76px 1fr 118px 78px 62px 36px'
+const GRID = '40px 68px 76px 1fr 118px 78px 36px'
 /** 固定列(494px)＋余白を確保できる最小幅。これ未満は横スクロールにする。 */
 const MIN_TABLE_W = 760
 
 const DEFAULT_STATE = {
   search: '',
   type: 'all',
-  tag: '',
   sort: SORTS.NUMBER,
   statuses: [STATUS_FILTERS.ALL],
 }
@@ -59,6 +58,34 @@ const controlBase = {
   fontSize: '13px',
   fontFamily: 'inherit',
   outline: 'none',
+}
+
+/** 詳細パネル上部の操作ボタン。 */
+const panelAction = () => ({
+  minHeight: '36px',
+  padding: '0 14px',
+  borderRadius: '10px',
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.card,
+  color: COLORS.body,
+  fontSize: '12.5px',
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+})
+
+/** 一括操作バー（濃い背景）の上に置くボタン。 */
+const ghostButton = {
+  minHeight: '36px',
+  padding: '0 14px',
+  borderRadius: '10px',
+  border: `1px solid ${COLORS.sub}`,
+  background: 'transparent',
+  color: '#ffffff',
+  fontSize: '12.5px',
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
 }
 
 const cardStyle = (pad) => ({
@@ -131,7 +158,10 @@ export default function QuestionsView({
   onImportClick,
   onCreateClick,
   onBulkBookmark,
-  onBulkTag,
+  onDuplicate,
+  onMoveToGroup,
+  onDelete,
+  groups = [],
   loading,
   loadingCount,
 }) {
@@ -159,22 +189,16 @@ export default function QuestionsView({
     }
   }, [state])
 
-  const tags = useMemo(
-    () => [...new Set(questions.flatMap((q) => q.tags))].sort(),
-    [questions],
-  )
 
   const rows = useMemo(() => {
     const keyword = state.search.trim().toLowerCase()
     const list = questions.filter((q) => {
       if (state.type !== 'all' && q.type !== state.type) return false
-      if (state.tag && !q.tags.includes(state.tag)) return false
 
       if (keyword) {
         const haystack = [
           isCloze(q) ? clozeHeadline(q) : segmentsToText(q.segments),
           isCloze(q) ? '' : q.explanation,
-          q.tags.join(' '),
         ]
           .join(' ')
           .toLowerCase()
@@ -442,8 +466,8 @@ export default function QuestionsView({
               type="search"
               value={state.search}
               onChange={(e) => patch({ search: e.target.value })}
-              placeholder={compact ? 'キーワード検索' : '問題文・解説・タグを検索'}
-              aria-label="問題文・解説・タグを検索"
+              placeholder={compact ? 'キーワード検索' : '問題文・解説を検索'}
+              aria-label="問題文・解説を検索"
               data-shortcut-ignore="true"
               style={{ ...controlBase, width: '100%', paddingLeft: '32px' }}
             />
@@ -457,12 +481,6 @@ export default function QuestionsView({
             <option value="all">種別：すべて</option>
             <option value={QUESTION_TYPES.CHOICE}>種別：選択式</option>
             <option value={QUESTION_TYPES.CLOZE}>種別：虫食い</option>
-          </select>
-          <select value={state.tag} onChange={(e) => patch({ tag: e.target.value })} aria-label="タグで絞り込み" style={{ ...controlBase, cursor: 'pointer' }}>
-            <option value="">タグ：すべて</option>
-            {tags.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
           </select>
           <select value={state.sort} onChange={(e) => patch({ sort: e.target.value })} aria-label="並び順" style={{ ...controlBase, cursor: 'pointer' }}>
             {Object.values(SORTS).map((s) => (
@@ -530,7 +548,6 @@ export default function QuestionsView({
               </button>
               <span>種別</span>
               <span>問題文</span>
-              <span>タグ</span>
               <span>学習状況</span>
               <span>定着度</span>
               <span>★</span>
@@ -597,9 +614,6 @@ export default function QuestionsView({
                     {isCloze(q)
                       ? clozeHeadline(q)
                       : segmentsToText(q.segments) || '（無題の問題）'}
-                  </span>
-                  <span style={{ fontSize: '11.5px', color: COLORS.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {q.tags.map((t) => `#${t}`).join(' ')}
                   </span>
                   {isCloze(q) ? (
                     <span style={{ fontSize: '11.5px', color: COLORS.muted }}>— 採点なし</span>
@@ -793,16 +807,32 @@ export default function QuestionsView({
           <button
             type="button"
             onClick={() => {
-              const tag = window.prompt('付与するタグを入力してください')
-              if (tag && tag.trim()) {
-                onBulkTag(checkedIds, tag.trim())
-                setCheckedIds([])
-              }
+              onDuplicate(checkedIds)
+              setCheckedIds([])
             }}
-            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+            style={ghostButton}
           >
-            タグを付与
+            ⧉ 複製
           </button>
+          <select
+            aria-label="移動先のグループ"
+            value=""
+            onChange={(e) => {
+              if (!e.target.value) return
+              onMoveToGroup(checkedIds, e.target.value)
+              setCheckedIds([])
+            }}
+            style={{ ...ghostButton, cursor: 'pointer', paddingRight: '8px' }}
+          >
+            <option value="">→ 移動…</option>
+            {groups
+              .filter((g) => g.id !== group?.id)
+              .map((g) => (
+                <option key={g.id} value={g.id} style={{ color: COLORS.text }}>
+                  {g.name}
+                </option>
+              ))}
+          </select>
           <button
             type="button"
             onClick={() => {
@@ -819,6 +849,17 @@ export default function QuestionsView({
             style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             ⇱ 別グループへ分割
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm(`選択した${checkedIds.length}問を削除します。元に戻せません。`)) return
+              onDelete(checkedIds)
+              setCheckedIds([])
+            }}
+            style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.redLight }}
+          >
+            🗑 削除
           </button>
           <button
             type="button"
@@ -891,6 +932,57 @@ export default function QuestionsView({
                 <button type="button" onClick={() => goRelative(1)} aria-label="次の問題" style={{ width: `${TAP_MIN}px`, height: `${TAP_MIN}px`, borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.body, fontFamily: 'inherit', cursor: 'pointer' }}>→</button>
               </span>
             </div>
+
+            {/* 1問だけへの操作（複製・移動・削除） */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+                padding: '10px 16px',
+                borderBottom: `1px solid ${COLORS.border}`,
+                background: COLORS.bg,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => onDuplicate([selected.q.id])}
+                style={panelAction()}
+              >
+                ⧉ 複製
+              </button>
+              <select
+                aria-label="この問題の移動先グループ"
+                value=""
+                onChange={(e) => {
+                  if (!e.target.value) return
+                  onMoveToGroup([selected.q.id], e.target.value)
+                }}
+                style={{ ...panelAction(), cursor: 'pointer' }}
+              >
+                <option value="">→ 移動…</option>
+                {groups
+                  .filter((g) => g.id !== group?.id)
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm(`問題 ${selected.q.questionNumber} を削除します。元に戻せません。`)) return
+                  onDelete([selected.q.id])
+                  closeDetail()
+                }}
+                style={{ ...panelAction(), marginLeft: 'auto', borderColor: COLORS.red, color: COLORS.red }}
+              >
+                🗑 削除
+              </button>
+            </div>
+
             {detailNode}
           </div>
         </>

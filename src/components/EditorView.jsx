@@ -263,48 +263,6 @@ function QuestionTextField({ text, marks, onChange, invalid }) {
   )
 }
 
-/** タグ入力（チップ＋自由入力）。 */
-function TagInput({ tags, onChange }) {
-  const [draft, setDraft] = useState('')
-  const commit = () => {
-    const value = draft.trim().replace(/[,、]$/, '')
-    if (!value) return
-    if (!tags.includes(value)) onChange([...tags, value].slice(0, 10))
-    setDraft('')
-  }
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', ...input, height: 'auto', padding: '8px' }}>
-      {tags.map((t) => (
-        <span key={t} style={{ ...pill(COLORS.blueLight, COLORS.blue), height: '28px', gap: '6px' }}>
-          {t}
-          <button
-            type="button"
-            onClick={() => onChange(tags.filter((x) => x !== t))}
-            aria-label={`タグ ${t} を削除`}
-            style={{ border: 'none', background: 'transparent', color: COLORS.blue, cursor: 'pointer', fontFamily: 'inherit', fontSize: '11px', padding: 0 }}
-          >
-            ✕
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault()
-            commit()
-          }
-        }}
-        onBlur={commit}
-        placeholder="追加…"
-        data-shortcut-ignore="true"
-        style={{ flex: '1 1 80px', minWidth: '80px', border: 'none', outline: 'none', fontSize: '13px', fontFamily: 'inherit', background: 'transparent', color: COLORS.text }}
-      />
-    </div>
-  )
-}
-
 /** 右ペインの演習プレビュー（演習画面と同じ見た目）。 */
 function Preview({ question, groupName, mode, position, total, pad }) {
   const multi = question.correctIndexes.length > 1
@@ -963,13 +921,6 @@ export default function EditorView({
     </div>
   ) : null
 
-  const tagField = question ? (
-    <div>
-      <div style={{ ...label, marginBottom: '6px' }}>タグ</div>
-      <TagInput tags={question.tags} onChange={(tags) => onUpdate(question.id, { tags })} />
-    </div>
-  ) : null
-
   // 虫食いは専用エディタ（本文・隠す・文字色）に差し替える
   const clozePanes =
     question && isCloze(question)
@@ -979,7 +930,6 @@ export default function EditorView({
               question={question}
               onUpdate={onUpdate}
               groupSlot={groupField}
-              tagsSlot={tagField}
               groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
               total={questions.length}
               pane="editor"
@@ -990,7 +940,6 @@ export default function EditorView({
               question={question}
               onUpdate={onUpdate}
               groupSlot={groupField}
-              tagsSlot={tagField}
               groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
               total={questions.length}
               pane="preview"
@@ -1008,7 +957,6 @@ export default function EditorView({
 
       {groupField}
 
-      {tagField}
 
       <div onBlur={() => setTouched((t) => ({ ...t, text: true }))}>
         <QuestionTextField text={text} marks={marks} onChange={setText} invalid={textInvalid} />

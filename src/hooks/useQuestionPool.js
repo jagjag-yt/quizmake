@@ -24,7 +24,6 @@ function emptyQuestion(questionNumber, groupId, type = QUESTION_TYPES.CHOICE) {
         groupId,
         title: '',
         paras: [[]],
-        tags: [],
         origin: ORIGIN.AUTHORED,
       },
       0,
@@ -40,7 +39,6 @@ function emptyQuestion(questionNumber, groupId, type = QUESTION_TYPES.CHOICE) {
       explanation: '',
       keyPoints: [],
       groupId,
-      tags: [],
       imageUrl: null,
       origin: ORIGIN.AUTHORED,
     },
@@ -302,21 +300,6 @@ export function useQuestionPool() {
     return group.id
   }, [])
 
-  /** 一括でタグを付与する。 */
-  const addTagToQuestions = useCallback((ids, tag) => {
-    const value = String(tag ?? '').trim()
-    if (!value) return
-    const idSet = new Set(ids)
-    setPool((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) =>
-        idSet.has(q.id) && !q.tags.includes(value)
-          ? { ...q, tags: [...q.tags, value].slice(0, 10) }
-          : q,
-      ),
-    }))
-  }, [])
-
   return {
     groups,
     questions,
@@ -338,6 +321,5 @@ export function useQuestionPool() {
     duplicateQuestion,
     reorderAuthored,
     importQuestions,
-    addTagToQuestions,
   }
 }

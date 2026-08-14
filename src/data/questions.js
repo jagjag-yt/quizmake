@@ -18,7 +18,6 @@ import { sanitizeImageUrl, toText } from '../utils/safe'
  * @property {string}   explanation      解説文
  * @property {string[]} keyPoints        「基本事項」の箇条書き
  * @property {string}   groupId          所属グループのID（旧「科目」の置き換え）
- * @property {string[]} tags             タグ（絞り込みに使用）
  * @property {string|null} imageUrl      問題画像（検証済みURLのみ保持）
  * @property {'authored'|'imported'} origin  アプリ内で作成したか、外部から読み込んだか
  * @property {'choice'|'cloze'} type  問題タイプ（作成後は変更しない）
@@ -33,7 +32,6 @@ const RAW_QUESTIONS = [
   {
     questionNumber: 1,
     group: '循環器',
-    tags: ['心電図', '虚血性心疾患'],
     segments: [
       { text: '急性心筋梗塞の発症直後（', u: false },
       { text: '超急性期', u: true },
@@ -54,7 +52,6 @@ const RAW_QUESTIONS = [
   {
     questionNumber: 2,
     group: '消化器',
-    tags: ['肝臓', '生理学'],
     segments: [
       { text: '肝臓の機能', u: true },
       { text: 'に関する記述のうち、誤っているのはどれか。', u: false },
@@ -78,7 +75,6 @@ const RAW_QUESTIONS = [
   {
     questionNumber: 3,
     group: '代謝・内分泌',
-    tags: ['糖尿病', '検査値'],
     segments: [
       { text: '空腹時血糖値', u: true },
       { text: 'が糖尿病型と判定される基準値はどれか。', u: false },
@@ -102,7 +98,6 @@ const RAW_QUESTIONS = [
   {
     questionNumber: 4,
     group: '薬理',
-    tags: ['抗菌薬', '副作用'],
     segments: [
       { text: 'アミノグリコシド系抗菌薬', u: true },
       { text: 'で頻度の高い重大な副作用はどれか。', u: false },
@@ -155,9 +150,6 @@ export function normalizeQuestion(raw, index = 0) {
     id: toText(raw.id, 40) || newQuestionId(),
     questionNumber: number,
     groupId: toText(raw.groupId, 40),
-    tags: Array.isArray(raw.tags)
-      ? [...new Set(raw.tags.map((t) => toText(t, 40)).filter(Boolean))].slice(0, 10)
-      : [],
     origin: raw.origin === ORIGIN.AUTHORED ? ORIGIN.AUTHORED : ORIGIN.IMPORTED,
   }
 
