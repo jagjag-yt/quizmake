@@ -290,17 +290,24 @@ export default function App() {
 
   const closeAllMarkers = useCallback(() => setOpenedIds(new Set()), [])
 
-  /** 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。 */
+  /**
+   * 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。
+   * 番号はグループごとに独立しているため、複数グループを混ぜて出題していると
+   * 同じ番号が複数あり得る。いま解いている問題と同じグループを優先して探す。
+   */
   const jumpToNumber = useCallback(
     (num) => {
-      const idx = session.questions.findIndex(
-        (q) => String(q.questionNumber) === String(num),
-      )
+      const hit = (q) => String(q.questionNumber) === String(num)
+      const currentGroupId = session.questions[session.index]?.groupId
+      const idx =
+        session.questions.findIndex((q) => hit(q) && q.groupId === currentGroupId) !== -1
+          ? session.questions.findIndex((q) => hit(q) && q.groupId === currentGroupId)
+          : session.questions.findIndex(hit)
       if (idx === -1) return false
       goTo(idx)
       return true
     },
-    [session.questions, goTo],
+    [session.questions, session.index, goTo],
   )
 
   /**

@@ -257,6 +257,39 @@ export default function ProgressHeader({
           minWidth: compact ? 0 : '220px',
         }}
       >
+        {/* 虫食い（PC）は正答率を出さないため、採点対象外・n/N問目・進捗バーを横1行に並べる（SPEC C） */}
+        {view === VIEWS.QUIZ && clozeMode && !compact ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', justifyContent: 'flex-end' }}>
+            {examMode && remainingSec != null && <ExamTimer remainingSec={remainingSec} />}
+            <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub, whiteSpace: 'nowrap' }}>
+              虫食いは採点対象外
+            </span>
+            <span style={{ width: '1px', height: '24px', background: COLORS.border }} />
+            <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue, whiteSpace: 'nowrap' }}>
+              虫食い {position}/{total}問目
+            </span>
+            <div
+              style={{
+                width: '220px',
+                height: '6px',
+                borderRadius: '999px',
+                background: COLORS.border,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: '999px',
+                  background: COLORS.blue,
+                  width: `${fillPct}%`,
+                  transition: 'width 0.2s ease',
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {view === VIEWS.QUIZ && examMode && remainingSec != null && (
             <ExamTimer remainingSec={remainingSec} />
@@ -332,6 +365,8 @@ export default function ProgressHeader({
           <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.blue }}>
             全 {questionTotal} 問
           </span>
+        )}
+          </>
         )}
       </div>
     </header>

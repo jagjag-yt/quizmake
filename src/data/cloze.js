@@ -161,6 +161,19 @@ export const unhideRange = (paras, start, end) =>
 export const colorRange = (paras, start, end, color) =>
   applyToRange(paras, start, end, () => ({ color: safeColor(color) }))
 
+/**
+ * 選択範囲の文字色を返す（ツールバーで「いまの色」に印を付けるために使う）。
+ * 範囲内に複数の色が混ざっているときは null（どれも選ばれていない扱い）。
+ */
+export function colorOfRange(paras, start, end) {
+  const items = flatten(paras).filter((item) =>
+    end > start ? item.start < end && item.end > start : item.start <= start && item.end > start,
+  )
+  if (!items.length) return DEFAULT_TEXT_COLOR
+  const first = items[0].run.color
+  return items.every((item) => item.run.color === first) ? first : null
+}
+
 /** 範囲に隠された run が含まれるか（「解除」ボタンの活性判定に使う）。 */
 export function rangeHasHidden(paras, start, end) {
   if (!(end > start)) return false

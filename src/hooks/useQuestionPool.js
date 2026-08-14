@@ -196,10 +196,13 @@ export function useQuestionPool() {
   /** 問題を別のグループへ移す。 */
   const moveQuestionsToGroup = useCallback((questionIds, groupId) => {
     const idSet = new Set(questionIds)
-    setPool((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) => (idSet.has(q.id) ? { ...q, groupId } : q)),
-    }))
+    setPool((prev) =>
+      // 移動先で番号が重なることがあるため、整合性チェック（グループ内の重複解消）を通す
+      ensureIntegrity({
+        ...prev,
+        questions: prev.questions.map((q) => (idSet.has(q.id) ? { ...q, groupId } : q)),
+      }),
+    )
   }, [])
 
   // ---------- 問題 ----------
@@ -209,7 +212,7 @@ export function useQuestionPool() {
     const current = poolRef.current
     const target = groupId ?? current.groups[0]?.id
     if (!target) return null
-    const created = emptyQuestion(nextQuestionNumber(current.questions), target, type)
+    const created = emptyQuestion(nextQuestionNumber(current.questions, target), target, type)
     setPool((prev) => ({ ...prev, questions: [...prev.questions, created] }))
     return created.id
   }, [])
@@ -238,7 +241,7 @@ export function useQuestionPool() {
     const source = current.questions.find((q) => q.id === id)
     if (!source) return null
     const copy = cloneQuestion(source, {
-      questionNumber: nextQuestionNumber(current.questions),
+      questionNumber: nextQuestionNumber(current.questions, source.groupId),
       origin: ORIGIN.AUTHORED,
     })
     setPool((prev) => ({ ...prev, questions: [...prev.questions, copy] }))
@@ -285,7 +288,12 @@ export function useQuestionPool() {
         groupId: group.id,
         origin: ORIGIN.IMPORTED,
       }))
-      const resolved = resolveNumberCollisions(tagged, prev.questions)
+      // 番号はグループごとに独立しているので、衝突を見るのは同じグループの中だけ。
+      // 取り込み先は必ず新しいグループなので、実際にはファイル内の重複だけが対象になる。
+      const resolved = resolveNumberCollisions(
+        tagged,
+        prev.questions.filter((q) => q.groupId === group.id),
+      )
       return {
         groups: [...prev.groups, group],
         questions: [...prev.questions, ...resolved].slice(0, LIMITS.QUESTIONS),

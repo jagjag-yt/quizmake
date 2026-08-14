@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { COLORS, LETTERS, ORIGIN, QUESTION_TYPES, SPACING, TAP_MIN, TYPE_LABELS } from '../constants'
+import {
+  COLORS,
+  GROUP_NAME_MAX,
+  LETTERS,
+  ORIGIN,
+  QUESTION_TYPES,
+  SPACING,
+  TAP_MIN,
+  TYPE_LABELS,
+} from '../constants'
 import {
   buildSegmentsFromMarks,
   segmentsToMarks,
@@ -417,6 +426,159 @@ function Preview({ question, groupName, mode, position, total, pad }) {
   )
 }
 
+/**
+ * クイズ作成の入口。
+ *
+ * 問題は必ずどれかのグループの中に入るため、いきなり1問目を作らせるのではなく
+ * 「新しいグループを作る」か「既存のグループに追加する」かを先に選んでもらう。
+ * どちらを選んでも、続けて「新しい問題」ダイアログ（問題タイプの選択）へ進む。
+ */
+function StartPane({
+  groups,
+  activeGroupId,
+  onCreateGroup,
+  onChangeActiveGroup,
+  onAdd,
+  onImportClick,
+  compact,
+  pad,
+}) {
+  const [name, setName] = useState('')
+  const [pick, setPick] = useState(activeGroupId ?? groups[0]?.id ?? '')
+
+  const optionCard = {
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: '14px',
+    padding: '18px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  }
+  const actionButton = (enabled) => ({
+    ...input,
+    width: '100%',
+    fontWeight: 700,
+    cursor: enabled ? 'pointer' : 'default',
+    border: `1px solid ${enabled ? COLORS.blue : COLORS.border}`,
+    background: enabled ? COLORS.blue : COLORS.chipTrack,
+    color: enabled ? '#ffffff' : COLORS.dashed,
+  })
+
+  const hasGroups = groups.length > 0
+  const nameReady = name.trim().length > 0
+
+  return (
+    <div
+      style={{
+        gridColumn: '1 / -1',
+        ...card(pad),
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '18px',
+      }}
+    >
+      <div>
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
+          クイズを作成する
+        </p>
+        <p style={{ margin: '6px 0 0 0', fontSize: '13.5px', color: COLORS.sub, lineHeight: 1.8 }}>
+          問題はグループ（科目・単元）の中に作ります。どちらから始めるか選んでください。
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: '14px' }}>
+        <div style={optionCard}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: COLORS.text }}>
+            ＋ 新しいグループを作成
+          </span>
+          <span style={{ fontSize: '12.5px', color: COLORS.sub, lineHeight: 1.7 }}>
+            新しい科目や単元を作って、その中に問題を追加します。
+          </span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, GROUP_NAME_MAX))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && nameReady) {
+                onCreateGroup(name.trim())
+                setName('')
+                onAdd()
+              }
+            }}
+            placeholder="例：循環器"
+            aria-label="新しいグループ名"
+            data-shortcut-ignore="true"
+            style={{ ...input, marginTop: 'auto' }}
+          />
+          <button
+            type="button"
+            disabled={!nameReady}
+            onClick={() => {
+              onCreateGroup(name.trim())
+              setName('')
+              onAdd()
+            }}
+            style={actionButton(nameReady)}
+          >
+            作成して問題を追加
+          </button>
+        </div>
+
+        <div style={optionCard}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: COLORS.text }}>
+            既存のグループに問題を追加
+          </span>
+          <span style={{ fontSize: '12.5px', color: COLORS.sub, lineHeight: 1.7 }}>
+            {hasGroups
+              ? 'すでにあるグループを選んで、問題を追加します。'
+              : 'まだグループがありません。左の「新しいグループを作成」から始めてください。'}
+          </span>
+          <select
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+            disabled={!hasGroups}
+            aria-label="追加先のグループ"
+            style={{ ...input, marginTop: 'auto', cursor: hasGroups ? 'pointer' : 'default' }}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!hasGroups}
+            onClick={() => {
+              onChangeActiveGroup(pick)
+              onAdd()
+            }}
+            style={actionButton(hasGroups)}
+          >
+            このグループに問題を追加
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onImportClick}
+        style={{
+          alignSelf: 'flex-start',
+          border: 'none',
+          background: 'transparent',
+          color: COLORS.sub,
+          fontSize: '13px',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          textDecoration: 'underline',
+        }}
+      >
+        または Excelを読み込む
+      </button>
+    </div>
+  )
+}
+
 export default function EditorView({
   questions,
   authored,
@@ -598,49 +760,22 @@ export default function EditorView({
     )
   }
 
-  // ---------- 0問のとき ----------
-  if (!authored.length && !question) {
-    return (
-      <div
-        style={{
-          gridColumn: '1 / -1',
-          ...card(space.card),
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '14px',
-          padding: '56px 32px',
-          textAlign: 'center',
-        }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '999px', background: COLORS.blueLight, color: COLORS.blue, fontSize: '26px' }}>
-          ＋
-        </span>
-        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
-          最初の問題をつくる
-        </p>
-        <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
-          問題文と選択肢を入力すると、右側に演習画面と
-          <br />
-          同じ見た目のプレビューが表示されます。
-        </p>
-        <button
-          type="button"
-          onClick={() => onSelect(onAdd(activeGroupId))}
-          style={{ ...input, width: 'auto', padding: '0 22px', border: `1px solid ${COLORS.blue}`, background: COLORS.blue, color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
-        >
-          ＋ 問題を作成
-        </button>
-        <button
-          type="button"
-          onClick={onImportClick}
-          style={{ border: 'none', background: 'transparent', color: COLORS.sub, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
-        >
-          または Excelを読み込む
-        </button>
-      </div>
-    )
-  }
+  // ---------- まだ問題を選んでいない／1問もないとき ----------
+  // 「最初の1問」から始めるのではなく、まずグループを決めてもらう
+  const startPane = (
+    <StartPane
+      groups={groups}
+      activeGroupId={activeGroupId}
+      onCreateGroup={onCreateGroup}
+      onChangeActiveGroup={onChangeActiveGroup}
+      onAdd={onAdd}
+      onImportClick={onImportClick}
+      compact={compact}
+      pad={space.card}
+    />
+  )
+
+  if (!authored.length && !question) return startPane
 
   const sidebar = (
     <div style={{ ...card(16), display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
@@ -845,6 +980,8 @@ export default function EditorView({
               onUpdate={onUpdate}
               groupSlot={groupField}
               tagsSlot={tagField}
+              groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
+              total={questions.length}
               pane="editor"
             />
           ),
@@ -854,6 +991,8 @@ export default function EditorView({
               onUpdate={onUpdate}
               groupSlot={groupField}
               tagsSlot={tagField}
+              groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
+              total={questions.length}
               pane="preview"
             />
           ),
@@ -1059,9 +1198,8 @@ export default function EditorView({
       )}
     </div>
   ) : (
-    <div style={{ ...card(space.card), color: COLORS.muted, fontSize: '14px', textAlign: 'center', padding: '48px 24px' }}>
-      左の一覧から問題を選ぶか、「＋」で新しく作成してください
-    </div>
+    // 問題を選んでいないときは、入口と同じ「グループを決める」画面を出す
+    startPane
   )
 
   const previewPane = question && !isCloze(question) ? (
