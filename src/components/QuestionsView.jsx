@@ -639,6 +639,61 @@ export default function QuestionsView({
             })}
 
             <div style={{ height: `${Math.max(0, (rows.length - end) * ROW_H)}px` }} />
+
+            {/* 虫食いで絞り込んで0件のとき（SPEC E1）。Excelから読めないことをここで伝える */}
+            {!rows.length && state.type === QUESTION_TYPES.CLOZE && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '999px',
+                    background: COLORS.blueLight,
+                  }}
+                >
+                  <span style={{ display: 'block', width: '22px', height: '12px', background: COLORS.blue }} />
+                </span>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
+                  虫食い問題はまだありません
+                </p>
+                <p style={{ margin: 0, fontSize: '13.5px', color: COLORS.sub, lineHeight: 1.8 }}>
+                  文章の一部を隠して覚えたい内容に向いています。
+                  <br />
+                  Excelからは読み込めないため、アプリ内で作成します。
+                </p>
+                <button
+                  type="button"
+                  onClick={onCreateClick}
+                  style={{
+                    minHeight: `${TAP_MIN}px`,
+                    padding: '0 20px',
+                    borderRadius: '12px',
+                    border: `1px solid ${COLORS.blue}`,
+                    background: COLORS.blue,
+                    color: '#ffffff',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ＋ 虫食い問題を作成
+                </button>
+              </div>
+            )}
           </div>
 
           <div

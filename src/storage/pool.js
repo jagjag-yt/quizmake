@@ -143,7 +143,7 @@ export function loadPool() {
 export function ensureIntegrity({ groups, questions }) {
   const ids = new Set(groups.map((g) => g.id))
   const orphan = questions.some((q) => !ids.has(q.groupId))
-  if (!orphan) return { groups, questions }
+  if (!orphan) return { groups, questions: dedupeNumbersByGroup(questions) }
 
   let fallback = groups.find((g) => g.name === DEFAULT_GROUP_NAME)
   const nextGroups = [...groups]
@@ -153,7 +153,9 @@ export function ensureIntegrity({ groups, questions }) {
   }
   return {
     groups: nextGroups,
-    questions: questions.map((q) => (ids.has(q.groupId) ? q : { ...q, groupId: fallback.id })),
+    questions: dedupeNumbersByGroup(
+      questions.map((q) => (ids.has(q.groupId) ? q : { ...q, groupId: fallback.id })),
+    ),
   }
 }
 
@@ -185,10 +187,48 @@ export const numberBase = (value) => {
   return Number.isFinite(n) ? n : 0
 }
 
-/** 次に作成する問題に振る番号（プール全体の最大＋1）。 */
-export function nextQuestionNumber(questions) {
-  const max = questions.reduce((acc, q) => Math.max(acc, numberBase(q.questionNumber)), 0)
+/**
+ * 次に作成する問題に振る番号（そのグループ内の最大＋1）。
+ * 番号はグループごとに独立しているので、別グループの番号とは重なってよい。
+ */
+export function nextQuestionNumber(questions, groupId) {
+  const scoped = groupId ? questions.filter((q) => q.groupId === groupId) : questions
+  const max = scoped.reduce((acc, q) => Math.max(acc, numberBase(q.questionNumber)), 0)
   return max + 1
+}
+
+/**
+ * グループ内で番号が重複しないように整える。
+ * 各グループで先に現れたものの番号を残し、後から重なったものだけを最大＋1へ送る。
+ * グループの移動・統合・分割で番号が衝突したときにだけ効く。
+ */
+export function dedupeNumbersByGroup(questions) {
+  const used = new Map() // groupId -> Set(番号の文字列)
+  const maxOf = new Map() // groupId -> 現在の最大番号
+  let changed = false
+
+  const next = questions.map((q) => {
+    const key = q.groupId
+    if (!used.has(key)) {
+      used.set(key, new Set())
+      maxOf.set(key, 0)
+    }
+    const seen = used.get(key)
+    const label = String(q.questionNumber)
+    const base = numberBase(q.questionNumber)
+    if (!seen.has(label)) {
+      seen.add(label)
+      maxOf.set(key, Math.max(maxOf.get(key), base))
+      return q
+    }
+    const renumbered = maxOf.get(key) + 1
+    seen.add(String(renumbered))
+    maxOf.set(key, renumbered)
+    changed = true
+    return { ...q, questionNumber: renumbered }
+  })
+
+  return changed ? next : questions
 }
 
 /**

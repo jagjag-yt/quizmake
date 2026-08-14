@@ -154,6 +154,13 @@ export default function QuestionDetail({
   cardPadding = 32,
 }) {
   const [clozeOpen, setClozeOpen] = useState(true)
+  // 選択式の詳細は「内容の確認」で開くことが多く、正解が目に入ると演習にならない。
+  // 既定では伏せておき、押したときだけ見せる（虫食いの [答えを表示|隠す] と同じ操作）。
+  const [answerOpen, setAnswerOpen] = useState(false)
+  useEffect(() => {
+    setAnswerOpen(false)
+  }, [noteKey])
+
   const meta = record?.attempts
     ? `${record.attempts}回中${record.correct}回正解${
         record.lastAnsweredAt ? ` · 最終 ${record.lastAnsweredAt.replace(/-/g, '/')}` : ''
@@ -301,10 +308,50 @@ export default function QuestionDetail({
         />
       )}
 
-      {/* 選択肢（正解を明示） */}
+      {/* 正解の表示切り替え */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={pill(COLORS.chipTrack, COLORS.body)}>選択肢 {question.choices.length}つ</span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            gap: '2px',
+            padding: '3px',
+            borderRadius: '999px',
+            background: COLORS.chipTrack,
+          }}
+        >
+          {[
+            { key: false, text: '答えを隠す' },
+            { key: true, text: '答えを表示' },
+          ].map((t) => (
+            <button
+              key={String(t.key)}
+              type="button"
+              onClick={() => setAnswerOpen(t.key)}
+              style={{
+                minHeight: '34px',
+                padding: '0 14px',
+                borderRadius: '999px',
+                border: 'none',
+                background: answerOpen === t.key ? COLORS.blue : 'transparent',
+                color: answerOpen === t.key ? '#ffffff' : COLORS.sub,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {t.text}
+            </button>
+          ))}
+        </span>
+      </div>
+
+      {/* 選択肢（「答えを表示」のときだけ正解を明示する） */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {question.choices.map((text, idx) => {
-          const isCorrect = question.correctIndexes.includes(idx)
+          const isCorrect = answerOpen && question.correctIndexes.includes(idx)
           return (
             <div
               key={idx}
@@ -355,7 +402,7 @@ export default function QuestionDetail({
         })}
       </div>
 
-      {question.explanation && (
+      {answerOpen && question.explanation && (
         <div>
           <h3 style={heading}>解説</h3>
           <p
@@ -372,7 +419,7 @@ export default function QuestionDetail({
         </div>
       )}
 
-      {question.keyPoints.length > 0 && (
+      {answerOpen && question.keyPoints.length > 0 && (
         <div>
           <h3 style={heading}>基本事項</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

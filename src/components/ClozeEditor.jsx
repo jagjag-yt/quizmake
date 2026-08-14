@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, TEXT_COLORS } from '../constants'
 import {
   bodyLength,
+  colorOfRange,
   colorRange,
   hiddenCount,
   hideRange,
@@ -169,7 +170,15 @@ function PreviewBody({ paras, allOpen, compact }) {
  * contenteditable ではなく textarea にしているのは、選択位置（selectionStart/End）が
  * そのまま範囲指定に使え、日本語入力や端末のキーボードでも壊れないため。
  */
-export default function ClozeEditor({ question, onUpdate, tagsSlot, groupSlot, pane = 'editor' }) {
+export default function ClozeEditor({
+  question,
+  onUpdate,
+  tagsSlot,
+  groupSlot,
+  groupName = '',
+  total = 0,
+  pane = 'editor',
+}) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -183,6 +192,8 @@ export default function ClozeEditor({ question, onUpdate, tagsSlot, groupSlot, p
   const chars = bodyLength(paras)
   const hasSelection = selection.end > selection.start
   const canUnhide = hasSelection && rangeHasHidden(paras, selection.start, selection.end)
+  // いま選んでいる箇所の文字色。スウォッチに印を付けるためだけに使う
+  const currentColor = chars ? colorOfRange(paras, selection.start, selection.end) : null
 
   const syncSelection = useCallback(() => {
     const el = areaRef.current
@@ -310,7 +321,7 @@ export default function ClozeEditor({ question, onUpdate, tagsSlot, groupSlot, p
             disabled={!canUnhide}
             style={toolbarButton(canUnhide, false)}
           >
-            □ 隠すのを解除
+            {compact ? '□ 解除' : '□ 隠すのを解除'}
           </button>
           <span style={{ width: '1px', height: '24px', background: COLORS.border }} />
           <span style={{ ...label, fontSize: '12px' }}>文字色</span>
@@ -327,7 +338,10 @@ export default function ClozeEditor({ question, onUpdate, tagsSlot, groupSlot, p
                 height: '22px',
                 borderRadius: '999px',
                 border: 'none',
-                background: hasSelection ? c.value : COLORS.chipTrack,
+                // 本文が空のときだけ灰色にする。文章があれば選択前でも色見本として見せる（SPEC B）
+                background: chars ? c.value : COLORS.chipTrack,
+                boxShadow:
+                  currentColor === c.value ? `0 0 0 2px #ffffff, 0 0 0 3px ${COLORS.blue}` : 'none',
                 cursor: hasSelection ? 'pointer' : 'default',
                 padding: 0,
               }}
@@ -477,8 +491,9 @@ export default function ClozeEditor({ question, onUpdate, tagsSlot, groupSlot, p
       <div style={card(space.card)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
           <span style={pill(COLORS.blueLight, COLORS.blue)}>虫食い</span>
+          {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
           <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 700, color: COLORS.blue }}>
-            {question.questionNumber} 問目
+            {question.questionNumber} / {total}問目
           </span>
         </div>
         {question.title && (

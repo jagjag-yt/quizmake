@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { COLORS, QUESTION_TYPES, TAP_MIN } from '../constants'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 
 const TYPE_CARDS = [
   {
@@ -23,6 +24,7 @@ const FOCUSABLE = 'button, select, [tabindex]:not([tabindex="-1"])'
  * 必ず1回決めてもらう（SPEC A）。
  */
 export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onCreate }) {
+  const compact = useCompactLayout()
   const [groupId, setGroupId] = useState(defaultGroupId ?? groups[0]?.id ?? '')
   const [type, setType] = useState(QUESTION_TYPES.CHOICE)
   const ref = useRef(null)
@@ -65,7 +67,7 @@ export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onC
           left: '50%',
           transform: 'translate(-50%, -50%)',
           zIndex: 56,
-          width: 'min(600px, calc(100vw - 40px))',
+          width: 'min(660px, calc(100vw - 40px))',
           maxHeight: 'calc(100vh - 80px)',
           overflowY: 'auto',
           background: COLORS.card,
@@ -85,9 +87,9 @@ export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onC
             aria-label="閉じる"
             style={{
               marginLeft: 'auto',
-              width: '32px',
-              height: '32px',
-              borderRadius: '999px',
+              width: `${TAP_MIN}px`,
+              height: `${TAP_MIN}px`,
+              borderRadius: '12px',
               border: 'none',
               background: 'transparent',
               color: COLORS.sub,
@@ -131,7 +133,16 @@ export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onC
         <div style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub, marginBottom: '8px' }}>
           問題タイプ
         </div>
-        <div role="radiogroup" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* PCは2枚を横並び、タブレット以下は縦積み（デザイン枠02） */}
+        <div
+          role="radiogroup"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: compact ? '1fr' : '1fr 1fr',
+            gap: '12px',
+            alignItems: 'stretch',
+          }}
+        >
           {TYPE_CARDS.map((card) => {
             const selected = type === card.type
             return (
