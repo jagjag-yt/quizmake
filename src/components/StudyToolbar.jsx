@@ -36,7 +36,6 @@ export default function StudyToolbar({
   onChangeExamMode,
   examMinutes,
   onChangeExamMinutes,
-  onRestart,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
@@ -219,26 +218,6 @@ export default function StudyToolbar({
         </label>
       )}
 
-      <button
-        type="button"
-        onClick={onRestart}
-        title="現在の条件で最初から出題し直します"
-        style={{
-          marginLeft: 'auto',
-          minHeight: `${TAP_MIN - 8}px`,
-          padding: '8px 16px',
-          borderRadius: '10px',
-          border: `1px solid ${COLORS.blue}`,
-          background: COLORS.blueLight,
-          color: COLORS.blue,
-          fontSize: '13px',
-          fontWeight: 700,
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-        }}
-      >
-        この条件で開始
-      </button>
     </div>
   )
 }

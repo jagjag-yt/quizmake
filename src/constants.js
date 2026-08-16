@@ -94,7 +94,7 @@ export const VIEWS = {
 export const TABS = [
   { view: VIEWS.QUESTIONS, label: '設問一覧', tablet: '一覧' },
   { view: VIEWS.QUIZ, label: '演習', tablet: '演習' },
-  { view: VIEWS.EDITOR, label: 'クイズ作成', tablet: '作成' },
+  { view: VIEWS.EDITOR, label: '問題作成', tablet: '作成' },
   { view: VIEWS.DASHBOARD, label: '学習記録', tablet: '記録' },
 ]
 

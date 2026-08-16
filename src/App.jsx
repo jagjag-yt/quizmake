@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { COLORS, LETTERS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, VIEWS } from './constants'
-import { isCloze, isGraded, questionKey } from './data/questions'
+import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
 import { hiddenCount } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
@@ -16,8 +16,8 @@ import QuestionCard from './components/QuestionCard'
 import ResultCard from './components/ResultCard'
 import FooterNav from './components/FooterNav'
 import EmptyState from './components/EmptyState'
-import ExcelLoader from './components/ExcelLoader'
-import DataManager from './components/DataManager'
+import DataTransfer, { TransferInput } from './components/DataTransfer'
+import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
 import Dashboard from './components/Dashboard'
@@ -67,7 +67,8 @@ function selectQuestions(source, records, { mode, groupId, limit, qtype }) {
  * （回答するたびにリストが変わってしまうのを防ぐため）。
  */
 function createSession(source, records, opts) {
-  const list = opts.explicitList ?? selectQuestions(source, records, opts)
+  // 未入力のまま残っている選択肢・基本事項は出題に載せない
+  const list = (opts.explicitList ?? selectQuestions(source, records, opts)).map(compactQuestion)
   const startedAt = Date.now()
   return {
     questions: list,
@@ -99,13 +100,16 @@ export default function App() {
   const space = compact ? SPACING.compact : SPACING.wide
 
   const questions = pool.questions
-  const [view, setView] = useState(VIEWS.QUIZ)
+  // 起動直後は設問一覧のグループ一覧から始める
+  const [view, setView] = useState(VIEWS.QUESTIONS)
   const [helpOpen, setHelpOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   // 設問一覧で開いているグループ（null ならグループ一覧を表示）
   const [openGroupId, setOpenGroupId] = useState(null)
   const [editorGroupId, setEditorGroupId] = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const transferInputRef = useRef(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
   // 出題条件
   const [opts, setOpts] = useState(DEFAULT_OPTS)
@@ -368,12 +372,7 @@ export default function App() {
     startSession({ ...opts, examMode: false }, { explicitList: wrong })
   }, [session.questions, answers, opts, startSession])
 
-  const resetAll = useCallback(() => {
-    const sure = window.confirm(
-      '学習記録（正答率・ブックマーク・メモ・復習予定）をすべて削除します。\nこの操作は取り消せません。続行しますか？',
-    )
-    if (sure) study.resetAll()
-  }, [study])
+  const resetAll = useCallback(() => setResetOpen(true), [])
 
   // --- 一覧・集計 ---
   const groupNameOf = useCallback(
@@ -391,12 +390,12 @@ export default function App() {
     [questions, openGroupId],
   )
 
-  /** クイズ作成で「追加先」に選ばれているグループ。 */
+  /** 問題作成で「追加先」に選ばれているグループ。 */
   const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
 
-  /** ヘッダーの Excel 読み込みボタンを押す。 */
+  /** 「読み込む」のファイル選択を開く（Excel / バックアップの共通入口）。 */
   const openFilePicker = useCallback(() => {
-    document.querySelector('input[accept=".xlsx,.xls"]')?.click()
+    transferInputRef.current?.click()
   }, [])
   const counts = useMemo(() => {
     const scoped = questions.filter((q) => matchesFilters(q, opts.groupId))
@@ -503,10 +502,7 @@ export default function App() {
         remainingSec={remainingSec}
         clozeMode={!!displayQuestion && isCloze(displayQuestion)}
         savedAt={pool.savedAt}
-        onExport={() => setExportOpen(true)}
       >
-        <ExcelLoader onLoad={loadQuestions} />
-        <DataManager onExport={study.exportJson} onImport={study.importData} />
         <ShortcutHelp open={helpOpen} onToggle={() => setHelpOpen((v) => !v)} />
       </ProgressHeader>
 
@@ -551,7 +547,6 @@ export default function App() {
           onChangeExamMode={(examMode) => updateOpts({ examMode })}
           examMinutes={opts.examMinutes}
           onChangeExamMinutes={(examMinutes) => updateOpts({ examMinutes })}
-          onRestart={() => startSession(opts)}
         />
       )}
 
@@ -658,6 +653,14 @@ export default function App() {
             onDuplicate={pool.duplicateQuestion}
             onReorderAuthored={pool.reorderAuthored}
             onImportClick={openFilePicker}
+            transferSlot={
+              <DataTransfer
+                getStudyJson={study.exportJson}
+                onExportExcel={() => setExportOpen(true)}
+                onImportClick={openFilePicker}
+                onNotify={toast.show}
+              />
+            }
             groups={pool.groups}
             activeGroupId={activeEditorGroupId}
             onChangeActiveGroup={setEditorGroupId}
@@ -793,6 +796,26 @@ export default function App() {
           onExport={runExport}
         />
       )}
+
+      {resetOpen && (
+        <ConfirmDialog
+          title="学習記録をすべて削除しますか？"
+          message="正答率・ブックマーク・メモ・復習予定がすべて消えます。元に戻せません。"
+          confirmLabel="削除する"
+          onCancel={() => setResetOpen(false)}
+          onConfirm={() => {
+            study.resetAll()
+            setResetOpen(false)
+          }}
+        />
+      )}
+
+      <TransferInput
+        inputRef={transferInputRef}
+        onLoadQuestions={loadQuestions}
+        onImportStudyData={study.importData}
+        onNotify={toast.show}
+      />
 
       <ToastHost toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>

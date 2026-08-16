@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
 import { clozeHeadline, hiddenCount, withMarkerIndexes } from '../data/cloze'
-import { isCloze } from '../data/questions'
+import { compactQuestion, isCloze } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
 /** 見出し（h14b + 下線）。 */
@@ -114,10 +114,16 @@ function ClozeDetailBody({ paras, opened }) {
               >
                 <span
                   style={{
+                    // 行ボックス基準（vertical-align:top）だと、inline 表示のマーカーでは
+                    // 塗りの上端より上に出てしまう。文字のベースライン基準で置き、
+                    // relative で少しだけ持ち上げて「左上」に見せる
+                    display: 'inline-block',
+                    position: 'relative',
+                    top: '-4px',
                     fontSize: '12px',
                     fontWeight: 700,
-                    lineHeight: 1,
-                    verticalAlign: 'top',
+                    lineHeight: '12px',
+                    verticalAlign: 'baseline',
                     marginRight: '4px',
                     color: opened ? COLORS.text : '#ffffff',
                     fontVariantNumeric: 'tabular-nums',
@@ -144,7 +150,7 @@ function ClozeDetailBody({ paras, opened }) {
  * デスクトップでは右カラムに常時表示、タブレットでは右からのパネルに入れる。
  */
 export default function QuestionDetail({
-  question,
+  question: rawQuestion,
   groupName,
   record,
   noteKey,
@@ -153,12 +159,15 @@ export default function QuestionDetail({
   onStartFromHere,
   cardPadding = 32,
 }) {
-  const [clozeOpen, setClozeOpen] = useState(true)
+  // 未入力のまま残っている選択肢・基本事項は表示しない
+  const question = compactQuestion(rawQuestion)
+  const [clozeOpen, setClozeOpen] = useState(false)
   // 選択式の詳細は「内容の確認」で開くことが多く、正解が目に入ると演習にならない。
   // 既定では伏せておき、押したときだけ見せる（虫食いの [答えを表示|隠す] と同じ操作）。
   const [answerOpen, setAnswerOpen] = useState(false)
   useEffect(() => {
     setAnswerOpen(false)
+    setClozeOpen(false)
   }, [noteKey])
 
   const meta = record?.attempts
@@ -248,8 +257,8 @@ export default function QuestionDetail({
               }}
             >
               {[
+                { key: false, text: '答えを隠す' },
                 { key: true, text: '答えを表示' },
-                { key: false, text: '隠す' },
               ].map((t) => (
                 <button
                   key={String(t.key)}

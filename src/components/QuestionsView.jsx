@@ -16,6 +16,7 @@ import { clozeHeadline } from '../data/cloze'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import { isPlainObject, safeJsonParse } from '../utils/safe'
 import QuestionDetail, { BoxMeter, StatusBadge } from './QuestionDetail'
+import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 
 const ROW_H = 56
 const GRID = '40px 68px 76px 1fr 118px 78px 36px'
@@ -173,6 +174,9 @@ export default function QuestionsView({
   // 詳細は常時表示せず、行を選んだときだけパネルで開く
   const [panelOpen, setPanelOpen] = useState(false)
   const [checkedIds, setCheckedIds] = useState([])
+  // 確認は window.confirm ではなくアプリ内のダイアログで行う
+  const [deleting, setDeleting] = useState(null) // { ids, label }
+  const [splitting, setSplitting] = useState(false)
   const [focusIndex, setFocusIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const scrollRef = useRef(null)
@@ -387,13 +391,13 @@ export default function QuestionsView({
           問題がまだありません
         </p>
         <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
-          Excelを読み込むか、アプリ内で作成すると
+          問題を読み込むか、アプリ内で作成すると
           <br />
           ここに一覧が表示されます。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" onClick={onImportClick} style={{ ...controlBase, border: `1px solid ${COLORS.border}`, fontWeight: 700, cursor: 'pointer', color: COLORS.body }}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"
@@ -835,28 +839,16 @@ export default function QuestionsView({
           </select>
           <button
             type="button"
-            onClick={() => {
-              const name = window.prompt(
-                `選択した${checkedIds.length}問を新しいグループへ分割します。
-グループ名を入力してください。`,
-                group?.name ? `${group.name} 分割` : '',
-              )
-              if (name && name.trim()) {
-                onSplit(checkedIds, name.trim())
-                setCheckedIds([])
-              }
-            }}
+            onClick={() => setSplitting(true)}
             style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             ⇱ 別グループへ分割
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (!window.confirm(`選択した${checkedIds.length}問を削除します。元に戻せません。`)) return
-              onDelete(checkedIds)
-              setCheckedIds([])
-            }}
+            onClick={() =>
+              setDeleting({ ids: [...checkedIds], label: `選択した${checkedIds.length}問` })
+            }
             style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.redLight }}
           >
             🗑 削除
@@ -972,11 +964,13 @@ export default function QuestionsView({
               </select>
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm(`問題 ${selected.q.questionNumber} を削除します。元に戻せません。`)) return
-                  onDelete([selected.q.id])
-                  closeDetail()
-                }}
+                onClick={() =>
+                  setDeleting({
+                    ids: [selected.q.id],
+                    label: `問題 ${selected.q.questionNumber}`,
+                    closeAfter: true,
+                  })
+                }
                 style={{ ...panelAction(), marginLeft: 'auto', borderColor: COLORS.red, color: COLORS.red }}
               >
                 🗑 削除
@@ -986,6 +980,36 @@ export default function QuestionsView({
             {detailNode}
           </div>
         </>
+      )}
+
+      {splitting && (
+        <PromptDialog
+          title={`選択した${checkedIds.length}問を新しいグループへ`}
+          label="新しいグループ名"
+          defaultValue={group?.name ? `${group.name} 分割` : ''}
+          confirmLabel="分割する"
+          onCancel={() => setSplitting(false)}
+          onConfirm={(name) => {
+            onSplit(checkedIds, name)
+            setCheckedIds([])
+            setSplitting(false)
+          }}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title={`${deleting.label}を削除しますか？`}
+          message="元に戻せません。"
+          confirmLabel="削除する"
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            onDelete(deleting.ids)
+            setCheckedIds([])
+            if (deleting.closeAfter) closeDetail()
+            setDeleting(null)
+          }}
+        />
       )}
     </div>
   )

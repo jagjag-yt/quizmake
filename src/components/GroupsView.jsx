@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { COLORS, SPACING } from '../constants'
 import { questionKey } from '../data/questions'
 import { useCompactLayout } from '../hooks/useMediaQuery'
@@ -44,6 +45,11 @@ export default function GroupsView({
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const [checked, setChecked] = useState([])
+  // window.confirm / prompt は環境によって表示されないため、アプリ内のUIで扱う
+  const [renaming, setRenaming] = useState(null) // { id, value }
+  const [deleting, setDeleting] = useState(null) // { id, name, total }
+  const [creating, setCreating] = useState(false)
+  const [merging, setMerging] = useState(false)
 
   /** グループごとの集計（問題数・学習済み・正答率・要復習）。 */
   const stats = useMemo(() => {
@@ -104,21 +110,18 @@ export default function GroupsView({
           グループがまだありません
         </p>
         <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
-          Excelを読み込むか、グループを作って問題を追加すると
+          問題を読み込むか、グループを作って問題を追加すると
           <br />
           ここに一覧が表示されます。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"
             style={smallBtn(true)}
-            onClick={() => {
-              const name = window.prompt('グループ名を入力してください')
-              if (name && name.trim()) onCreateGroup(name.trim())
-            }}
+            onClick={() => setCreating(true)}
           >
             ＋ グループを作成
           </button>
@@ -144,15 +147,12 @@ export default function GroupsView({
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"
             style={smallBtn(true)}
-            onClick={() => {
-              const name = window.prompt('グループ名を入力してください')
-              if (name && name.trim()) onCreateGroup(name.trim())
-            }}
+            onClick={() => setCreating(true)}
           >
             ＋ グループを作成
           </button>
@@ -259,27 +259,17 @@ export default function GroupsView({
                   type="button"
                   aria-label={`${s.group.name} の名前を変更`}
                   style={{ ...smallBtn(false), padding: '0 10px', marginLeft: 'auto' }}
-                  onClick={() => {
-                    const name = window.prompt('新しいグループ名', s.group.name)
-                    if (name && name.trim()) onRenameGroup(s.group.id, name.trim())
-                  }}
+                  onClick={() => setRenaming({ id: s.group.id, value: s.group.name })}
                 >
-                  名前
+                  名前の変更
                 </button>
                 <button
                   type="button"
                   aria-label={`${s.group.name} を削除`}
                   style={{ ...smallBtn(false), padding: '0 10px', color: COLORS.red }}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `「${s.group.name}」を削除します。中の${s.total}問も削除されます。よろしいですか？`,
-                      )
-                    ) {
-                      onRemoveGroup(s.group.id)
-                      setChecked((prev) => prev.filter((x) => x !== s.group.id))
-                    }
-                  }}
+                  onClick={() =>
+                    setDeleting({ id: s.group.id, name: s.group.name, total: s.total })
+                  }
                 >
                   削除
                 </button>
@@ -314,19 +304,7 @@ export default function GroupsView({
           <button
             type="button"
             style={{ ...smallBtn(true), border: `1px solid ${COLORS.blue}` }}
-            onClick={() => {
-              const names = checked
-                .map((id) => groups.find((g) => g.id === id)?.name)
-                .filter(Boolean)
-              const name = window.prompt(
-                `${checked.length}個のグループを1つに統合します。\n統合後のグループ名を入力してください。`,
-                names[0] ?? '',
-              )
-              if (name && name.trim()) {
-                onMergeGroups(checked, name.trim())
-                setChecked([])
-              }
-            }}
+            onClick={() => setMerging(true)}
           >
             ⇉ 統合する
           </button>
@@ -339,6 +317,64 @@ export default function GroupsView({
             ✕
           </button>
         </div>
+      )}
+
+      {/* 名前の変更・削除・作成・統合（window.prompt / confirm の置き換え） */}
+      {renaming && (
+        <PromptDialog
+          title="グループ名を変更"
+          label="新しい名前"
+          defaultValue={renaming.value}
+          confirmLabel="変更する"
+          onCancel={() => setRenaming(null)}
+          onConfirm={(name) => {
+            onRenameGroup(renaming.id, name)
+            setRenaming(null)
+          }}
+        />
+      )}
+
+      {creating && (
+        <PromptDialog
+          title="グループを作成"
+          label="グループ名"
+          placeholder="例：循環器"
+          confirmLabel="作成する"
+          onCancel={() => setCreating(false)}
+          onConfirm={(name) => {
+            onCreateGroup(name)
+            setCreating(false)
+          }}
+        />
+      )}
+
+      {merging && (
+        <PromptDialog
+          title={`${checked.length}個のグループを統合`}
+          label="統合後のグループ名"
+          defaultValue={groups.find((g) => g.id === checked[0])?.name ?? ''}
+          confirmLabel="統合する"
+          onCancel={() => setMerging(false)}
+          onConfirm={(name) => {
+            onMergeGroups(checked, name)
+            setChecked([])
+            setMerging(false)
+          }}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title={`「${deleting.name}」を削除しますか？`}
+          message={`中の${deleting.total}問も一緒に削除されます。元に戻せません。`}
+          confirmLabel="削除する"
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            onRemoveGroup(deleting.id)
+            setChecked((prev) => prev.filter((x) => x !== deleting.id))
+            setDeleting(null)
+          }}
+        />
       )}
     </div>
   )
