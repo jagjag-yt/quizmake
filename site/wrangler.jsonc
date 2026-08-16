@@ -1,0 +1,21 @@
+{
+  // ホームページ用のデプロイ設定。
+  //
+  // アプリと同じリポジトリに入っているため、ルートの wrangler.jsonc（アプリ用）を
+  // 読んでしまわないよう、Cloudflare 側の「Root directory」を site にして
+  // このファイルを使わせる。名前もアプリとは別にして、取り違えても
+  // 上書きが起きないようにしてある。
+  //
+  // ビルドは不要（素のHTMLとCSSだけ）。設定ファイルが公開されないよう、
+  // 配信するのは public/ の中だけにしてある。
+  "name": "quizmake-site",
+  "compatibility_date": "2026-08-16",
+
+  "assets": {
+    "directory": "./public"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
