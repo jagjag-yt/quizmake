@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { COLORS, LETTERS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, VIEWS } from './constants'
 import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
 import { hiddenCount } from './data/cloze'
@@ -16,8 +16,7 @@ import QuestionCard from './components/QuestionCard'
 import ResultCard from './components/ResultCard'
 import FooterNav from './components/FooterNav'
 import EmptyState from './components/EmptyState'
-import ExcelLoader from './components/ExcelLoader'
-import DataManager from './components/DataManager'
+import DataTransfer, { TransferInput } from './components/DataTransfer'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
 import Dashboard from './components/Dashboard'
@@ -107,6 +106,7 @@ export default function App() {
   const [openGroupId, setOpenGroupId] = useState(null)
   const [editorGroupId, setEditorGroupId] = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const transferInputRef = useRef(null)
 
   // 出題条件
   const [opts, setOpts] = useState(DEFAULT_OPTS)
@@ -395,9 +395,9 @@ export default function App() {
   /** クイズ作成で「追加先」に選ばれているグループ。 */
   const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
 
-  /** ヘッダーの Excel 読み込みボタンを押す。 */
+  /** 「読み込む」のファイル選択を開く（Excel / バックアップの共通入口）。 */
   const openFilePicker = useCallback(() => {
-    document.querySelector('input[accept=".xlsx,.xls"]')?.click()
+    transferInputRef.current?.click()
   }, [])
   const counts = useMemo(() => {
     const scoped = questions.filter((q) => matchesFilters(q, opts.groupId))
@@ -504,10 +504,7 @@ export default function App() {
         remainingSec={remainingSec}
         clozeMode={!!displayQuestion && isCloze(displayQuestion)}
         savedAt={pool.savedAt}
-        onExport={() => setExportOpen(true)}
       >
-        <ExcelLoader onLoad={loadQuestions} />
-        <DataManager onExport={study.exportJson} onImport={study.importData} />
         <ShortcutHelp open={helpOpen} onToggle={() => setHelpOpen((v) => !v)} />
       </ProgressHeader>
 
@@ -659,6 +656,14 @@ export default function App() {
             onDuplicate={pool.duplicateQuestion}
             onReorderAuthored={pool.reorderAuthored}
             onImportClick={openFilePicker}
+            transferSlot={
+              <DataTransfer
+                getStudyJson={study.exportJson}
+                onExportExcel={() => setExportOpen(true)}
+                onImportClick={openFilePicker}
+                onNotify={toast.show}
+              />
+            }
             groups={pool.groups}
             activeGroupId={activeEditorGroupId}
             onChangeActiveGroup={setEditorGroupId}
@@ -794,6 +799,13 @@ export default function App() {
           onExport={runExport}
         />
       )}
+
+      <TransferInput
+        inputRef={transferInputRef}
+        onLoadQuestions={loadQuestions}
+        onImportStudyData={study.importData}
+        onNotify={toast.show}
+      />
 
       <ToastHost toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>

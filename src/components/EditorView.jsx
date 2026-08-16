@@ -398,6 +398,8 @@ function StartPane({
   onChangeActiveGroup,
   onAdd,
   onImportClick,
+  transferSlot,
+  showTransfer,
   compact,
   pad,
 }) {
@@ -517,22 +519,27 @@ function StartPane({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onImportClick}
-        style={{
-          alignSelf: 'flex-start',
-          border: 'none',
-          background: 'transparent',
-          color: COLORS.sub,
-          fontSize: '13px',
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-          textDecoration: 'underline',
-        }}
-      >
-        または Excelを読み込む
-      </button>
+      {showTransfer ? (
+        // サイドバーが無い（まだ1問も無い）ときは、ここに書き出す／読み込むを出す
+        <div style={{ maxWidth: '380px', width: '100%', alignSelf: 'center' }}>{transferSlot}</div>
+      ) : (
+        <button
+          type="button"
+          onClick={onImportClick}
+          style={{
+            alignSelf: 'flex-start',
+            border: 'none',
+            background: 'transparent',
+            color: COLORS.sub,
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+          }}
+        >
+          または問題を読み込む
+        </button>
+      )}
     </div>
   )
 }
@@ -548,6 +555,7 @@ export default function EditorView({
   onDuplicate,
   onReorderAuthored,
   onImportClick,
+  transferSlot,
   groups,
   activeGroupId,
   onChangeActiveGroup,
@@ -712,7 +720,7 @@ export default function EditorView({
           onClick={onImportClick}
           style={{ border: 'none', background: 'transparent', color: COLORS.sub, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
         >
-          または Excelを読み込む（1ファイル＝1グループ）
+          または問題を読み込む（1ファイル＝1グループ）
         </button>
       </div>
     )
@@ -728,6 +736,8 @@ export default function EditorView({
       onChangeActiveGroup={onChangeActiveGroup}
       onAdd={onAdd}
       onImportClick={onImportClick}
+      transferSlot={transferSlot}
+      showTransfer={!authored.length && !question}
       compact={compact}
       pad={space.card}
     />
@@ -859,6 +869,13 @@ export default function EditorView({
           )
         })}
       </div>
+
+      {/* 書き出す／読み込む。上部バーではなく作成画面の左カラムに置く */}
+      {transferSlot && (
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px' }}>
+          {transferSlot}
+        </div>
+      )}
 
       {question && (
         <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${COLORS.border}`, paddingTop: '10px' }}>

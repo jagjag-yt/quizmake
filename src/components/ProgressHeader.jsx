@@ -195,7 +195,7 @@ function OverflowMenu({ children }) {
  *   position: number, total: number, questionTotal: number,
  *   accuracy: number, stats: { answered: number, correct: number }, onResetStats: () => void,
  *   examMode: boolean, remainingSec: number|null,
- *   savedAt: Date|null, onExport: () => void,
+ *   savedAt: Date|null,
  *   children?: React.ReactNode,
  * }} props
  */
@@ -212,7 +212,6 @@ export default function ProgressHeader({
   remainingSec,
   clozeMode,
   savedAt,
-  onExport,
   children,
 }) {
   const compact = useCompactLayout()
@@ -300,30 +299,9 @@ export default function ProgressHeader({
               虫食いは採点対象外
             </span>
           ) : view === VIEWS.EDITOR ? (
-            <>
-              <span style={{ fontSize: '12.5px', color: COLORS.sub, whiteSpace: 'nowrap' }}>
-                {savedLabel ? `✓ 自動保存済み ${savedLabel}` : '✓ 自動保存'}
-              </span>
-              <button
-                type="button"
-                onClick={onExport}
-                style={{
-                  minHeight: `${TAP_MIN - 8}px`,
-                  padding: '8px 16px',
-                  borderRadius: '12px',
-                  border: `1px solid ${COLORS.blue}`,
-                  background: COLORS.blue,
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ⬇ {compact ? '書き出す' : 'Excelに書き出す'}
-              </button>
-            </>
+            <span style={{ fontSize: '12.5px', color: COLORS.sub, whiteSpace: 'nowrap' }}>
+              {savedLabel ? `✓ 自動保存済み ${savedLabel}` : '✓ 自動保存'}
+            </span>
           ) : (
             <AccuracyStat
               accuracy={accuracy}

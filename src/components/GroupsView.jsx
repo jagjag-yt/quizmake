@@ -104,13 +104,13 @@ export default function GroupsView({
           グループがまだありません
         </p>
         <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
-          Excelを読み込むか、グループを作って問題を追加すると
+          問題を読み込むか、グループを作って問題を追加すると
           <br />
           ここに一覧が表示されます。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"
@@ -144,7 +144,7 @@ export default function GroupsView({
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"

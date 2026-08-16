@@ -16,10 +16,18 @@ function NumberBadge({ index, opened }) {
     <span
       aria-hidden="true"
       style={{
+        // inline のままだとフォントの上下幅で行box全体に広がり、番号がマーカーの
+        // 塗りから上にはみ出す。inline-block にして高さを line-height に固定する
+        // 行ボックス基準（vertical-align:top）だと、inline 表示のマーカーでは
+        // 塗りの上端より上に出てしまう。文字のベースライン基準で置き、
+        // relative で少しだけ持ち上げて「左上」に見せる
+        display: 'inline-block',
+        position: 'relative',
+        top: '-4px',
         fontSize: '12px',
         fontWeight: 700,
-        lineHeight: 1,
-        verticalAlign: 'top',
+        lineHeight: '12px',
+        verticalAlign: 'baseline',
         marginRight: '4px',
         color: opened ? COLORS.text : '#ffffff',
         fontVariantNumeric: 'tabular-nums',

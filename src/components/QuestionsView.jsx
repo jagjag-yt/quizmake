@@ -387,13 +387,13 @@ export default function QuestionsView({
           問題がまだありません
         </p>
         <p style={{ margin: 0, fontSize: '14px', color: COLORS.sub, lineHeight: 1.8 }}>
-          Excelを読み込むか、アプリ内で作成すると
+          問題を読み込むか、アプリ内で作成すると
           <br />
           ここに一覧が表示されます。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" onClick={onImportClick} style={{ ...controlBase, border: `1px solid ${COLORS.border}`, fontWeight: 700, cursor: 'pointer', color: COLORS.body }}>
-            📄 Excelを読み込む
+            ⬆ 読み込む
           </button>
           <button
             type="button"
