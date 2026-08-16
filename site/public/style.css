@@ -606,3 +606,86 @@ details p {
     display: none;
   }
 }
+
+/* ---------- 規約・ポリシーのページ ---------- */
+
+.legal {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+}
+
+.legal .back {
+  display: inline-block;
+  margin-bottom: 24px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.legal h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+}
+
+.legal .updated {
+  margin: 0 0 32px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.legal h2 {
+  font-size: 17px;
+  margin: 36px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.legal p,
+.legal li {
+  font-size: 14.5px;
+  color: var(--body);
+}
+
+.legal ul,
+.legal ol {
+  padding-left: 22px;
+}
+
+.legal li {
+  margin-bottom: 6px;
+}
+
+.legal .note {
+  background: var(--blue-light);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin: 24px 0;
+}
+
+.legal .note p {
+  margin: 0;
+  color: var(--text);
+}
+
+.legal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 20px;
+  font-size: 14px;
+}
+
+.legal th,
+.legal td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal th {
+  background: var(--bg);
+  font-weight: 700;
+  white-space: nowrap;
+}
