@@ -733,7 +733,7 @@ export default function EditorView({
       onAdd={onAdd}
       onImportClick={onImportClick}
       transferSlot={transferSlot}
-      showTransfer={!authored.length && !question}
+      showTransfer={!question}
       compact={compact}
       pad={space.card}
     />
@@ -798,7 +798,9 @@ export default function EditorView({
     </>
   )
 
-  if (!authored.length && !question) {
+  // 問題を選んでいないあいだは入口の画面だけを出す。
+  // 左カラム（作成した問題の一覧）を重ねると、入口の説明が隠れてしまうため。
+  if (!question) {
     return (
       <>
         {startPane}
