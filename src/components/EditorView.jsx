@@ -551,11 +551,12 @@ export default function EditorView({
   selectedId,
   onSelect,
   onAdd,
-  onUpdate,
+  onUpdate: onUpdateProp,
   onRemove,
   onDuplicate,
   onReorderAuthored,
   onImportClick,
+  onSaved,
   transferSlot,
   groups,
   activeGroupId,
@@ -573,11 +574,26 @@ export default function EditorView({
   // 確認・名前入力はアプリ内のダイアログで行う（window.confirm/prompt は環境により出ない）
   const [deleting, setDeleting] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
+  // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
+  const [dirty, setDirty] = useState(false)
+
+  const onUpdate = useCallback(
+    (id, patch) => {
+      setDirty(true)
+      onUpdateProp(id, patch)
+    },
+    [onUpdateProp],
+  )
 
   const question = useMemo(
     () => questions.find((q) => q.id === selectedId) ?? null,
     [questions, selectedId],
   )
+
+  // 別の問題に移ったら「変更あり」を持ち越さない
+  useEffect(() => {
+    setDirty(false)
+  }, [selectedId])
 
   const text = question && !isCloze(question) ? segmentsToText(question.segments) : ''
   const marks = useMemo(
@@ -746,6 +762,34 @@ export default function EditorView({
 
   const dialogs = (
     <>
+      {dirty && question && (
+        <button
+          type="button"
+          onClick={() => {
+            setDirty(false)
+            onSaved?.(question.groupId)
+          }}
+          style={{
+            position: 'fixed',
+            right: '24px',
+            bottom: '24px',
+            zIndex: 50,
+            minHeight: `${TAP_MIN}px`,
+            padding: '0 24px',
+            borderRadius: '999px',
+            border: `1px solid ${COLORS.blue}`,
+            background: COLORS.blue,
+            color: '#ffffff',
+            fontSize: '14px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            boxShadow: '0 8px 24px rgba(37,99,235,0.32)',
+          }}
+        >
+          保存
+        </button>
+      )}
       {deleting && question && (
         <ConfirmDialog
           title="この問題を削除しますか？"
@@ -767,8 +811,7 @@ export default function EditorView({
           confirmLabel="作成する"
           onCancel={() => setCreatingGroup(false)}
           onConfirm={(name) => {
-            const id = onCreateGroup(name)
-            if (id && question) onUpdate(question.id, { groupId: id })
+            onCreateGroup(name)
             setCreatingGroup(false)
           }}
         />
@@ -787,20 +830,42 @@ export default function EditorView({
 
   const sidebar = (
     <div style={{ ...card(16), display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
-      <div>
-        <div style={label}>追加先のグループ</div>
-        <select
-          value={activeGroupId ?? ''}
-          onChange={(e) => onChangeActiveGroup(e.target.value)}
-          style={{ ...input, marginTop: '6px', cursor: 'pointer' }}
-        >
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* 入口の画面ではグループを中央で選ばせるので、ここには出さない */}
+      {question && (
+        <div>
+          <div style={label}>追加先のグループ</div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+            <select
+              value={activeGroupId ?? ''}
+              onChange={(e) => onChangeActiveGroup(e.target.value)}
+              style={{ ...input, flex: 1, minWidth: 0, cursor: 'pointer' }}
+            >
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setCreatingGroup(true)}
+              style={{
+                ...input,
+                width: 'auto',
+                padding: '0 12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                color: COLORS.blue,
+                border: `1px solid ${COLORS.blue}`,
+                background: COLORS.blueLight,
+              }}
+            >
+              ＋ 新規
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>作成した問題</span>
@@ -938,35 +1003,6 @@ export default function EditorView({
     </div>
   )
 
-  const groupField = question ? (
-    <div>
-      <div style={label}>グループ</div>
-      <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-        <select
-          value={question.groupId}
-          onChange={(e) => onUpdate(question.id, { groupId: e.target.value })}
-          style={{ ...input, flex: '1 1 200px', cursor: 'pointer' }}
-        >
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setCreatingGroup(true)}
-          style={{ ...input, width: 'auto', padding: '0 14px', fontWeight: 700, cursor: 'pointer', color: COLORS.blue, border: `1px solid ${COLORS.blue}`, background: COLORS.blueLight }}
-        >
-          ＋ 新規
-        </button>
-      </div>
-      <div style={{ fontSize: '11.5px', color: COLORS.muted, marginTop: '4px' }}>
-        この問題が入るグループ。「＋ 新規」で作成できます
-      </div>
-    </div>
-  ) : null
-
   // 虫食いは専用エディタ（本文・隠す・文字色）に差し替える
   const clozePanes =
     question && isCloze(question)
@@ -975,7 +1011,6 @@ export default function EditorView({
             <ClozeEditor
               question={question}
               onUpdate={onUpdate}
-              groupSlot={groupField}
               groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
               total={questions.length}
               pane="editor"
@@ -985,7 +1020,6 @@ export default function EditorView({
             <ClozeEditor
               question={question}
               onUpdate={onUpdate}
-              groupSlot={groupField}
               groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
               total={questions.length}
               pane="preview"
@@ -1001,7 +1035,6 @@ export default function EditorView({
         <span style={pill(COLORS.chipTrack, COLORS.body)}>問題番号 {question.questionNumber}（自動）</span>
       </div>
 
-      {groupField}
 
 
       <div onBlur={() => setTouched((t) => ({ ...t, text: true }))}>
