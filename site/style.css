@@ -512,6 +512,12 @@ details p {
   background: var(--blue-light);
 }
 
+/* 見出しが短い語ではなく問いかけの文なので、他の見出しより少し小さくする */
+.story h2 {
+  font-size: 26px;
+  line-height: 1.6;
+}
+
 .story .card {
   border: none;
   background: transparent;
@@ -586,6 +592,10 @@ details p {
 
   .hero h1 {
     font-size: 32px;
+  }
+
+  .story h2 {
+    font-size: 21px;
   }
 
   section {
