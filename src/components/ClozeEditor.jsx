@@ -179,7 +179,6 @@ function PreviewBody({ paras, allOpen, compact }) {
 export default function ClozeEditor({
   question,
   onUpdate,
-  groupSlot,
   groupName = '',
   total = 0,
   pane = 'editor',
@@ -267,8 +266,6 @@ export default function ClozeEditor({
           問題番号 {question.questionNumber}（自動）
         </span>
       </div>
-
-      {groupSlot}
 
       <div>
         <div style={label}>見出し</div>
