@@ -612,6 +612,10 @@ export default function App() {
               setView(VIEWS.EDITOR)
             }}
             groups={pool.groups}
+            onEdit={(id) => {
+              setEditingId(id)
+              setView(VIEWS.EDITOR)
+            }}
             onDuplicate={(ids) => {
               ids.forEach((id) => pool.duplicateQuestion(id))
               toast.show({ tone: 'success', title: `${ids.length}問を複製しました` })

@@ -159,6 +159,7 @@ export default function QuestionsView({
   onImportClick,
   onCreateClick,
   onBulkBookmark,
+  onEdit,
   onDuplicate,
   onMoveToGroup,
   onDelete,
@@ -937,6 +938,13 @@ export default function QuestionsView({
                 background: COLORS.bg,
               }}
             >
+              <button
+                type="button"
+                onClick={() => onEdit(selected.q.id)}
+                style={{ ...panelAction(), borderColor: COLORS.blue, color: COLORS.blue }}
+              >
+                ✎ 編集
+              </button>
               <button
                 type="button"
                 onClick={() => onDuplicate([selected.q.id])}
