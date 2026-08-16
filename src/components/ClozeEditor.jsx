@@ -173,7 +173,6 @@ function PreviewBody({ paras, allOpen, compact }) {
 export default function ClozeEditor({
   question,
   onUpdate,
-  tagsSlot,
   groupSlot,
   groupName = '',
   total = 0,
@@ -280,8 +279,6 @@ export default function ClozeEditor({
           未入力なら文章の冒頭を一覧に表示
         </div>
       </div>
-
-      {tagsSlot}
 
       <div onBlur={() => setTouched(true)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>

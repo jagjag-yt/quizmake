@@ -35,7 +35,8 @@ MODEL (extend existing, no breaking change)
            explanation; keyPoints:string[]; subject; tags:string[]; imageUrl:string|null; origin:'authored'|'imported'}
   Record{bookmarked:bool; attempts:int; correct:int; lastResult:'correct'|'incorrect'|null; box:0..5; note:string; lastStudiedAt:ISO}
   multi := correctIndexes.length>1 -> badge「2つ選べ」
-  numbering: single pool. authored=next max+1. import collision -> suffix branch (e.g. 12-2), never renumber existing.
+  numbering: per GROUP, always contiguous 1,2,3… in array order. every mutation (add/delete/move/merge/split/import/
+  reorder) re-runs renumberByGroup. numbers repeat across groups by design. records key off content, not number.
 
 ============================================================
 S1 /questions 設問プレビュー
@@ -43,19 +44,20 @@ LAYOUT desktop: master-detail, no route change on select. master 812 / gap20 / d
   rationale(keep): scan->verify->next loop; modal=open/close cost, full-page=loses scroll+filter state.
 LAYOUT tablet: master 100%; detail = right overlay panel w560 + scrim; panel header has ✕ / ★ / ← / → (prev/next without closing).
 FILTERBAR (card, above table)
-  row1: [search ⌕ placeholder"問題文・解説・タグを検索"] [科目▾] [タグ▾] [並び順▾ 問題番号順|正答率順|最終学習日順] all h44
+  row1: [search ⌕ placeholder"問題文・解説を検索"] [種別▾] [並び順▾ 問題番号順|正答率順|最終学習日順] all h44
   row2: label"状況" + toggle-chips: すべて / 未学習 / 要復習 / ★ブックマーク  (multi-select, すべて exclusive) + right "N問中 M問を表示"
   filters+sort+scroll persist per session (sessionStorage) so detail nav never resets them.
 TABLE (card, virtualized; assume 100+ rows)
-  head sticky. cols grid: 40 68 92 1fr 118 78 62 36 / gap10 / px18 / h56 / bb #f1f5f9
-    [checkbox][番号 ⇅ blue b][科目 pill chipTrack][問題文冒頭 1行 ellipsis][タグ #a #b muted 11.5][学習状況][定着度][★]
+  head sticky. cols grid: 40 68 76 1fr 118 78 36 / gap10 / px18 / h56 / bb #f1f5f9
+    [checkbox][番号 ⇅ blue b][種別 pill][問題文冒頭 1行 ellipsis][学習状況][定着度][★]
   学習状況 = text+color badge (never color-only): ○ 正解 greenLight/greenDark | × 不正解 redLight/redDark | 未学習 #f8fafc/muted
   定着度 = box 0..5 rendered '●'*box+'○'*(5-box), blue, letter-spacing1
   ★: filled amber / ☆ #cbd5e1. click toggles bookmark, stopPropagation.
   row click -> select (desktop: fill detail; tablet: open panel). selected row bg=blueLight. hover bg=rowHover.
   footer: "1–n / N問を表示" + ← →
 FOOTER-CTA card: "絞り込み中の N問 を対象に" + [⇄ シャッフル演習][▶ この条件で演習を開始](primary) -> start 演習 with current filtered set.
-BULK (include=YES): >=1 checked -> bottom bar bg#1e293b r14: "N問を選択中" + [★ ブックマーク][タグを付与][▶ 演習](primary). hidden at 0.
+BULK (include=YES): >=1 checked -> bottom bar bg#1e293b r14: "N問を選択中" + [★ ブックマーク][⧉ 複製][→ 移動…(group select)]
+  [⇱ 別グループへ分割][🗑 削除(confirm)][▶ 演習](primary). hidden at 0. same 複製/移動/削除 also sit atop the detail panel.
 DETAIL content order:
   headline: 問題 NNN + 科目pill + origin pill(作成|読込, blueLight/blue) + ★btn44 + [この問題から演習](primary)
   q text 18/1.9, segments u:true -> border-bottom 2px blue + bold
@@ -82,7 +84,6 @@ SIDEBAR
 EDITOR fields (top->bottom)
   問題番号: read-only pill "問題番号 NNN（自動）"
   科目: combobox h44 — pick existing OR free type => create. hint "既存から選択、入力で新規追加"
-  タグ: multi-tag input, chips blueLight/blue h28 + "✕", ghost "追加…", Enter/comma commit, dup-guard
   問題文: contenteditable-ish rich-lite; required badge red"必須"; toolbar right: [U 下線をつける](primary, enabled only when selection non-empty)[解除]
     DECISION(keep): selection-based marking, NOT a separate keyword field. reason: segments carry POSITION; keyword-string matching mis-hits repeated tokens.
     active underline render: bg blueLight + bb2 blue + bold. meta: pill"下線 n か所" + "テキストを選択すると「下線をつける」が有効になります。書き出し時は下線部が「下線キーワード」列になります。"
@@ -111,9 +112,9 @@ EXPORT xlsx (button 「Excelに書き出す」)
     if invalid>0 -> amberLight block: "⚠ 不備のある問題がN件あります" + list "問題 117：正解が未設定" / "問題 119：選択肢が1つのみ" + "このまま書き出すと該当行は空欄になります。"
     mono line listing columns. actions: [不備を修正する][⬇ 書き出す](primary)
   COLUMNS (exact order, header row = these JP strings):
-    問題番号 | 科目 | タグ | 問題文 | 下線キーワード | 画像URL | 選択肢a | 選択肢b | 選択肢c | 選択肢d | 選択肢e | 正解 | 解説 | 基本事項
+    問題番号 | 問題文 | 下線キーワード | 画像URL | 選択肢a | 選択肢b | 選択肢c | 選択肢d | 選択肢e | 正解 | 解説 | 基本事項
+    (12 cols. group is per-file, not a column. タグ列は廃止)
   serialization:
-    タグ: comma-joined "a,b"
     問題文: segments concat plain text (no markup)
     下線キーワード: u:true segment texts, newline-joined (multi)
     選択肢d/e: "" when absent

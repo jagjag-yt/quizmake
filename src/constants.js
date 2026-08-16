@@ -132,7 +132,6 @@ export const SORT_LABELS = {
  */
 export const EXPORT_COLUMNS = [
   '問題番号',
-  'タグ',
   '問題文',
   '下線キーワード',
   '画像URL',

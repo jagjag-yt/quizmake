@@ -6,11 +6,10 @@ import { isPlainObject, sanitizeMap, toText } from './safe'
  * Excel（.xlsx / .xls）ファイルを問題データ配列（Question[]）へ変換する。
  *
  * 想定するシート構成（1行目がヘッダー、2行目以降が1問1行）:
- *   | 問題番号 | タグ | 問題文 | 下線キーワード | 画像URL |
+ *   | 問題番号 | 問題文 | 下線キーワード | 画像URL |
  *   | 選択肢a〜e | 正解 | 解説 | 基本事項 |
  *
- * - 問題番号   : 省略可（省略時は上から自動採番）
- * - タグ       : 省略可。絞り込みに使う（「、」区切りで複数可）
+ * - 問題番号   : 読み飛ばす。番号はグループ内の並び順から1,2,3…で振り直す
  * - グループ   : 列では持たない。1ファイル＝1グループとして取り込む
  * - 下線キーワード : 問題文中で下線強調したい語句を「、」「,」または改行で区切って列挙
  * - 画像URL    : 省略可。http(s) と画像のdata URLのみ受け付ける（安全でない値は無視）
@@ -64,7 +63,6 @@ const FIELD_ALIASES = {
   correct: ['正解', '答え', '解答', 'answer', 'correct'],
   explanation: ['解説', 'explanation', '説明'],
   keyPoints: ['基本事項', 'ポイント', 'keypoints', 'points'],
-  tags: ['タグ', 'tags', 'tag'],
   imageUrl: ['画像url', '画像', '図', 'image', 'imageurl', 'image_url'],
 }
 
@@ -89,7 +87,7 @@ function pick(row, aliases) {
 }
 
 /**
- * 短い語句リスト（下線キーワード・タグ・複数正解）の分割。
+ * 短い語句リスト（下線キーワード・複数正解）の分割。
  * 「、」「,」「;」「｜」「|」または改行で区切る。
  */
 function splitTokens(value) {
@@ -221,7 +219,6 @@ function rowToQuestion(rawRow, i) {
       correctIndexes,
       explanation: pick(row, FIELD_ALIASES.explanation),
       keyPoints: splitLines(pick(row, FIELD_ALIASES.keyPoints)),
-      tags: splitTokens(pick(row, FIELD_ALIASES.tags)),
       imageUrl: pick(row, FIELD_ALIASES.imageUrl),
     },
     i,

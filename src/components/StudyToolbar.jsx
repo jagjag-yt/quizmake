@@ -20,7 +20,7 @@ const labelStyle = {
   color: COLORS.sub,
 }
 
-/** 出題条件のバー：モード・グループ/タグ絞り込み・出題数・本番モード。 */
+/** 出題条件のバー：モード・グループ絞り込み・出題数・本番モード。 */
 export default function StudyToolbar({
   qtype,
   onChangeType,
@@ -30,9 +30,6 @@ export default function StudyToolbar({
   groups,
   groupId,
   onChangeGroup,
-  tags,
-  tag,
-  onChangeTag,
   limit,
   onChangeLimit,
   examMode,
@@ -173,20 +170,6 @@ export default function StudyToolbar({
           ))}
         </select>
       </label>
-
-      {tags.length > 0 && (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-          <span style={labelStyle}>タグ</span>
-          <select value={tag} onChange={(e) => onChangeTag(e.target.value)} style={selectStyle}>
-            <option value="">すべて</option>
-            {tags.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
 
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
         <span style={labelStyle}>出題数</span>
