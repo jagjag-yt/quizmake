@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
 import { clozeHeadline, hiddenCount, withMarkerIndexes } from '../data/cloze'
-import { isCloze } from '../data/questions'
+import { compactQuestion, isCloze } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
 /** 見出し（h14b + 下線）。 */
@@ -144,7 +144,7 @@ function ClozeDetailBody({ paras, opened }) {
  * デスクトップでは右カラムに常時表示、タブレットでは右からのパネルに入れる。
  */
 export default function QuestionDetail({
-  question,
+  question: rawQuestion,
   groupName,
   record,
   noteKey,
@@ -153,6 +153,8 @@ export default function QuestionDetail({
   onStartFromHere,
   cardPadding = 32,
 }) {
+  // 未入力のまま残っている選択肢・基本事項は表示しない
+  const question = compactQuestion(rawQuestion)
   const [clozeOpen, setClozeOpen] = useState(true)
   // 選択式の詳細は「内容の確認」で開くことが多く、正解が目に入ると演習にならない。
   // 既定では伏せておき、押したときだけ見せる（虫食いの [答えを表示|隠す] と同じ操作）。

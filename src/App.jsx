@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { COLORS, LETTERS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, VIEWS } from './constants'
-import { isCloze, isGraded, questionKey } from './data/questions'
+import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
 import { hiddenCount } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
@@ -67,7 +67,8 @@ function selectQuestions(source, records, { mode, groupId, limit, qtype }) {
  * （回答するたびにリストが変わってしまうのを防ぐため）。
  */
 function createSession(source, records, opts) {
-  const list = opts.explicitList ?? selectQuestions(source, records, opts)
+  // 未入力のまま残っている選択肢・基本事項は出題に載せない
+  const list = (opts.explicitList ?? selectQuestions(source, records, opts)).map(compactQuestion)
   const startedAt = Date.now()
   return {
     questions: list,

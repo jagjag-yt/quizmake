@@ -1,5 +1,5 @@
 import { EXPORT_COLUMNS, LETTERS } from '../constants'
-import { segmentsToMarks, segmentsToText } from '../data/questions'
+import { compactQuestion, segmentsToMarks, segmentsToText } from '../data/questions'
 
 /**
  * 問題データを Excel（.xlsx）へ書き出す。
@@ -60,7 +60,9 @@ export function buildUnderlineColumn(segments) {
 }
 
 /** 1問を書き出し用の1行（列名→値）へ変換する。 */
-export function questionToRow(q) {
+export function questionToRow(question) {
+  // 未入力の選択肢・基本事項は書き出さない
+  const q = compactQuestion(question)
   const choices = q.choices ?? []
   const row = {
     問題番号: q.questionNumber ?? '',

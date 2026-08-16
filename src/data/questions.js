@@ -163,8 +163,10 @@ export function normalizeQuestion(raw, index = 0) {
     }
   }
 
+  // 未入力の選択肢はここでは捨てない。捨ててしまうと編集中に「＋ 選択肢を追加」で
+  // 足した空欄がその場で消えてしまうため。出題・書き出しの直前に compactQuestion で落とす。
   const choices = Array.isArray(raw.choices)
-    ? raw.choices.map((c) => toText(c, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 5)
+    ? raw.choices.map((c) => toText(c, LIMITS.TEXT_CHARS)).slice(0, 5)
     : []
 
   const segments = Array.isArray(raw.segments) && raw.segments.length
@@ -194,10 +196,49 @@ export function normalizeQuestion(raw, index = 0) {
     correctIndexes,
     correctIndex: correctIndexes[0] ?? 0,
     explanation: toText(raw.explanation, LIMITS.TEXT_CHARS),
+    // 基本事項も選択肢と同じ理由で空欄を残す
     keyPoints: Array.isArray(raw.keyPoints)
-      ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).filter(Boolean).slice(0, 20)
+      ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).slice(0, 20)
       : [],
     imageUrl: sanitizeImageUrl(raw.imageUrl),
+  }
+}
+
+/**
+ * 未入力の選択肢・基本事項を落とす。
+ *
+ * 編集中は「＋ 選択肢を追加」で作った空欄をそのまま保持する必要があるため、
+ * 空欄の除去は保存時ではなく「使う直前」に行う（出題・書き出し・詳細表示）。
+ * 選択肢を詰めると位置がずれるので、正解のインデックスも合わせて振り直す。
+ *
+ * @param {Question} q
+ * @returns {Question} 空欄が無ければ元のオブジェクトをそのまま返す
+ */
+export function compactQuestion(q) {
+  if (!q || q.type === QUESTION_TYPES.CLOZE) return q
+
+  const keep = []
+  ;(q.choices ?? []).forEach((c, i) => {
+    if (String(c).trim()) keep.push(i)
+  })
+  const keyPoints = (q.keyPoints ?? []).filter((k) => String(k).trim())
+
+  const sameChoices = keep.length === (q.choices ?? []).length
+  const sameKeyPoints = keyPoints.length === (q.keyPoints ?? []).length
+  if (sameChoices && sameKeyPoints) return q
+
+  const choices = keep.map((i) => q.choices[i])
+  const correctIndexes = (q.correctIndexes ?? [])
+    .map((i) => keep.indexOf(i))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b)
+
+  return {
+    ...q,
+    choices,
+    correctIndexes,
+    correctIndex: correctIndexes[0] ?? 0,
+    keyPoints,
   }
 }
 
