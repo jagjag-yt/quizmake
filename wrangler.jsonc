@@ -1,0 +1,22 @@
+{
+  // Cloudflare へのデプロイ設定。
+  //
+  // 以前はビルドのたびに wrangler がこの内容をその場で作っていたが、
+  // デプロイコマンドによっては自動生成が走らず「設定が無い」で失敗するため、
+  // リポジトリに固定して、どの経路でも同じ結果になるようにする。
+  //
+  // name はダッシュボード上のプロジェクト名と一致させること。
+  "name": "quizmake",
+  "compatibility_date": "2026-08-16",
+
+  "assets": {
+    // vite build の出力先。ここを丸ごと静的配信する
+    "directory": "./dist",
+    // 見つからないパスは index.html を返す（画面切り替えを自前で持つアプリのため）
+    "not_found_handling": "single-page-application"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
