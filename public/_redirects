@@ -1,0 +1,3 @@
+# Cloudflare Pages 用。存在しないパスに来ても index.html を返す（404にしない）。
+# 200 を付けているのでURLはそのまま保たれる。
+/*  /index.html  200
