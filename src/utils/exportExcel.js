@@ -64,8 +64,6 @@ export function questionToRow(q) {
   const choices = q.choices ?? []
   const row = {
     問題番号: q.questionNumber ?? '',
-    // タグ機能は廃止したが、既存ファイルとの互換のため列自体は13列のまま空欄で残す
-    タグ: '',
     問題文: segmentsToText(q.segments),
     // 複数箇所ある場合は改行区切り（読み込み側は改行でも「、」でも分割できる）
     下線キーワード: buildUnderlineColumn(q.segments).join('\n'),

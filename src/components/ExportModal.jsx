@@ -123,7 +123,7 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
               lineHeight: 1.8,
             }}
           >
-            虫食い問題 {excludedCount}問は書き出されません。Excelの13列は選択式のための形式のため、虫食いはアプリ内にのみ保存されます（削除はされません）。
+            虫食い問題 {excludedCount}問は書き出されません。Excelの12列は選択式のための形式のため、虫食いはアプリ内にのみ保存されます（削除はされません）。
           </div>
         )}
 

@@ -63,7 +63,6 @@ B. CLOZE EDITOR (クイズ作成, same 3-pane shell as 選択式)
     item rows h>=56: ⠿ + (title|body head, 1行 ellipsis) + type pill (虫食い=#eff6ff/#2563eb, 選択式=#f1f5f9/#475569) + meta ("5か所" | "5択")
   EDITOR fields:
     見出し (optional, h44) hint "未入力なら文章の冒頭を一覧に表示"
-    タグ (shared component with 選択式)
     文章 required:
       toolbar (p8, b1 border, r12, bg #f8fafc, position:sticky top:0 on tablet):
         [■ 隠す](primary, enabled only when selection non-empty, shortcut ⌘/Ctrl+H)
@@ -108,7 +107,7 @@ D. DIFFS TO EXISTING SCREENS (minimal)
   D4 学習記録: append ONE independent card, never merged into 正答率/連続日数/定着度:
      heading 虫食い + pill 採点対象外; 3 stats 24b: 持っている問題 N問 / 今週見た問題 N問 / まだ見ていない N問; muted "最終学習 YYYY/MM/DD"
   D5 Excel書き出し確認: 2 stat cards 書き出す問題 N問 / 対象外 N問 + NEUTRAL grey block (#f1f5f9, NOT amber — spec'd behavior, not user error):
-     "虫食い問題 N問は書き出されません。Excelの13列は選択式のための形式のため、虫食いはアプリ内にのみ保存されます（削除はされません）。"
+     "虫食い問題 N問は書き出されません。Excelの12列は選択式のための形式のため、虫食いはアプリ内にのみ保存されます（削除はされません）。"
      primary button carries the count: 「⬇ N問を書き出す」
 
 E. STATES

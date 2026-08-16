@@ -133,7 +133,8 @@ export function loadPool() {
   } catch {
     // 壊れていても起動は止めない
   }
-  return seedPool()
+  // 同梱データも同じ規則（グループごとに1から）で番号を振る
+  return ensureIntegrity(seedPool())
 }
 
 /**
@@ -143,7 +144,7 @@ export function loadPool() {
 export function ensureIntegrity({ groups, questions }) {
   const ids = new Set(groups.map((g) => g.id))
   const orphan = questions.some((q) => !ids.has(q.groupId))
-  if (!orphan) return { groups, questions: dedupeNumbersByGroup(questions) }
+  if (!orphan) return { groups, questions: renumberByGroup(questions) }
 
   let fallback = groups.find((g) => g.name === DEFAULT_GROUP_NAME)
   const nextGroups = [...groups]
@@ -153,7 +154,7 @@ export function ensureIntegrity({ groups, questions }) {
   }
   return {
     groups: nextGroups,
-    questions: dedupeNumbersByGroup(
+    questions: renumberByGroup(
       questions.map((q) => (ids.has(q.groupId) ? q : { ...q, groupId: fallback.id })),
     ),
   }
@@ -181,74 +182,60 @@ export function savePool({ groups, questions }) {
   }
 }
 
-/** 問題番号の数値部分（「12-2」なら 12）。 */
-export const numberBase = (value) => {
-  const n = parseInt(String(value ?? '').split('-')[0], 10)
-  return Number.isFinite(n) ? n : 0
-}
-
 /**
- * 次に作成する問題に振る番号（そのグループ内の最大＋1）。
- * 番号はグループごとに独立しているので、別グループの番号とは重なってよい。
+ * グループごとに 1, 2, 3… の連番を振り直す。
+ *
+ * 番号はグループ内での並び順そのもの（配列の順）を表す。追加・削除・移動・
+ * 並べ替え・取り込みのあと必ずここを通し、常に欠番のない連番になるようにする。
+ * 学習記録は問題番号ではなく本文から作るキーで紐づけているため、振り直しても
+ * 正答率やブックマークは失われない。
  */
-export function nextQuestionNumber(questions, groupId) {
-  const scoped = groupId ? questions.filter((q) => q.groupId === groupId) : questions
-  const max = scoped.reduce((acc, q) => Math.max(acc, numberBase(q.questionNumber)), 0)
-  return max + 1
-}
-
-/**
- * グループ内で番号が重複しないように整える。
- * 各グループで先に現れたものの番号を残し、後から重なったものだけを最大＋1へ送る。
- * グループの移動・統合・分割で番号が衝突したときにだけ効く。
- */
-export function dedupeNumbersByGroup(questions) {
-  const used = new Map() // groupId -> Set(番号の文字列)
-  const maxOf = new Map() // groupId -> 現在の最大番号
+export function renumberByGroup(questions) {
+  const counters = new Map()
   let changed = false
 
   const next = questions.map((q) => {
-    const key = q.groupId
-    if (!used.has(key)) {
-      used.set(key, new Set())
-      maxOf.set(key, 0)
-    }
-    const seen = used.get(key)
-    const label = String(q.questionNumber)
-    const base = numberBase(q.questionNumber)
-    if (!seen.has(label)) {
-      seen.add(label)
-      maxOf.set(key, Math.max(maxOf.get(key), base))
-      return q
-    }
-    const renumbered = maxOf.get(key) + 1
-    seen.add(String(renumbered))
-    maxOf.set(key, renumbered)
+    const n = (counters.get(q.groupId) ?? 0) + 1
+    counters.set(q.groupId, n)
+    if (q.questionNumber === n) return q
     changed = true
-    return { ...q, questionNumber: renumbered }
+    return { ...q, questionNumber: n }
   })
 
   return changed ? next : questions
 }
 
+/** 次に作成する問題に振る番号（そのグループの問題数＋1）。 */
+export function nextQuestionNumber(questions, groupId) {
+  return questions.filter((q) => q.groupId === groupId).length + 1
+}
+
 /**
- * 取り込む問題の番号が既存と衝突する場合、枝番（12-2, 12-3…）を振る。
- * 既存の番号は決して振り直さない。
+ * 配列のうち条件に合う要素だけを並べ替える。
+ * 条件に合わない要素（他グループ・読込分）の位置は動かさない。
  */
-export function resolveNumberCollisions(incoming, existing) {
-  const used = new Set(existing.map((q) => String(q.questionNumber)))
-  return incoming.map((q) => {
-    const candidate = String(q.questionNumber)
-    if (!used.has(candidate)) {
-      used.add(candidate)
-      return q
-    }
-    const base = numberBase(q.questionNumber)
-    let branch = 2
-    while (used.has(`${base}-${branch}`)) branch += 1
-    used.add(`${base}-${branch}`)
-    return { ...q, questionNumber: `${base}-${branch}` }
+export function reorderSubset(items, match, fromIndex, toIndex) {
+  const slots = []
+  items.forEach((item, i) => {
+    if (match(item)) slots.push(i)
   })
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= slots.length ||
+    toIndex >= slots.length ||
+    fromIndex === toIndex
+  ) {
+    return items
+  }
+  const picked = slots.map((i) => items[i])
+  const [moved] = picked.splice(fromIndex, 1)
+  picked.splice(toIndex, 0, moved)
+  const next = [...items]
+  slots.forEach((slot, i) => {
+    next[slot] = picked[i]
+  })
+  return next
 }
 
 /** 同じ名前のグループがあれば連番を付けて重複を避ける。 */

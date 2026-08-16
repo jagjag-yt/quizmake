@@ -7,7 +7,8 @@ import {
   loadPool,
   makeGroup,
   nextQuestionNumber,
-  resolveNumberCollisions,
+  renumberByGroup,
+  reorderSubset,
   savePool,
   uniqueGroupName,
 } from '../storage/pool'
@@ -71,7 +72,21 @@ export function validateQuestion(q) {
  * 変更は 600ms のデバウンスで localStorage に保存する。
  */
 export function useQuestionPool() {
-  const [pool, setPool] = useState(loadPool)
+  const [pool, setPoolState] = useState(loadPool)
+
+  /**
+   * プールの更新はすべてここを通す。
+   * 追加・削除・移動・並べ替え・取り込みのどれであっても、最後にグループごとの
+   * 連番（1,2,3…）を振り直し、欠番や重複が残らないようにする。
+   */
+  const setPool = useCallback((updater) => {
+    setPoolState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      const questions = renumberByGroup(next.questions)
+      return questions === next.questions ? next : { ...next, questions }
+    })
+  }, [])
+
   const [savedAt, setSavedAt] = useState(null)
   const [saveError, setSaveError] = useState('')
   const timerRef = useRef(null)
@@ -124,7 +139,7 @@ export function useQuestionPool() {
     const group = makeGroup(uniqueGroupName(name, poolRef.current.groups))
     setPool((prev) => ({ ...prev, groups: [...prev.groups, group] }))
     return group.id
-  }, [])
+  }, [setPool])
 
   const renameGroup = useCallback((groupId, name) => {
     const clean = toText(name, GROUP_NAME_MAX)
@@ -133,7 +148,7 @@ export function useQuestionPool() {
       ...prev,
       groups: prev.groups.map((g) => (g.id === groupId ? { ...g, name: clean } : g)),
     }))
-  }, [])
+  }, [setPool])
 
   /** グループを削除する。中の問題も一緒に消える。 */
   const removeGroup = useCallback((groupId) => {
@@ -141,7 +156,7 @@ export function useQuestionPool() {
       groups: prev.groups.filter((g) => g.id !== groupId),
       questions: prev.questions.filter((q) => q.groupId !== groupId),
     }))
-  }, [])
+  }, [setPool])
 
   /**
    * 複数のグループを1つに統合する。
@@ -165,7 +180,7 @@ export function useQuestionPool() {
       return ensureIntegrity(merged)
     })
     return targetId
-  }, [])
+  }, [setPool])
 
   /**
    * 指定した問題を新しいグループへ切り出す（分割）。
@@ -189,7 +204,7 @@ export function useQuestionPool() {
       return ensureIntegrity({ groups: [...prev.groups, group], questions })
     })
     return group.id
-  }, [])
+  }, [setPool])
 
   /** 問題を別のグループへ移す。 */
   const moveQuestionsToGroup = useCallback((questionIds, groupId) => {
@@ -201,7 +216,7 @@ export function useQuestionPool() {
         questions: prev.questions.map((q) => (idSet.has(q.id) ? { ...q, groupId } : q)),
       }),
     )
-  }, [])
+  }, [setPool])
 
   // ---------- 問題 ----------
 
@@ -213,7 +228,7 @@ export function useQuestionPool() {
     const created = emptyQuestion(nextQuestionNumber(current.questions, target), target, type)
     setPool((prev) => ({ ...prev, questions: [...prev.questions, created] }))
     return created.id
-  }, [])
+  }, [setPool])
 
   const updateQuestion = useCallback((id, patch) => {
     setPool((prev) => ({
@@ -227,11 +242,11 @@ export function useQuestionPool() {
         )
       }),
     }))
-  }, [])
+  }, [setPool])
 
   const removeQuestion = useCallback((id) => {
     setPool((prev) => ({ ...prev, questions: prev.questions.filter((q) => q.id !== id) }))
-  }, [])
+  }, [setPool])
 
   /** 複製した問題を末尾に追加し、その id を返す。 */
   const duplicateQuestion = useCallback((id) => {
@@ -244,33 +259,23 @@ export function useQuestionPool() {
     })
     setPool((prev) => ({ ...prev, questions: [...prev.questions, copy] }))
     return copy.id
-  }, [])
+  }, [setPool])
 
-  /** 作成分の並べ替え（グループ内の表示順を入れ替える）。 */
+  /**
+   * 作成分の並べ替え（グループ内の表示順を入れ替える）。
+   * 配列の並び自体を動かし、番号は setPool の振り直しが追従する。
+   */
   const reorderAuthored = useCallback((fromIndex, toIndex, groupId) => {
-    setPool((prev) => {
-      const list = prev.questions.filter(
+    setPool((prev) => ({
+      ...prev,
+      questions: reorderSubset(
+        prev.questions,
         (q) => q.origin === ORIGIN.AUTHORED && (!groupId || q.groupId === groupId),
-      )
-      if (
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= list.length ||
-        toIndex >= list.length ||
-        fromIndex === toIndex
-      ) {
-        return prev
-      }
-      const moved = [...list]
-      const [item] = moved.splice(fromIndex, 1)
-      moved.splice(toIndex, 0, item)
-
-      const numbers = list.map((q) => q.questionNumber)
-      const renumbered = moved.map((q, i) => ({ ...q, questionNumber: numbers[i] }))
-      const byId = new Map(renumbered.map((q) => [q.id, q]))
-      return { ...prev, questions: prev.questions.map((q) => byId.get(q.id) ?? q) }
-    })
-  }, [])
+        fromIndex,
+        toIndex,
+      ),
+    }))
+  }, [setPool])
 
   /**
    * Excel から読み込んだ問題を、1ファイル＝1グループとして取り込む。
@@ -286,19 +291,14 @@ export function useQuestionPool() {
         groupId: group.id,
         origin: ORIGIN.IMPORTED,
       }))
-      // 番号はグループごとに独立しているので、衝突を見るのは同じグループの中だけ。
-      // 取り込み先は必ず新しいグループなので、実際にはファイル内の重複だけが対象になる。
-      const resolved = resolveNumberCollisions(
-        tagged,
-        prev.questions.filter((q) => q.groupId === group.id),
-      )
+      // 取り込み先は必ず新しいグループ。番号は行の並び順どおりに1から振り直される
       return {
         groups: [...prev.groups, group],
-        questions: [...prev.questions, ...resolved].slice(0, LIMITS.QUESTIONS),
+        questions: [...prev.questions, ...tagged].slice(0, LIMITS.QUESTIONS),
       }
     })
     return group.id
-  }, [])
+  }, [setPool])
 
   return {
     groups,
