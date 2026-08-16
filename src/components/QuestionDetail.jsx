@@ -161,12 +161,13 @@ export default function QuestionDetail({
 }) {
   // 未入力のまま残っている選択肢・基本事項は表示しない
   const question = compactQuestion(rawQuestion)
-  const [clozeOpen, setClozeOpen] = useState(true)
+  const [clozeOpen, setClozeOpen] = useState(false)
   // 選択式の詳細は「内容の確認」で開くことが多く、正解が目に入ると演習にならない。
   // 既定では伏せておき、押したときだけ見せる（虫食いの [答えを表示|隠す] と同じ操作）。
   const [answerOpen, setAnswerOpen] = useState(false)
   useEffect(() => {
     setAnswerOpen(false)
+    setClozeOpen(false)
   }, [noteKey])
 
   const meta = record?.attempts
@@ -256,8 +257,8 @@ export default function QuestionDetail({
               }}
             >
               {[
+                { key: false, text: '答えを隠す' },
                 { key: true, text: '答えを表示' },
-                { key: false, text: '隠す' },
               ].map((t) => (
                 <button
                   key={String(t.key)}

@@ -17,6 +17,7 @@ import ResultCard from './components/ResultCard'
 import FooterNav from './components/FooterNav'
 import EmptyState from './components/EmptyState'
 import DataTransfer, { TransferInput } from './components/DataTransfer'
+import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
 import Dashboard from './components/Dashboard'
@@ -99,7 +100,8 @@ export default function App() {
   const space = compact ? SPACING.compact : SPACING.wide
 
   const questions = pool.questions
-  const [view, setView] = useState(VIEWS.QUIZ)
+  // 起動直後は設問一覧のグループ一覧から始める
+  const [view, setView] = useState(VIEWS.QUESTIONS)
   const [helpOpen, setHelpOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   // 設問一覧で開いているグループ（null ならグループ一覧を表示）
@@ -107,6 +109,7 @@ export default function App() {
   const [editorGroupId, setEditorGroupId] = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
   const transferInputRef = useRef(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
   // 出題条件
   const [opts, setOpts] = useState(DEFAULT_OPTS)
@@ -369,12 +372,7 @@ export default function App() {
     startSession({ ...opts, examMode: false }, { explicitList: wrong })
   }, [session.questions, answers, opts, startSession])
 
-  const resetAll = useCallback(() => {
-    const sure = window.confirm(
-      '学習記録（正答率・ブックマーク・メモ・復習予定）をすべて削除します。\nこの操作は取り消せません。続行しますか？',
-    )
-    if (sure) study.resetAll()
-  }, [study])
+  const resetAll = useCallback(() => setResetOpen(true), [])
 
   // --- 一覧・集計 ---
   const groupNameOf = useCallback(
@@ -392,7 +390,7 @@ export default function App() {
     [questions, openGroupId],
   )
 
-  /** クイズ作成で「追加先」に選ばれているグループ。 */
+  /** 問題作成で「追加先」に選ばれているグループ。 */
   const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
 
   /** 「読み込む」のファイル選択を開く（Excel / バックアップの共通入口）。 */
@@ -549,7 +547,6 @@ export default function App() {
           onChangeExamMode={(examMode) => updateOpts({ examMode })}
           examMinutes={opts.examMinutes}
           onChangeExamMinutes={(examMinutes) => updateOpts({ examMinutes })}
-          onRestart={() => startSession(opts)}
         />
       )}
 
@@ -797,6 +794,19 @@ export default function App() {
           groups={pool.groups}
           onClose={() => setExportOpen(false)}
           onExport={runExport}
+        />
+      )}
+
+      {resetOpen && (
+        <ConfirmDialog
+          title="学習記録をすべて削除しますか？"
+          message="正答率・ブックマーク・メモ・復習予定がすべて消えます。元に戻せません。"
+          confirmLabel="削除する"
+          onCancel={() => setResetOpen(false)}
+          onConfirm={() => {
+            study.resetAll()
+            setResetOpen(false)
+          }}
         />
       )}
 

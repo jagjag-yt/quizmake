@@ -18,6 +18,7 @@ import { clozeHeadline, hiddenCount } from '../data/cloze'
 import { isCloze } from '../data/questions'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import ClozeEditor from './ClozeEditor'
+import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
 import { isSafeImageUrl } from '../utils/safe'
 
@@ -385,7 +386,7 @@ function Preview({ question, groupName, mode, position, total, pad }) {
 }
 
 /**
- * クイズ作成の入口。
+ * 問題作成の入口。
  *
  * 問題は必ずどれかのグループの中に入るため、いきなり1問目を作らせるのではなく
  * 「新しいグループを作る」か「既存のグループに追加する」かを先に選んでもらう。
@@ -439,7 +440,7 @@ function StartPane({
     >
       <div>
         <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
-          クイズを作成する
+          問題を作成する
         </p>
         <p style={{ margin: '6px 0 0 0', fontSize: '13.5px', color: COLORS.sub, lineHeight: 1.8 }}>
           問題はグループ（科目・単元）の中に作ります。どちらから始めるか選んでください。
@@ -569,6 +570,9 @@ export default function EditorView({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [touched, setTouched] = useState({})
   const [imageState, setImageState] = useState('idle')
+  // 確認・名前入力はアプリ内のダイアログで行う（window.confirm/prompt は環境により出ない）
+  const [deleting, setDeleting] = useState(false)
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   const question = useMemo(
     () => questions.find((q) => q.id === selectedId) ?? null,
@@ -707,10 +711,7 @@ export default function EditorView({
         </p>
         <button
           type="button"
-          onClick={() => {
-            const name = window.prompt('グループ名を入力してください')
-            if (name && name.trim()) onCreateGroup(name.trim())
-          }}
+          onClick={() => setCreatingGroup(true)}
           style={{ ...input, width: 'auto', padding: '0 22px', border: `1px solid ${COLORS.blue}`, background: COLORS.blue, color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
         >
           ＋ グループを作成
@@ -743,7 +744,46 @@ export default function EditorView({
     />
   )
 
-  if (!authored.length && !question) return startPane
+  const dialogs = (
+    <>
+      {deleting && question && (
+        <ConfirmDialog
+          title="この問題を削除しますか？"
+          message="元に戻せません。"
+          confirmLabel="削除する"
+          onCancel={() => setDeleting(false)}
+          onConfirm={() => {
+            onRemove(question.id)
+            onSelect(null)
+            setDeleting(false)
+          }}
+        />
+      )}
+      {creatingGroup && (
+        <PromptDialog
+          title="グループを作成"
+          label="グループ名"
+          placeholder="例：循環器"
+          confirmLabel="作成する"
+          onCancel={() => setCreatingGroup(false)}
+          onConfirm={(name) => {
+            const id = onCreateGroup(name)
+            if (id && question) onUpdate(question.id, { groupId: id })
+            setCreatingGroup(false)
+          }}
+        />
+      )}
+    </>
+  )
+
+  if (!authored.length && !question) {
+    return (
+      <>
+        {startPane}
+        {dialogs}
+      </>
+    )
+  }
 
   const sidebar = (
     <div style={{ ...card(16), display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
@@ -870,13 +910,6 @@ export default function EditorView({
         })}
       </div>
 
-      {/* 書き出す／読み込む。上部バーではなく作成画面の左カラムに置く */}
-      {transferSlot && (
-        <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px' }}>
-          {transferSlot}
-        </div>
-      )}
-
       {question && (
         <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${COLORS.border}`, paddingTop: '10px' }}>
           <button
@@ -888,16 +921,18 @@ export default function EditorView({
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('この問題を削除します。よろしいですか？')) {
-                onRemove(question.id)
-                onSelect(null)
-              }
-            }}
+            onClick={() => setDeleting(true)}
             style={{ flex: 1, minHeight: '36px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.red, fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             削除
           </button>
+        </div>
+      )}
+
+      {/* 書き出す／読み込む。上部バーではなく作成画面の左カラム（複製・削除の下）に置く */}
+      {transferSlot && (
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: '12px' }}>
+          {transferSlot}
         </div>
       )}
     </div>
@@ -920,13 +955,7 @@ export default function EditorView({
         </select>
         <button
           type="button"
-          onClick={() => {
-            const name = window.prompt('新しいグループ名を入力してください')
-            if (name && name.trim()) {
-              const id = onCreateGroup(name.trim())
-              if (id) onUpdate(question.id, { groupId: id })
-            }
-          }}
+          onClick={() => setCreatingGroup(true)}
           style={{ ...input, width: 'auto', padding: '0 14px', fontWeight: 700, cursor: 'pointer', color: COLORS.blue, border: `1px solid ${COLORS.blue}`, background: COLORS.blueLight }}
         >
           ＋ 新規
@@ -1213,6 +1242,7 @@ export default function EditorView({
   if (compact) {
     return (
       <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {dialogs}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -1282,6 +1312,7 @@ export default function EditorView({
       <div style={{ position: 'sticky', top: '24px' }}>{sidebar}</div>
       {editorPane}
       <div style={{ position: 'sticky', top: '24px' }}>{previewNode}</div>
+      {dialogs}
     </div>
   )
 }

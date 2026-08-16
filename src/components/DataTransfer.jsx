@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import ConfirmDialog from './ConfirmDialog'
 import { COLORS, LIMITS, TAP_MIN } from '../constants'
 import { parseImport } from '../storage/store'
 import { parseWorkbook } from '../utils/parseExcel'
@@ -50,6 +51,9 @@ const optionButton = {
  * アプリに常設する。拡張子で Excel（問題）と JSON（学習データ）を振り分ける。
  */
 export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, onNotify }) {
+  // 統合か置き換えかは window.confirm ではなくアプリ内のダイアログで選ぶ
+  const [pending, setPending] = useState(null)
+
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
     e.target.value = '' // 同じファイルを選び直せるようにする
@@ -61,27 +65,7 @@ export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, on
         if (file.size > LIMITS.IMPORT_BYTES) {
           throw new Error('ファイルが大きすぎます（8MBまで）。')
         }
-        const incoming = parseImport(await file.text())
-        const merge = window.confirm(
-          '読み込んだ学習データをどう反映しますか？\n\n' +
-            '［OK］ 今のデータに統合する（回答数を合算）\n' +
-            '［キャンセル］ 今のデータを置き換える',
-        )
-        if (!merge) {
-          const sure = window.confirm(
-            '置き換えると、今の端末に保存されている学習記録（正答率・ブックマーク・メモ）は失われます。\n続行しますか？',
-          )
-          if (!sure) {
-            onNotify({ tone: 'info', title: '読み込みを中止しました' })
-            return
-          }
-        }
-        onImportStudyData(incoming, { merge })
-        onNotify({
-          tone: 'success',
-          title: `学習データを${merge ? '統合' : '置き換え'}しました`,
-          description: `記録 ${Object.keys(incoming.records).length} 件`,
-        })
+        setPending(parseImport(await file.text()))
         return
       }
 
@@ -101,14 +85,37 @@ export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, on
     }
   }
 
+  const apply = (merge) => {
+    onImportStudyData(pending, { merge })
+    onNotify({
+      tone: 'success',
+      title: `学習データを${merge ? '統合' : '置き換え'}しました`,
+      description: `記録 ${Object.keys(pending.records).length} 件`,
+    })
+    setPending(null)
+  }
+
   return (
-    <input
-      ref={inputRef}
-      type="file"
-      accept=".xlsx,.xls,.json"
-      onChange={handleFile}
-      style={{ display: 'none' }}
-    />
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.xls,.json"
+        onChange={handleFile}
+        style={{ display: 'none' }}
+      />
+      {pending && (
+        <ConfirmDialog
+          title="読み込んだ学習データをどう反映しますか？"
+          message={`記録 ${Object.keys(pending.records).length} 件。「統合する」は回答数を合算します。「置き換える」を選ぶと、いまの端末の学習記録（正答率・ブックマーク・メモ）は失われます。`}
+          cancelLabel="置き換える"
+          confirmLabel="統合する"
+          danger={false}
+          onCancel={() => apply(false)}
+          onConfirm={() => apply(true)}
+        />
+      )}
+    </>
   )
 }
 

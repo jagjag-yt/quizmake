@@ -3,7 +3,7 @@ import { COLORS, SPACING, TABS, TAP_MIN, VIEWS } from '../constants'
 import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
 import { formatDuration } from '../utils/safe'
 
-/** 画面切替タブ（設問一覧 / 演習 / クイズ作成 / 学習記録）。 */
+/** 画面切替タブ（設問一覧 / 演習 / 問題作成 / 学習記録）。 */
 function ViewTabs({ view, onChangeView, compact }) {
   const tab = (active) => ({
     minHeight: `${TAP_MIN - 8}px`,
