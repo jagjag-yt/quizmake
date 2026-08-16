@@ -74,25 +74,36 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
           現在は、入力した問題も学習記録もお使いの端末の中だけに保存され、外部には送信していません。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {['利用規約', 'プライバシーポリシー'].map((label) => (
-            <span
-              key={label}
+          {[
+            { label: '利用規約', href: 'https://quiz-make.com/terms.html' },
+            { label: 'プライバシーポリシー', href: 'https://quiz-make.com/privacy.html' },
+            { label: 'お問い合わせ', href: 'mailto:support@quiz-make.com' },
+          ].map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '6px',
                 minHeight: `${TAP_MIN - 8}px`,
                 padding: '8px 14px',
                 borderRadius: '10px',
-                border: `1px dashed ${COLORS.dashed}`,
-                color: COLORS.muted,
+                border: `1px solid ${COLORS.border}`,
+                background: COLORS.card,
+                color: COLORS.body,
                 fontSize: '13px',
                 fontWeight: 700,
+                textDecoration: 'none',
               }}
             >
-              {label}
-              <span style={{ fontSize: '11px', fontWeight: 400 }}>準備中</span>
-            </span>
+              {item.label}
+              <span aria-hidden="true" style={{ fontSize: '11px', color: COLORS.muted }}>
+                ↗
+              </span>
+            </a>
           ))}
         </div>
       </section>
