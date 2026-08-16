@@ -29,3 +29,6 @@ quizmake-new-screens.html
 # デザインの受け渡しフォルダ（7.5MBのバンドルHTMLを含むため追跡しない。SPECはリポジトリ直下に置く）
 受け渡し用/
 quizmake_取扱説明書.pdf
+
+# Wrangler（Cloudflareへのデプロイ）のローカル作業ファイル
+.wrangler/
