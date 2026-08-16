@@ -85,6 +85,7 @@ export const VIEWS = {
   SUMMARY: 'summary',
   EDITOR: 'editor',
   DASHBOARD: 'dashboard',
+  SETTINGS: 'settings',
 }
 
 /**

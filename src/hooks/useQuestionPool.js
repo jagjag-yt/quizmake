@@ -10,6 +10,7 @@ import {
   renumberByGroup,
   reorderSubset,
   savePool,
+  seedPool,
   uniqueGroupName,
 } from '../storage/pool'
 import { toText } from '../utils/safe'
@@ -300,10 +301,16 @@ export function useQuestionPool() {
     return group.id
   }, [setPool])
 
+  /** すべての問題とグループを消し、初期状態（同梱のサンプル）に戻す。 */
+  const resetPool = useCallback(() => {
+    setPool(seedPool())
+  }, [setPool])
+
   return {
     groups,
     questions,
     poolRef,
+    resetPool,
     authored,
     imported,
     countsByGroup,
