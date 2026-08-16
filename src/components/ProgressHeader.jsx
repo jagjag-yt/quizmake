@@ -1,54 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { COLORS, SPACING, TABS, TAP_MIN, VIEWS } from '../constants'
+import { COLORS, SPACING, TAP_MIN, VIEWS } from '../constants'
 import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
+import { AppLogo, DrawerToggle } from './AppDrawer'
 import { formatDuration } from '../utils/safe'
-
-/** 画面切替タブ（設問一覧 / 演習 / 問題作成 / 学習記録）。 */
-function ViewTabs({ view, onChangeView, compact }) {
-  const tab = (active) => ({
-    minHeight: `${TAP_MIN - 8}px`,
-    padding: compact ? '8px 12px' : '8px 16px',
-    borderRadius: '999px',
-    border: 'none',
-    background: active ? COLORS.blue : 'transparent',
-    color: active ? '#ffffff' : COLORS.sub,
-    fontSize: '13px',
-    fontWeight: 700,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.15s ease',
-  })
-  return (
-    <div
-      role="tablist"
-      style={{
-        display: 'inline-flex',
-        gap: '2px',
-        padding: '3px',
-        borderRadius: '999px',
-        background: COLORS.chipTrack,
-      }}
-    >
-      {TABS.map((t) => {
-        // 演習の続きである結果画面も「演習」タブを選択中として扱う
-        const active = view === t.view || (t.view === VIEWS.QUIZ && view === VIEWS.SUMMARY)
-        return (
-          <button
-            key={t.view}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            style={tab(active)}
-            onClick={() => onChangeView(t.view)}
-          >
-            {compact ? t.tablet : t.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 /** 正答率の記録表示＋リセットボタン（全画面で共通）。 */
 function AccuracyStat({ accuracy, stats, onResetStats, compact }) {
@@ -187,11 +141,11 @@ function OverflowMenu({ children }) {
 
 /**
  * 上部ヘッダー。
- * 左：画面タブ ＋ Excel 系の共通ボタン
+ * 左：≡（メニュー）＋ ロゴ
  * 右：タブごとに出し分け（SPEC の NAV / right-slot は TAB-CONDITIONAL）
  *
  * @param {{
- *   view: string, onChangeView: (v: string) => void,
+ *   view: string, drawerOpen: boolean, onToggleDrawer: () => void, onLogoClick: () => void,
  *   position: number, total: number, questionTotal: number,
  *   accuracy: number, stats: { answered: number, correct: number }, onResetStats: () => void,
  *   examMode: boolean, remainingSec: number|null,
@@ -201,7 +155,9 @@ function OverflowMenu({ children }) {
  */
 export default function ProgressHeader({
   view,
-  onChangeView,
+  drawerOpen,
+  onToggleDrawer,
+  onLogoClick,
   position,
   total,
   questionTotal,
@@ -243,7 +199,8 @@ export default function ProgressHeader({
           flexWrap: 'wrap',
         }}
       >
-        <ViewTabs view={view} onChangeView={onChangeView} compact={compact} />
+        <DrawerToggle open={drawerOpen} onToggle={onToggleDrawer} />
+        <AppLogo onClick={onLogoClick} compact={compact} />
         {compact ? <OverflowMenu>{children}</OverflowMenu> : children}
       </div>
 

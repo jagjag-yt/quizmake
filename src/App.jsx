@@ -17,6 +17,8 @@ import ResultCard from './components/ResultCard'
 import FooterNav from './components/FooterNav'
 import EmptyState from './components/EmptyState'
 import DataTransfer, { TransferInput } from './components/DataTransfer'
+import AppDrawer from './components/AppDrawer'
+import SettingsView from './components/SettingsView'
 import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
@@ -110,6 +112,26 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false)
   const transferInputRef = useRef(null)
   const [resetOpen, setResetOpen] = useState(false)
+  // PCでは開いたままにできるので、状態を覚えておく（タブレット以下は常に閉じて始める）
+  const [drawerOpen, setDrawerOpen] = useState(() => {
+    try {
+      return localStorage.getItem('quizmake.drawer') === 'open'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleDrawer = useCallback(() => {
+    setDrawerOpen((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('quizmake.drawer', next ? 'open' : 'closed')
+      } catch {
+        // 保存できなくても開閉自体は動く
+      }
+      return next
+    })
+  }, [])
 
   // 出題条件
   const [opts, setOpts] = useState(DEFAULT_OPTS)
@@ -487,11 +509,30 @@ export default function App() {
         background: COLORS.bg,
         fontFamily: "'Noto Sans JP', sans-serif",
         color: COLORS.text,
+        // PCでドロワーを開いている間は、本文をその分だけ右に寄せる
+        paddingLeft: drawerOpen && !compact ? '248px' : 0,
+        transition: 'padding-left 0.15s ease',
       }}
     >
+      <AppDrawer
+        open={drawerOpen}
+        overlay={compact}
+        view={view}
+        onChangeView={(next) => {
+          if (next === VIEWS.QUESTIONS) setOpenGroupId(null)
+          setView(next)
+        }}
+        onClose={toggleDrawer}
+      />
+
       <ProgressHeader
         view={view}
-        onChangeView={setView}
+        drawerOpen={drawerOpen}
+        onToggleDrawer={toggleDrawer}
+        onLogoClick={() => {
+          setOpenGroupId(null)
+          setView(VIEWS.QUESTIONS)
+        }}
         position={total > 0 ? currentIndex + 1 : 0}
         total={total}
         questionTotal={questions.length}
@@ -679,6 +720,18 @@ export default function App() {
               setEditorGroupId(id)
               toast.show({ tone: 'success', title: `グループ「${name}」を作成しました` })
               return id
+            }}
+          />
+        ) : view === VIEWS.SETTINGS ? (
+          <SettingsView
+            onResetAll={() => {
+              pool.resetPool()
+              study.resetAll()
+              setOpenGroupId(null)
+              setEditingId(null)
+              setOpts(DEFAULT_OPTS)
+              toast.show({ tone: 'info', title: 'すべてのデータを削除しました' })
+              setView(VIEWS.QUESTIONS)
             }}
           />
         ) : view === VIEWS.DASHBOARD ? (
