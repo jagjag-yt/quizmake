@@ -261,7 +261,7 @@ export default function GroupsView({
                   style={{ ...smallBtn(false), padding: '0 10px', marginLeft: 'auto' }}
                   onClick={() => setRenaming({ id: s.group.id, value: s.group.name })}
                 >
-                  名前
+                  名前の変更
                 </button>
                 <button
                   type="button"
