@@ -787,20 +787,23 @@ export default function EditorView({
 
   const sidebar = (
     <div style={{ ...card(16), display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
-      <div>
-        <div style={label}>追加先のグループ</div>
-        <select
-          value={activeGroupId ?? ''}
-          onChange={(e) => onChangeActiveGroup(e.target.value)}
-          style={{ ...input, marginTop: '6px', cursor: 'pointer' }}
-        >
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* 入口の画面ではグループを中央で選ばせるので、ここには出さない */}
+      {question && (
+        <div>
+          <div style={label}>追加先のグループ</div>
+          <select
+            value={activeGroupId ?? ''}
+            onChange={(e) => onChangeActiveGroup(e.target.value)}
+            style={{ ...input, marginTop: '6px', cursor: 'pointer' }}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>作成した問題</span>
