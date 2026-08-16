@@ -394,9 +394,7 @@ function Preview({ question, groupName, mode, position, total, pad }) {
  */
 function StartPane({
   groups,
-  activeGroupId,
   onCreateGroup,
-  onChangeActiveGroup,
   onAdd,
   onImportClick,
   transferSlot,
@@ -405,7 +403,6 @@ function StartPane({
   pad,
 }) {
   const [name, setName] = useState('')
-  const [pick, setPick] = useState(activeGroupId ?? groups[0]?.id ?? '')
 
   const optionCard = {
     border: `1px solid ${COLORS.border}`,
@@ -490,32 +487,16 @@ function StartPane({
           </span>
           <span style={{ fontSize: '12.5px', color: COLORS.sub, lineHeight: 1.7 }}>
             {hasGroups
-              ? 'すでにあるグループを選んで、問題を追加します。'
+              ? 'すでにあるグループに追加します。どのグループにするかは、次の「新しい問題」で選べます。'
               : 'まだグループがありません。左の「新しいグループを作成」から始めてください。'}
           </span>
-          <select
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-            disabled={!hasGroups}
-            aria-label="追加先のグループ"
-            style={{ ...input, marginTop: 'auto', cursor: hasGroups ? 'pointer' : 'default' }}
-          >
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             disabled={!hasGroups}
-            onClick={() => {
-              onChangeActiveGroup(pick)
-              onAdd()
-            }}
-            style={actionButton(hasGroups)}
+            onClick={onAdd}
+            style={{ ...actionButton(hasGroups), marginTop: 'auto' }}
           >
-            このグループに問題を追加
+            問題を追加する
           </button>
         </div>
       </div>
@@ -748,9 +729,7 @@ export default function EditorView({
   const startPane = (
     <StartPane
       groups={groups}
-      activeGroupId={activeGroupId}
       onCreateGroup={onCreateGroup}
-      onChangeActiveGroup={onChangeActiveGroup}
       onAdd={onAdd}
       onImportClick={onImportClick}
       transferSlot={transferSlot}
