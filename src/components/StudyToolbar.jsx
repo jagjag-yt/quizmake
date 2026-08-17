@@ -208,8 +208,8 @@ export default function StudyToolbar({
 
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
         <span style={labelStyle}>グループ</span>
+        {/* 1回の演習は1グループに絞る。混ぜると問題番号が重複して指定できなくなるため */}
         <select value={groupId} onChange={(e) => onChangeGroup(e.target.value)} style={selectStyle}>
-          <option value="">すべて</option>
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}

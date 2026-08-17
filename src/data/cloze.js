@@ -183,6 +183,48 @@ export function rangeHasHidden(paras, start, end) {
 }
 
 /**
+ * [[ ]] で囲まれた箇所を「隠す指定」として取り出す。
+ *
+ * 画面をタッチで操作するときは、文字を選択してボタンを押す操作が難しい。
+ * 入力しながら [[葉緑体]] と書けるようにして、選択操作を要らなくする。
+ * 閉じ括弧まで入力された時点で括弧そのものは消し、中身を隠す範囲にする。
+ *
+ * @param {string} text 括弧を含んだテキスト
+ * @param {number} caret 変換前のカーソル位置
+ * @returns {{ text: string, ranges: Array<{start:number,end:number}>, caret: number }}
+ *   括弧を取り除いたテキストと、隠す範囲（取り除いたあとの位置）
+ */
+export function extractBracketRanges(text, caret = 0) {
+  const source = String(text ?? '')
+  const ranges = []
+  let out = ''
+  let i = 0
+  let nextCaret = caret
+
+  while (i < source.length) {
+    // 入れ子は想定しない。開き括弧から、最初の閉じ括弧までを1つの範囲とする
+    if (source.startsWith('[[', i)) {
+      const close = source.indexOf(']]', i + 2)
+      const inner = close === -1 ? '' : source.slice(i + 2, close)
+      if (close !== -1 && inner.length > 0 && !inner.includes('[[')) {
+        const start = out.length
+        out += inner
+        ranges.push({ start, end: out.length })
+        // 取り除いた括弧の分だけカーソルを前へ詰める
+        if (caret > close + 1) nextCaret -= 4
+        else if (caret > i) nextCaret = out.length
+        i = close + 2
+        continue
+      }
+    }
+    out += source[i]
+    i += 1
+  }
+
+  return { text: out, ranges, caret: Math.max(0, Math.min(nextCaret, out.length)) }
+}
+
+/**
  * 素のテキストから paras を作り直す（属性は位置で引き継ぐ）。
  * 入力欄で文字が増減したときに、既存の hide/color をできるだけ保つために使う。
  */
