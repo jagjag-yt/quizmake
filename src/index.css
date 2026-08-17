@@ -14,6 +14,33 @@ body {
   padding: 0;
 }
 
+/* ドロワー：本文を押し出さず、暗幕の上を左からすべり込ませる */
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 動きに酔う人には出さない。表示・非表示の結果だけは同じ */
+  [data-drawer-panel],
+  [data-drawer-scrim] {
+    animation: none !important;
+  }
+}
+
 body {
   background: var(--bg);
   font-family: 'Noto Sans JP', sans-serif;

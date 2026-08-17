@@ -16,7 +16,7 @@ import {
 } from '../data/questions'
 import { clozeHeadline, hiddenCount } from '../data/cloze'
 import { isCloze } from '../data/questions'
-import { useCompactLayout, usePhoneLayout } from '../hooks/useMediaQuery'
+import { useCompactLayout, usePhoneLayout, usePreviewTight } from '../hooks/useMediaQuery'
 import ClozeEditor from './ClozeEditor'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
@@ -722,6 +722,12 @@ export default function EditorView({
   const [forcePhoneEdit, setForcePhoneEdit] = useState(false)
   const [poolFilter, setPoolFilter] = useState('all')
   const [previewMode, setPreviewMode] = useState('before')
+  // iPad 横（1194px など）では3ペインだとプレビューが潰れるので、既定で畳んで開閉式にする
+  const previewTight = usePreviewTight()
+  const [previewOpen, setPreviewOpen] = useState(!previewTight)
+  useEffect(() => {
+    setPreviewOpen(!previewTight)
+  }, [previewTight])
   const [tabletPane, setTabletPane] = useState('edit')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [touched, setTouched] = useState({})
@@ -1063,23 +1069,41 @@ export default function EditorView({
         </div>
       )}
 
+      {/*
+        グループを増やす「＋ 新規」と、問題を増やすボタンが右端に縦に並んでいて押し間違えやすかった。
+        役割が違うので線で区切り、問題の追加は幅いっぱいの主ボタンにして見分けられるようにする。
+      */}
+      <span style={{ height: '1px', background: COLORS.cardBorder }} />
+
+      <button
+        type="button"
+        onClick={() => {
+          onAdd(activeGroupId)
+          setDrawerOpen(false)
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          width: '100%',
+          minHeight: `${TAP_MIN}px`,
+          borderRadius: '12px',
+          border: 'none',
+          background: COLORS.blue,
+          color: '#ffffff',
+          fontSize: '14px',
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+        }}
+      >
+        ＋ 問題を追加
+      </button>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>作成した問題</span>
         <span style={{ fontSize: '12px', color: COLORS.sub }}>{authored.length}問</span>
-        <button
-          type="button"
-          onClick={() => {
-            const id = onAdd(activeGroupId)
-            if (!id) return
-            onSelect(id)
-            setPoolFilter(ORIGIN.AUTHORED)
-            setDrawerOpen(false)
-          }}
-          aria-label="問題を追加"
-          style={{ marginLeft: 'auto', width: '36px', height: '36px', borderRadius: '12px', border: 'none', background: COLORS.blue, color: '#ffffff', fontSize: '16px', fontFamily: 'inherit', cursor: 'pointer' }}
-        >
-          ＋
-        </button>
       </div>
 
       <div style={{ display: 'inline-flex', gap: '2px', padding: '3px', borderRadius: '999px', background: COLORS.chipTrack }}>
@@ -1605,20 +1629,90 @@ export default function EditorView({
   // ---------- デスクトップ 3ペイン ----------
   const editorPane = clozePanes ? clozePanes.editor : editor
   const previewNode = clozePanes ? clozePanes.preview : previewPane
+  const canPreview = !!previewNode
+
+  // 畳んだときは編集側に幅を渡し、プレビューは開くための帯だけ残す。
+  // 開くときはプレビューに最低360pxを確保する（それ未満だと選択肢が折り返して確認にならない）。
+  // 編集欄は 528px を上限に縮められるようにする。固定にすると iPad 横で横スクロールが出る
+  // （1194px で grid が 1228px になり、実測で横スクロールが発生した）
+  const columns = !canPreview
+    ? '268px 528px minmax(0, 1fr)'
+    : previewOpen
+      ? '268px minmax(0, 528px) minmax(360px, 1fr)'
+      : '268px minmax(528px, 1fr) 48px'
+
+  const collapseButton = (
+    <button
+      type="button"
+      onClick={() => setPreviewOpen(false)}
+      style={{
+        marginLeft: 'auto',
+        minHeight: '34px',
+        padding: '0 12px',
+        borderRadius: '999px',
+        border: `1px solid ${COLORS.border}`,
+        background: COLORS.card,
+        color: COLORS.sub,
+        fontSize: '12.5px',
+        fontWeight: 700,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+      }}
+    >
+      プレビューを畳む ›
+    </button>
+  )
+
+  const openStrip = (
+    <button
+      type="button"
+      onClick={() => setPreviewOpen(true)}
+      title="演習画面プレビューを開く"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        width: '48px',
+        minHeight: '220px',
+        padding: '16px 0',
+        borderRadius: '14px',
+        border: `1px solid ${COLORS.border}`,
+        background: COLORS.card,
+        color: COLORS.blue,
+        fontSize: '12.5px',
+        fontWeight: 700,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+        writingMode: 'vertical-rl',
+      }}
+    >
+      ‹ プレビュー
+    </button>
+  )
 
   return (
     <div
       style={{
         gridColumn: '1 / -1',
         display: 'grid',
-        gridTemplateColumns: '268px 528px minmax(0, 1fr)',
+        gridTemplateColumns: columns,
         gap: '20px',
         alignItems: 'start',
       }}
     >
       <div style={{ position: 'sticky', top: '24px' }}>{sidebar}</div>
       {editorPane}
-      <div style={{ position: 'sticky', top: '24px' }}>{previewNode}</div>
+      <div style={{ position: 'sticky', top: '24px' }}>
+        {canPreview && !previewOpen ? (
+          openStrip
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {canPreview && <div style={{ display: 'flex' }}>{collapseButton}</div>}
+            {previewNode}
+          </div>
+        )}
+      </div>
       {dialogs}
     </div>
   )

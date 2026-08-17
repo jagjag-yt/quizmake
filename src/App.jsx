@@ -113,25 +113,11 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false)
   const transferInputRef = useRef(null)
   const [resetOpen, setResetOpen] = useState(false)
-  // PCでは開いたままにできるので、状態を覚えておく（タブレット以下は常に閉じて始める）
-  const [drawerOpen, setDrawerOpen] = useState(() => {
-    try {
-      return localStorage.getItem('quizmake.drawer') === 'open'
-    } catch {
-      return false
-    }
-  })
+  // どの画面幅でも本文に重ねるため、開いたままでは中身が読めない。常に閉じて始める
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const toggleDrawer = useCallback(() => {
-    setDrawerOpen((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem('quizmake.drawer', next ? 'open' : 'closed')
-      } catch {
-        // 保存できなくても開閉自体は動く
-      }
-      return next
-    })
+    setDrawerOpen((prev) => !prev)
   }, [])
 
   // 出題条件。1回の演習は1グループに絞るため、既定は先頭のグループにする
@@ -523,14 +509,10 @@ export default function App() {
         background: COLORS.bg,
         fontFamily: "'Noto Sans JP', sans-serif",
         color: COLORS.text,
-        // PCでドロワーを開いている間は、本文をその分だけ右に寄せる
-        paddingLeft: drawerOpen && !compact ? '248px' : 0,
-        transition: 'padding-left 0.15s ease',
       }}
     >
       <AppDrawer
         open={drawerOpen}
-        overlay={compact}
         view={view}
         onChangeView={(next) => {
           if (next === VIEWS.QUESTIONS) setOpenGroupId(null)

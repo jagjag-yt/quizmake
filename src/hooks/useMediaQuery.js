@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { COMPACT_QUERY, HOVER_QUERY, PHONE_QUERY } from '../constants'
+import { COMPACT_QUERY, HOVER_QUERY, PHONE_QUERY, PREVIEW_TIGHT_QUERY } from '../constants'
 
 /**
  * CSS メディアクエリの一致状態を購読する。
@@ -56,6 +56,14 @@ export function useCompactLayout() {
  */
 export function usePhoneLayout() {
   return useMediaQuery(PHONE_QUERY)
+}
+
+/**
+ * 3ペインでプレビューの幅が足りなくなる画面幅か。
+ * 問題作成で、プレビューを既定で畳むかどうかの判定に使う。
+ */
+export function usePreviewTight() {
+  return useMediaQuery(PREVIEW_TIGHT_QUERY)
 }
 
 /**

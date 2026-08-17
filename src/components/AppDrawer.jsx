@@ -4,9 +4,10 @@ import { COLORS, TABS, TAP_MIN, VIEWS } from '../constants'
 /**
  * 左から出すナビゲーション。
  *
- * 画面の切り替えはすべてここに集約する。PCでは開いたままにできるので、
- * 常時表示のサイドバーとしても使える（開閉状態は localStorage に覚える）。
- * タブレット以下では本文に重ね、選んだら自動で閉じる。
+ * 画面の切り替えはすべてここに集約する。
+ * どの画面幅でも本文の上に重ねる（本文を右へ押し出さない）。暗幕を敷き、
+ * その上をパネルが左からすべり込む。項目を選ぶか、暗幕・Esc で閉じる。
+ * 押し出す方式は、開閉のたびに本文の折り返しが変わって読みづらいのでやめた。
  */
 
 const DRAWER_W = 248
@@ -114,28 +115,30 @@ const itemStyle = (active) => ({
  *   view: string, onChangeView: (v: string) => void, onClose: () => void,
  * }} props
  */
-export default function AppDrawer({ open, overlay, view, onChangeView, onClose }) {
+export default function AppDrawer({ open, view, onChangeView, onClose }) {
   useEffect(() => {
-    if (!open || !overlay) return undefined
+    if (!open) return undefined
     const onKey = (e) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, overlay, onClose])
+  }, [open, onClose])
 
   if (!open) return null
 
   const pick = (next) => {
     onChangeView(next)
-    if (overlay) onClose()
+    onClose()
   }
 
   const panel = (
     <nav
       aria-label="メニュー"
+      data-drawer-panel=""
       style={{
         width: `${DRAWER_W}px`,
+        maxWidth: '86vw',
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -143,14 +146,14 @@ export default function AppDrawer({ open, overlay, view, onChangeView, onClose }
         padding: '16px 12px',
         background: COLORS.card,
         borderRight: `1px solid ${COLORS.border}`,
-        // PCでも同じ固定配置にし、本文側に左余白を足して重ならないようにする
         position: 'fixed',
         top: 0,
         left: 0,
         bottom: 0,
         zIndex: 46,
         overflowY: 'auto',
-        boxShadow: overlay ? '8px 0 24px rgba(15,23,42,0.12)' : 'none',
+        boxShadow: '8px 0 24px rgba(15,23,42,0.12)',
+        animation: 'drawer-slide-in 0.18s ease-out',
       }}
     >
       {TABS.map((t) => (
@@ -187,13 +190,19 @@ export default function AppDrawer({ open, overlay, view, onChangeView, onClose }
     </nav>
   )
 
-  if (!overlay) return panel
-
   return (
     <>
       <div
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: COLORS.scrim, zIndex: 45 }}
+        data-drawer-scrim=""
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: COLORS.scrim,
+          zIndex: 45,
+          animation: 'drawer-scrim-in 0.18s ease-out',
+        }}
       />
       {panel}
     </>

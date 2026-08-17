@@ -29,8 +29,12 @@ NAV (v2: drawer。ヘッダーに並ぶタブ列は廃止)
   drawer 項目(順序 = constants.js TABS): 設問一覧 | 演習 | 問題作成 | 学習記録
     + 区切り + アカウント(disabled, title「アカウント機能は準備中です」) + 設定
     旧「クイズ作成」-> 「問題作成」に改称。compact 短縮ラベル: 一覧/演習/作成/記録。
-  desktop(>=1024): 開いたまま保持する。状態は localStorage 'quizmake.drawer' = 'open'|'closed'。開時は本文を 248px 右へ。
-  compact(<=1023): 本文に重ねる overlay + scrim。項目を選ぶと自動で閉じる。
+  **全幅で overlay**(v2.1): 本文を押し出さない。scrim(rgba(15,23,42,.28)) を敷き、パネル w248(max 86vw) が
+    左からスライドして重なる。animation: drawer-slide-in .18s ease-out / scrim は drawer-scrim-in。
+    prefers-reduced-motion: reduce では animation を切る（結果の表示・非表示は同じ）。
+    項目を選ぶ・scrim をクリック・Esc のいずれでも閉じる。開閉状態は保存しない（常に閉じて始まる）。
+    localStorage 'quizmake.drawer' は廃止(v2.1)。開いたまま保持＋本文248px押し出しも廃止。
+    reason: 開閉のたびに本文の折り返しが変わって読みづらい、と実利用で指摘された。
   Excelの 書き出す/読み込む はヘッダーから撤去 -> 問題作成の左カラムへ移動(DataTransfer)。
   right-slot is TAB-CONDITIONAL (ProgressHeader.jsx):
     演習     -> 正答率 XX%（n/n）+↻ , 演習 n/N問目 , progressbar 220x6 r999 track=border fill=blue
@@ -94,10 +98,27 @@ ENTRY(v2): 入口は「グループを決める分岐画面」。この時点で
   0件のとき: "まだグループがありません。左の「新しいグループを作成」から始めてください。"
   まだ1問も無い間は、この画面に 書き出す/読み込む を置く(左カラムが存在しないため)。
 LAYOUT desktop 3-pane (編集中のみ): sidebar 268 | editor 528 | preview flex sticky top:24.
+PREVIEW ACCORDION (v2.1, >=1024 のみ):
+  PREVIEW_TIGHT_QUERY='(max-width:1279px)' に一致する間は **既定で畳む**。
+    根拠: 余白32×2 + 268 + 528 + gap20×2 = 900px を消費するため、プレビューの実測幅は「画面幅 − 900」。
+          iPad Pro 横 1194px では 279px しか残らず、選択肢が折り返して確認にならない（実測値）。
+  columns:
+    プレビュー無し   : '268px 528px minmax(0, 1fr)'
+    開いている       : '268px minmax(0, 528px) minmax(360px, 1fr)'
+    畳んでいる       : '268px minmax(528px, 1fr) 48px'
+  開いているとき editor を **固定 528 にしない**。固定すると 1194px で grid が 1228px になり横スクロールが出る（実測）。
+  畳んだとき: 3列目に w48/h220 の縦帯ボタン「‹ プレビュー」(writing-mode: vertical-rl)。押すと開く。
+  開いたとき: プレビュー見出しの上に [プレビューを畳む ›]。
+  compact(<=1023) は従来どおり segmented [編集|プレビュー] の切替（この開閉は使わない）。
 LAYOUT compact: sidebar -> ☰ ドロワー "問題一覧（N）"; segmented [編集|プレビュー]; editor full-width; underline toolbar pinned to 問題文 label row.
 LAYOUT phone(<=600): 編集画面を出さず PHONE GATE に差し替え。
 SIDEBAR (v2)
-  head: 「追加先のグループ」select + [＋ 新規]
+  head: 「追加先のグループ」select + [＋ 新規]（グループを増やす操作。ここだけ）
+  divider(1px cardBorder)
+  [＋ 問題を追加]: **幅いっぱい・primary・h44**(v2.1)。
+    NG: 36px の ＋ アイコンを「作成した問題 N問」行の右端に置く形。グループの [＋ 新規] と右端で縦に並び、
+        押し間違える。役割が違うものは線で分け、大きさも変える。
+  「作成した問題 N問」ラベル行 + segmented すべて/選択式/虫食い
   items h>=52: ⠿ drag handle, head 1行 ellipsis, trailing "!" red if invalid. selected bg=blueLight.
     各行に checkbox。1件以上チェック -> [→ 移動][🗑 削除] で複数まとめて操作。
   foot: [複製][削除(red text)] + [書き出す][読み込む](DataTransfer。ヘッダーから移設)
