@@ -11,6 +11,7 @@ import {
   reorderSubset,
   savePool,
   seedPool,
+  stampUpdatedGroups,
   uniqueGroupName,
 } from '../storage/pool'
 import { toText } from '../utils/safe'
@@ -79,12 +80,14 @@ export function useQuestionPool() {
    * プールの更新はすべてここを通す。
    * 追加・削除・移動・並べ替え・取り込みのどれであっても、最後にグループごとの
    * 連番（1,2,3…）を振り直し、欠番や重複が残らないようにする。
+   * あわせて、中身が変わったグループに updatedAt を打つ（「更新順」の並べ替え用）。
    */
   const setPool = useCallback((updater) => {
     setPoolState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      const questions = renumberByGroup(next.questions)
-      return questions === next.questions ? next : { ...next, questions }
+      const raw = typeof updater === 'function' ? updater(prev) : updater
+      const questions = renumberByGroup(raw.questions)
+      const next = questions === raw.questions ? raw : { ...raw, questions }
+      return stampUpdatedGroups(prev, next)
     })
   }, [])
 

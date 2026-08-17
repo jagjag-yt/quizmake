@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
-import { COLORS, SPACING } from '../constants'
+import { COLORS, GROUP_SORT_KEY, GROUP_SORTS, SPACING } from '../constants'
 import { questionKey } from '../data/questions'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import { accuracyOf } from '../utils/stats'
@@ -12,6 +12,31 @@ const cardStyle = (pad) => ({
   boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
   padding: `${pad}px`,
 })
+
+const selectStyle = {
+  minHeight: '36px',
+  padding: '0 8px',
+  borderRadius: '10px',
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.card,
+  color: COLORS.body,
+  fontSize: '12.5px',
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+}
+
+/** 保存してある並び順。壊れていたら既定（名前の昇順）に戻す。 */
+function loadGroupSort() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GROUP_SORT_KEY) ?? '')
+    const by = raw?.by === GROUP_SORTS.UPDATED ? GROUP_SORTS.UPDATED : GROUP_SORTS.NAME
+    const dir = raw?.dir === 'desc' ? 'desc' : 'asc'
+    return { by, dir }
+  } catch {
+    return { by: GROUP_SORTS.NAME, dir: 'asc' }
+  }
+}
 
 const smallBtn = (primary) => ({
   minHeight: '36px',
@@ -50,6 +75,16 @@ export default function GroupsView({
   const [deleting, setDeleting] = useState(null) // { id, name, total }
   const [creating, setCreating] = useState(false)
   const [merging, setMerging] = useState(false)
+  const [sort, setSortState] = useState(loadGroupSort)
+
+  const setSort = (next) => {
+    setSortState(next)
+    try {
+      localStorage.setItem(GROUP_SORT_KEY, JSON.stringify(next))
+    } catch {
+      // 覚えられなくても並べ替え自体は動く
+    }
+  }
 
   /** グループごとの集計（問題数・学習済み・正答率・要復習）。 */
   const stats = useMemo(() => {
@@ -74,6 +109,35 @@ export default function GroupsView({
     }
     return [...map.values()].map((s) => ({ ...s, accuracy: accuracyOf(s.correct, s.answered) }))
   }, [groups, questions, getRecord])
+
+  /**
+   * 並べ替えたグループ。
+   * 名前は日本語として比べる（localeCompare の 'ja'）。更新日時は ISO 文字列なので
+   * そのまま比べれば時系列になる。同着は名前の昇順で固定し、並びが揺れないようにする。
+   */
+  const sorted = useMemo(() => {
+    const list = [...stats]
+    const nameOf = (s) => s.group.name ?? ''
+    const timeOf = (s) => s.group.updatedAt ?? s.group.createdAt ?? ''
+    list.sort((a, b) => {
+      const d =
+        sort.by === GROUP_SORTS.UPDATED
+          ? timeOf(a).localeCompare(timeOf(b))
+          : nameOf(a).localeCompare(nameOf(b), 'ja')
+      if (d !== 0) return sort.dir === 'asc' ? d : -d
+      return nameOf(a).localeCompare(nameOf(b), 'ja')
+    })
+    return list
+  }, [stats, sort])
+
+  const dirLabel =
+    sort.by === GROUP_SORTS.UPDATED
+      ? sort.dir === 'asc'
+        ? '↑ 古い順'
+        : '↓ 新しい順'
+      : sort.dir === 'asc'
+        ? '↑ あ→ん'
+        : '↓ ん→あ'
 
   const toggle = (id) =>
     setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -145,6 +209,30 @@ export default function GroupsView({
         <span style={{ fontSize: '12.5px', color: COLORS.sub }}>
           {groups.length}グループ / 全{questions.length}問
         </span>
+
+        {/* 並び順。グループが増えると探しづらくなるため、名前順と更新順を選べるようにする */}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.sub }}>並び順</span>
+          <select
+            aria-label="グループの並び順"
+            value={sort.by}
+            onChange={(e) => setSort({ ...sort, by: e.target.value })}
+            style={selectStyle}
+          >
+            <option value={GROUP_SORTS.NAME}>名前順</option>
+            <option value={GROUP_SORTS.UPDATED}>更新順</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setSort({ ...sort, dir: sort.dir === 'asc' ? 'desc' : 'asc' })}
+            title={sort.dir === 'asc' ? '昇順で並べています' : '降順で並べています'}
+            aria-label={`並び順の向きを変える（現在: ${dirLabel}）`}
+            style={smallBtn(false)}
+          >
+            {dirLabel}
+          </button>
+        </span>
+
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
             ⬆ 読み込む
@@ -169,7 +257,7 @@ export default function GroupsView({
           gap: '16px',
         }}
       >
-        {stats.map((s) => {
+        {sorted.map((s) => {
           const isChecked = checked.includes(s.group.id)
           return (
             <div
