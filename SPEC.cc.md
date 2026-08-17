@@ -242,6 +242,15 @@ PHONE LAYOUT (<=600px, v2.4)
     grid の子は既定で min-width:auto のため、中身の最小幅に押し広げられる。
     実測: Dashboard で 360px の画面に 386px はみ出していた。
   TAP: チェックボックスは phone/compact で 22px（既定 18px は指で押しづらい）。
+  FOOTER NAV: 3つのボタンで幅を分けるため、phone では1つ 100px しか取れない。
+    左右の余白 24px のままだと文字に 52px しか回らず「リトライ」でも2行に折れる（実測 h=68px）。
+    phone は padding '10px 6px' / font 13px / white-space:nowrap にして1行に収める（実測 h=44px）。
+    高さは TAP_MIN(44) を下回らせない。
+  DASHBOARD: 棒グラフの svg は既定で min-width 320px。phone のカード内側は 276px しかなく、
+    そのままだとカードから 23px はみ出して切れる（実測 右端 363px / カード右端 340px）。
+    phone では min-width を外す（viewBox で縮む）。
+    BarRow は 110px + 112px の固定幅を並べるとバーが 30px しか残らないため、
+    phone では「名前を上の段、バーと数値を下の段」の2段に組み替える。
 
 PHONE GATE (<=600px, 問題作成のみ)
   問題作成を開いても編集画面を出さず、案内カードを出す (EditorView.PhoneNotice)。
