@@ -566,6 +566,7 @@ export default function App() {
 
       {view === VIEWS.QUIZ && (
         <StudyToolbar
+          total={total}
           qtype={opts.qtype}
           onChangeType={(qtype) =>
             updateOpts(
