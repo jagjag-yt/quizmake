@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { COLORS, SPACING, TAP_MIN } from '../constants'
 import ConfirmDialog from './ConfirmDialog'
+import { ShortcutList } from './ShortcutHelp'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
 const card = (pad) => ({
@@ -106,6 +107,15 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
             </a>
           ))}
         </div>
+      </section>
+
+      {/* キーボードショートカット */}
+      <section style={card(space.card)}>
+        <h3 style={heading}>キーボードショートカット</h3>
+        <p style={{ ...note, marginBottom: '12px' }}>
+          キーボードのあるパソコンで使えます。タブレットやスマートフォンでは画面のボタンで操作してください。
+        </p>
+        <ShortcutList />
       </section>
 
       {/* データ */}
