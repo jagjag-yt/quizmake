@@ -282,12 +282,22 @@ export function useQuestionPool() {
   }, [setPool])
 
   /**
-   * Excel から読み込んだ問題を、1ファイル＝1グループとして取り込む。
-   * @returns {string} 作成したグループの id
+   * 読み込んだ問題を取り込む。
+   *
+   * 既定は「1ファイル＝1グループ」で新しいグループを作る。
+   * groupId を渡した場合は、そのグループの**末尾に足す**（問題作成の途中に読み込んだとき）。
+   * 末尾に足すのは、番号の振り直しが配列順で走るため、既存の問題の番号を動かさずに
+   * 続き番号を振れるから。前に挿すと既存の番号がずれて、覚えている番号と食い違う。
+   *
+   * @param {Array} incoming 取り込む問題
+   * @param {{groupName?: string, groupId?: string|null}} options
+   * @returns {string} 取り込み先グループの id
    */
-  const importQuestions = useCallback((incoming, { groupName } = {}) => {
+  const importQuestions = useCallback((incoming, { groupName, groupId = null } = {}) => {
     const current = poolRef.current
-    const group = makeGroup(uniqueGroupName(groupName || DEFAULT_GROUP_NAME, current.groups))
+    const existing = groupId ? current.groups.find((g) => g.id === groupId) : null
+    const group = existing ?? makeGroup(uniqueGroupName(groupName || DEFAULT_GROUP_NAME, current.groups))
+
     setPool((prev) => {
       const tagged = incoming.map((q) => ({
         ...q,
@@ -295,11 +305,11 @@ export function useQuestionPool() {
         groupId: group.id,
         origin: ORIGIN.IMPORTED,
       }))
-      // 取り込み先は必ず新しいグループ。番号は行の並び順どおりに1から振り直される
-      return {
-        groups: [...prev.groups, group],
-        questions: [...prev.questions, ...tagged].slice(0, LIMITS.QUESTIONS),
-      }
+      // 末尾に足す。番号は配列順で振り直されるので、既存の続きから振られる
+      const questions = [...prev.questions, ...tagged].slice(0, LIMITS.QUESTIONS)
+      return existing
+        ? { ...prev, questions }
+        : { groups: [...prev.groups, group], questions }
     })
     return group.id
   }, [setPool])

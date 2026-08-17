@@ -1,51 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { COLORS, SPACING, TAP_MIN, VIEWS } from '../constants'
-import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
+import { useCompactLayout } from '../hooks/useMediaQuery'
 import { AppLogo, DrawerToggle } from './AppDrawer'
 import { formatDuration } from '../utils/safe'
-
-/** 正答率の記録表示＋リセットボタン（全画面で共通）。 */
-function AccuracyStat({ accuracy, stats, onResetStats, compact }) {
-  const [hover, setHover] = useState(false)
-  const canHover = useCanHover()
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontSize: '13px', color: COLORS.body, whiteSpace: 'nowrap' }}>
-        正答率 <b style={{ color: COLORS.blue, fontSize: '14px' }}>{accuracy}%</b>{' '}
-        {!compact && (
-          <span style={{ color: COLORS.muted }}>
-            （{stats.correct}/{stats.answered}）
-          </span>
-        )}
-      </span>
-      <button
-        type="button"
-        onClick={onResetStats}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        title="正答率の記録をリセット"
-        aria-label="正答率の記録をリセット"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: `${TAP_MIN - 8}px`,
-          height: `${TAP_MIN - 8}px`,
-          borderRadius: '50%',
-          border: `1px solid ${COLORS.border}`,
-          background: hover && canHover ? COLORS.chipTrack : COLORS.card,
-          color: COLORS.sub,
-          fontSize: '13px',
-          lineHeight: 1,
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-        }}
-      >
-        &#8635;
-      </button>
-    </div>
-  )
-}
 
 /** 本番モードの残り時間表示。残り1分を切ると赤くなる。 */
 function ExamTimer({ remainingSec }) {
@@ -147,7 +104,6 @@ function OverflowMenu({ children }) {
  * @param {{
  *   view: string, drawerOpen: boolean, onToggleDrawer: () => void, onLogoClick: () => void,
  *   position: number, total: number, questionTotal: number,
- *   accuracy: number, stats: { answered: number, correct: number }, onResetStats: () => void,
  *   examMode: boolean, remainingSec: number|null,
  *   savedAt: Date|null,
  *   children?: React.ReactNode,
@@ -161,9 +117,6 @@ export default function ProgressHeader({
   position,
   total,
   questionTotal,
-  accuracy,
-  stats,
-  onResetStats,
   examMode,
   remainingSec,
   clozeMode,
@@ -259,14 +212,7 @@ export default function ProgressHeader({
             <span style={{ fontSize: '12.5px', color: COLORS.sub, whiteSpace: 'nowrap' }}>
               {savedLabel ? `✓ 自動保存済み ${savedLabel}` : '✓ 自動保存'}
             </span>
-          ) : (
-            <AccuracyStat
-              accuracy={accuracy}
-              stats={stats}
-              onResetStats={onResetStats}
-              compact={compact}
-            />
-          )}
+          ) : null}
         </div>
 
         {view === VIEWS.QUIZ && (

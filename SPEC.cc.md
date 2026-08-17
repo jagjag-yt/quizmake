@@ -37,11 +37,14 @@ NAV (v2: drawer。ヘッダーに並ぶタブ列は廃止)
     reason: 開閉のたびに本文の折り返しが変わって読みづらい、と実利用で指摘された。
   Excelの 書き出す/読み込む はヘッダーから撤去 -> 問題作成の左カラムへ移動(DataTransfer)。
   right-slot is TAB-CONDITIONAL (ProgressHeader.jsx):
-    演習     -> 正答率 XX%（n/n）+↻ , 演習 n/N問目 , progressbar 220x6 r999 track=border fill=blue
-             (虫食い時は正答率を出さず「虫食い n/N問目」)
-    設問一覧 -> 正答率+↻ , 全 N 問
+    演習     -> 演習 n/N問目 , progressbar 220x6 r999 track=border fill=blue
+             (虫食い時は「虫食いは採点対象外」+「虫食い n/N問目」)
+    設問一覧 -> 全 N 問
     問題作成 -> ✓ 自動保存済み hh:mm
-    学習記録 -> 正答率+↻
+    学習記録 -> （なし）
+  **正答率はヘッダーに出さない(v2.2)。** 表示は学習記録の「通算正答率」だけ。
+    リセット [↻ 正答率をリセット] も学習記録の見出し行へ移した。
+    reason: 全画面に出す数字ではない。演習中に見えていると点数を追う気持ちが先に立つ。
 
 MODEL (extend existing, no breaking change)
   Question{id; type:'choice'; questionNumber:int; groupId; segments:[{text,u:bool}]; choices:string[2..5];
@@ -77,6 +80,8 @@ GROUPS (設問一覧の1階層目) — 並び順 (v2.1)
   名前は localeCompare(name,'ja')。実測で読み仮名順になる（青森→大阪→東京→北海道。コードポイント順ではない）。
   更新は ISO 文字列をそのまま比較。同着は必ず名前の昇順に落として、並びが揺れないようにする。
   保存: localStorage 'quizmake.groupSort.v1' = {by,dir}。端末ごとの好みなので session ではなく local。
+  カードの操作ボタンは **grid 1fr 1fr の 2×2 固定**(v2.2)。上段=設問を見る/▶ 演習、下段=名前の変更/削除。
+    NG: flex + flexWrap。カード幅によって 3個＋1個 のような中途半端な折り返しになる（実機で指摘された）。
 
 MODEL 追記 (v2.1)
   Group{id; name; createdAt; updatedAt}
@@ -84,8 +89,9 @@ MODEL 追記 (v2.1)
   判定は問題オブジェクトの参照比較（不変更新なので、触っていない問題は同じ参照で残る）＋グループ名の変化。
   対象: 追加・編集・削除・移動(移動元と移動先の両方)・改名。旧データは createdAt で埋める。
 
-FOOTER-CTA card: "絞り込み中の N問 を対象に" + [⇄ シャッフル演習] -> start 演習 with current filtered set.
-  ※「この条件で(演習を)開始」ボタンは廃止(v2)。条件を変えた時点で出題が引き直される。
+FOOTER-CTA card: "絞り込み中の N問 を対象に" + [⇄ シャッフル演習][▶ この条件で演習を開始](primary)
+  -> start 演習 with current filtered set. **この2つは現存する**(実機で確認)。
+  ※ 廃止したのは「演習」画面の条件バーにあった開始ボタンのほう(StudyToolbar)。混同しないこと。
 BULK (include=YES): >=1 checked -> bottom bar bg#1e293b r14: "N問を選択中" + [★ ブックマーク][⧉ 複製][→ 移動…(group select)]
   [⇱ 別グループへ分割][🗑 削除(confirm)][▶ 演習](primary). hidden at 0. same 複製/移動/削除 also sit atop the detail panel.
 DETAIL content order:
@@ -176,6 +182,15 @@ EXPORT xlsx (button 「Excelに書き出す」)
     filename: quizmake_N問.xlsx
   success toast: "quizmake_N問.xlsx を書き出しました" / sub "ダウンロードフォルダに保存されました"
 IMPORT COEXISTENCE
+  取り込み先の決定(v2.2):
+    view=問題作成 かつ **editorGroupId が立っている**(グループを実際に選んでいる)とき
+      -> そのグループの **末尾に足す**。新しいグループは作らない。番号は既存の続きから振られる
+         (renumberByGroup が配列順で振るため、末尾に足せば既存の番号は動かない)。
+         トースト「N問を読み込みました / グループ「X」の末尾に追加しました（番号は続きから）」
+      -> 画面は動かさない（作成の途中なので、演習を開始したり一覧へ飛んだりしない）
+    それ以外 -> 従来どおり 1ファイル＝1グループ。取り込み後そのまま演習を始められる
+    ※ activeEditorGroupId(未選択時に先頭グループへフォールバックする値)で判定しないこと。
+      入口の画面から読み込んだだけで無関係なグループへ入ってしまう。
   one pool. origin flag only. imported rows fully editable+deletable. sidebar filter 作成/読込. export scope selectable. import column mismatch -> red toast "読み込みに失敗しました（列が一致しません）" + [詳細].
 
 ============================================================

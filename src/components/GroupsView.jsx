@@ -331,7 +331,12 @@ export default function GroupsView({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {/*
+                folding 対策: flex + flexWrap だと、カード幅によって 3個＋1個のような
+                中途半端な折り返しになる。幅に関係なく 2×2 で固定し、見え方を揺らさない。
+                上段＝よく使う操作、下段＝管理操作。
+              */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <button type="button" style={smallBtn(false)} onClick={() => onOpenGroup(s.group.id)}>
                   設問を見る
                 </button>
@@ -346,7 +351,7 @@ export default function GroupsView({
                 <button
                   type="button"
                   aria-label={`${s.group.name} の名前を変更`}
-                  style={{ ...smallBtn(false), padding: '0 10px', marginLeft: 'auto' }}
+                  style={{ ...smallBtn(false), padding: '0 10px' }}
                   onClick={() => setRenaming({ id: s.group.id, value: s.group.name })}
                 >
                   名前の変更
