@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, TEXT_COLORS } from '../constants'
 import {
   bodyLength,
@@ -209,6 +209,34 @@ export default function ClozeEditor({
     caretRef.current = null
   })
 
+  /**
+   * 入力欄を中身の高さに合わせて伸ばす。
+   *
+   * 見た目（マーカー）は下に敷いた層が描き、入力は透明な textarea が受ける二層構造のため、
+   * textarea の中だけがスクロールすると下の層とずれて、文字が二重に見える。
+   * 高さを中身に合わせて伸ばし、textarea の中でスクロールさせないことで position を揃える。
+   * 折り返しは幅で変わるので、画面幅が変わったときも測り直す。
+   */
+  useLayoutEffect(() => {
+    const el = areaRef.current
+    if (!el) return undefined
+
+    const fit = () => {
+      el.style.height = 'auto'
+      // box-sizing: border-box なので、scrollHeight に入らない枠線の分を足す
+      const border = el.offsetHeight - el.clientHeight
+      el.style.height = `${el.scrollHeight + border}px`
+    }
+
+    fit()
+    window.addEventListener('resize', fit)
+    window.addEventListener('orientationchange', fit)
+    return () => {
+      window.removeEventListener('resize', fit)
+      window.removeEventListener('orientationchange', fit)
+    }
+  }, [text, compact])
+
   const syncSelection = useCallback(() => {
     const el = areaRef.current
     if (el) setSelection({ start: el.selectionStart, end: el.selectionEnd })
@@ -392,8 +420,13 @@ export default function ClozeEditor({
             data-shortcut-ignore="true"
             style={{
               position: 'relative',
+              // inline-block のままだとベースライン分の余白が下に付き、
+              // 下に敷いた層（inset:0）が数px高くなる
+              display: 'block',
               width: '100%',
               minHeight: '230px',
+              // 中身に合わせて伸ばすので、この欄の中ではスクロールさせない
+              overflow: 'hidden',
               padding: '16px',
               borderRadius: '10px',
               border: `1px solid ${touched && !chars ? COLORS.red : COLORS.blue}`,
@@ -403,7 +436,8 @@ export default function ClozeEditor({
               fontSize: '15.5px',
               lineHeight: 1.95,
               fontFamily: 'inherit',
-              resize: 'vertical',
+              // 高さは中身に追従させる。手で変えられると下の層とずれる
+              resize: 'none',
               outline: 'none',
               // 下の層と重ねるため、文字自体は透明にして装飾側を見せる
               WebkitTextFillColor: 'transparent',
