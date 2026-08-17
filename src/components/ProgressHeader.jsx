@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { COLORS, SPACING, TAP_MIN, VIEWS } from '../constants'
+import { COLORS, SPACING, VIEWS } from '../constants'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import { AppLogo, DrawerToggle } from './AppDrawer'
 import { formatDuration } from '../utils/safe'
@@ -28,74 +27,6 @@ function ExamTimer({ remainingSec }) {
   )
 }
 
-/** タブレットで補助ボタンをまとめる「⋯」メニュー。 */
-function OverflowMenu({ children }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return undefined
-    const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="その他の操作"
-        aria-expanded={open}
-        style={{
-          width: `${TAP_MIN - 8}px`,
-          height: `${TAP_MIN - 8}px`,
-          borderRadius: '10px',
-          border: `1px solid ${open ? COLORS.blue : COLORS.border}`,
-          background: open ? COLORS.blueLight : COLORS.card,
-          color: open ? COLORS.blue : COLORS.sub,
-          fontSize: '16px',
-          fontWeight: 700,
-          fontFamily: 'inherit',
-          cursor: 'pointer',
-          lineHeight: 1,
-        }}
-      >
-        ⋯
-      </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '42px',
-            left: 0,
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            padding: '14px',
-            borderRadius: '14px',
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
 /**
  * 上部ヘッダー。
  * 左：≡（メニュー）＋ ロゴ
@@ -106,7 +37,6 @@ function OverflowMenu({ children }) {
  *   position: number, total: number, questionTotal: number,
  *   examMode: boolean, remainingSec: number|null,
  *   savedAt: Date|null,
- *   children?: React.ReactNode,
  * }} props
  */
 export default function ProgressHeader({
@@ -121,7 +51,6 @@ export default function ProgressHeader({
   remainingSec,
   clozeMode,
   savedAt,
-  children,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
@@ -154,7 +83,6 @@ export default function ProgressHeader({
       >
         <DrawerToggle open={drawerOpen} onToggle={onToggleDrawer} />
         <AppLogo onClick={onLogoClick} compact={compact} />
-        {compact ? <OverflowMenu>{children}</OverflowMenu> : children}
       </div>
 
       <div

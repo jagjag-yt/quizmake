@@ -555,9 +555,7 @@ export default function App() {
         remainingSec={remainingSec}
         clozeMode={!!displayQuestion && isCloze(displayQuestion)}
         savedAt={pool.savedAt}
-      >
-        <ShortcutHelp open={helpOpen} onToggle={() => setHelpOpen((v) => !v)} />
-      </ProgressHeader>
+      />
 
       {study.saveError && (
         <div
@@ -899,6 +897,9 @@ export default function App() {
         onImportStudyData={study.importData}
         onNotify={toast.show}
       />
+
+      {/* 「?」キーの近道。一覧そのものは設定の中に常設している */}
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       <OfflineNotice />
 
