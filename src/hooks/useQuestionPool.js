@@ -64,7 +64,9 @@ export function validateQuestion(q) {
   const text = (q.segments ?? []).map((s) => s.text).join('').trim()
   const choices = (q.choices ?? []).filter((c) => c.trim())
   if (!text) errors.push('問題文が未入力')
-  if (choices.length < 2) errors.push('選択肢が1つのみ')
+  // 0個と1個で言い方を分ける。「1つのみ」だけだと、何も入れていない人に通じない
+  if (choices.length === 0) errors.push('選択肢が未入力')
+  else if (choices.length < 2) errors.push('選択肢が1つのみ')
   if (!(q.correctIndexes ?? []).length) errors.push('正解が未設定')
   return errors
 }
