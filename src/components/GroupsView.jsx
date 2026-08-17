@@ -147,6 +147,7 @@ export default function GroupsView({
       <div
         style={{
           gridColumn: '1 / -1',
+          minWidth: 0,
           ...cardStyle(space.card),
           display: 'flex',
           flexDirection: 'column',
@@ -195,7 +196,7 @@ export default function GroupsView({
   }
 
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ gridColumn: '1 / -1', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div
         style={{
           ...cardStyle(compact ? 16 : 20),

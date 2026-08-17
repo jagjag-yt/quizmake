@@ -477,6 +477,7 @@ function PhoneNotice({ onGoQuiz, onForce, pad }) {
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         ...card(pad),
         display: 'flex',
         flexDirection: 'column',
@@ -598,6 +599,7 @@ function StartPane({
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         ...card(pad),
         display: 'flex',
         flexDirection: 'column',
@@ -879,6 +881,7 @@ export default function EditorView({
       <div
         style={{
           gridColumn: '1 / -1',
+          minWidth: 0,
           ...card(space.card),
           display: 'flex',
           flexDirection: 'column',
@@ -1684,7 +1687,7 @@ export default function EditorView({
   // ---------- タブレット（縦・横とも同じ切り替え式） ----------
   if (compact || previewTight) {
     return (
-      <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ gridColumn: '1 / -1', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {dialogs}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
@@ -1747,6 +1750,7 @@ export default function EditorView({
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         display: 'grid',
         gridTemplateColumns: '268px 528px minmax(0, 1fr)',
         gap: '20px',

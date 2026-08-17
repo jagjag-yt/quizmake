@@ -11,6 +11,9 @@ function Stat({ label, value, sub, color = COLORS.text }) {
     <div
       style={{
         flex: '1 1 140px',
+        // flex の子も既定は min-width:auto。0 にしないと文字の最小幅で下限が決まり、
+        // スマホでカードごと画面からはみ出す
+        minWidth: 0,
         padding: '16px 18px',
         borderRadius: '14px',
         background: COLORS.bg,
@@ -73,6 +76,7 @@ export default function SessionSummary({
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',
