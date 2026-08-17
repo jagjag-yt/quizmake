@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { COLORS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, TAP_MIN, TYPE_LABELS } from '../constants'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
@@ -20,8 +21,14 @@ const labelStyle = {
   color: COLORS.sub,
 }
 
-/** 出題条件のバー：モード・グループ絞り込み・出題数・本番モード。 */
+/**
+ * 出題条件のバー：モード・グループ絞り込み・出題数・本番モード。
+ *
+ * 既定では1行の要約に畳んである。条件を決め終えて「解く段階に入った」ことが
+ * 見て分かるようにするためで、押すと開いて条件を変えられる。
+ */
 export default function StudyToolbar({
+  total = 0,
   qtype,
   onChangeType,
   mode,
@@ -39,6 +46,7 @@ export default function StudyToolbar({
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
+  const [open, setOpen] = useState(false)
 
   // 採点前提のモードは、種別が「虫食い」のときは選べない（SPEC D3）
   const gradedOnly = (key) => key !== MODES.ALL && key !== MODES.BOOKMARKED
@@ -75,6 +83,15 @@ export default function StudyToolbar({
     )
   }
 
+  // 畳んでいるときに出す要約。いま何をどれだけ出題しているかだけを示す
+  const summary = [
+    qtype === 'all' ? null : TYPE_LABELS[qtype],
+    MODE_LABELS[mode]?.label ?? null,
+    groupId ? (groups.find((g) => g.id === groupId)?.name ?? null) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <div
       style={{
@@ -88,6 +105,37 @@ export default function StudyToolbar({
         flexWrap: 'wrap',
       }}
     >
+      {/* 畳んだ状態：いま出題している条件と問題数だけを1行で示す */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          minHeight: `${TAP_MIN - 4}px`,
+          padding: '8px 14px',
+          borderRadius: '12px',
+          border: `1px solid ${open ? COLORS.blue : COLORS.border}`,
+          background: open ? COLORS.blueLight : COLORS.card,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
+          {summary || '全問題'}
+        </span>
+        <span style={{ fontSize: '12.5px', color: COLORS.sub }}>{total}問で出題中</span>
+        <span style={{ marginLeft: 'auto', fontSize: '12.5px', fontWeight: 700, color: COLORS.blue }}>
+          {open ? '閉じる' : '条件を変える'}
+        </span>
+      </button>
+
+      {open && (
+      <>
       <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <span style={labelStyle}>種別</span>
         <span
@@ -160,8 +208,8 @@ export default function StudyToolbar({
 
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
         <span style={labelStyle}>グループ</span>
+        {/* 1回の演習は1グループに絞る。混ぜると問題番号が重複して指定できなくなるため */}
         <select value={groupId} onChange={(e) => onChangeGroup(e.target.value)} style={selectStyle}>
-          <option value="">すべて</option>
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}
@@ -217,7 +265,8 @@ export default function StudyToolbar({
           </select>
         </label>
       )}
-
+      </>
+      )}
     </div>
   )
 }

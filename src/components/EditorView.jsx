@@ -385,6 +385,86 @@ function Preview({ question, groupName, mode, position, total, pad }) {
   )
 }
 
+/** 選んだ問題をどのグループへ移すかを決めるダイアログ。 */
+function MoveGroupDialog({ count, groups, onCancel, onConfirm }) {
+  const [pick, setPick] = useState(groups[0]?.id ?? '')
+
+  return (
+    <>
+      <div
+        onClick={onCancel}
+        style={{ position: 'fixed', inset: 0, background: COLORS.scrim, zIndex: 60 }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="移動先のグループ"
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 61,
+          width: 'min(420px, calc(100vw - 40px))',
+          background: COLORS.card,
+          borderRadius: '20px',
+          border: `1px solid ${COLORS.cardBorder}`,
+          boxShadow: '0 16px 40px rgba(15,23,42,0.24)',
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
+          {count}問を移動する
+        </h2>
+        <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub }}>移動先のグループ</span>
+        <select
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          aria-label="移動先のグループ"
+          style={{ ...input, cursor: 'pointer' }}
+        >
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: '11.5px', color: COLORS.muted, lineHeight: 1.7 }}>
+          移動先で番号が重なった場合は、移動してきた問題の番号だけを振り直します。
+        </span>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{ ...input, width: 'auto', padding: '0 18px', fontWeight: 700, cursor: 'pointer', color: COLORS.body }}
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(pick)}
+            style={{
+              ...input,
+              width: 'auto',
+              padding: '0 18px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: `1px solid ${COLORS.blue}`,
+              background: COLORS.blue,
+              color: '#ffffff',
+            }}
+          >
+            移動する
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 /**
  * 問題作成の入口。
  *
@@ -536,6 +616,7 @@ export default function EditorView({
   onRemove,
   onDuplicate,
   onReorderAuthored,
+  onMoveToGroup,
   onImportClick,
   onSaved,
   transferSlot,
@@ -555,6 +636,10 @@ export default function EditorView({
   // 確認・名前入力はアプリ内のダイアログで行う（window.confirm/prompt は環境により出ない）
   const [deleting, setDeleting] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
+  // 一覧から複数まとめて選び、移動・削除できるようにする
+  const [checkedIds, setCheckedIds] = useState([])
+  const [movingTo, setMovingTo] = useState(false)
+  const [deletingChecked, setDeletingChecked] = useState(false)
   // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
   const [dirty, setDirty] = useState(false)
 
@@ -782,6 +867,32 @@ export default function EditorView({
           }}
         />
       )}
+      {movingTo && (
+        <MoveGroupDialog
+          count={checkedIds.length}
+          groups={groups}
+          onCancel={() => setMovingTo(false)}
+          onConfirm={(groupId) => {
+            onMoveToGroup(checkedIds, groupId)
+            setCheckedIds([])
+            setMovingTo(false)
+          }}
+        />
+      )}
+      {deletingChecked && (
+        <ConfirmDialog
+          title={`選択した${checkedIds.length}問を削除しますか？`}
+          message="元に戻せません。"
+          confirmLabel="削除する"
+          onCancel={() => setDeletingChecked(false)}
+          onConfirm={() => {
+            checkedIds.forEach((id) => onRemove(id))
+            if (checkedIds.includes(selectedId)) onSelect(null)
+            setCheckedIds([])
+            setDeletingChecked(false)
+          }}
+        />
+      )}
       {creatingGroup && (
         <PromptDialog
           title="グループを作成"
@@ -918,6 +1029,18 @@ export default function EditorView({
                 cursor: 'pointer',
               }}
             >
+              <input
+                type="checkbox"
+                checked={checkedIds.includes(q.id)}
+                onClick={(e) => e.stopPropagation()}
+                onChange={() =>
+                  setCheckedIds((prev) =>
+                    prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
+                  )
+                }
+                aria-label={`${head} を選択`}
+                style={{ width: '17px', height: '17px', accentColor: COLORS.blue, cursor: 'pointer', flexShrink: 0 }}
+              />
               <span style={handleStyle} aria-hidden="true">⠿</span>
               <button
                 type="button"
@@ -955,6 +1078,72 @@ export default function EditorView({
           )
         })}
       </div>
+
+      {/* まとめて選んだときの操作 */}
+      {checkedIds.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '10px',
+            borderRadius: '12px',
+            background: COLORS.blueLight,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.blue }}>
+              {checkedIds.length}問を選択中
+            </span>
+            <button
+              type="button"
+              onClick={() => setCheckedIds([])}
+              style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: COLORS.sub, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              選択を解除
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setMovingTo(true)}
+              disabled={groups.length < 2}
+              style={{
+                flex: 1,
+                minHeight: '36px',
+                borderRadius: '10px',
+                border: `1px solid ${groups.length < 2 ? COLORS.border : COLORS.blue}`,
+                background: COLORS.card,
+                color: groups.length < 2 ? COLORS.dashed : COLORS.blue,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: groups.length < 2 ? 'default' : 'pointer',
+              }}
+            >
+              → 移動
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeletingChecked(true)}
+              style={{
+                flex: 1,
+                minHeight: '36px',
+                borderRadius: '10px',
+                border: `1px solid ${COLORS.border}`,
+                background: COLORS.card,
+                color: COLORS.red,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              🗑 削除
+            </button>
+          </div>
+        </div>
+      )}
 
       {question && (
         <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${COLORS.border}`, paddingTop: '10px' }}>

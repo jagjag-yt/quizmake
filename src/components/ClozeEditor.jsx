@@ -4,6 +4,7 @@ import {
   bodyLength,
   colorOfRange,
   colorRange,
+  extractBracketRanges,
   hiddenCount,
   hideRange,
   parasToText,
@@ -189,6 +190,8 @@ export default function ClozeEditor({
   const [selection, setSelection] = useState({ start: 0, end: 0 })
   const [touched, setTouched] = useState(false)
   const areaRef = useRef(null)
+  // 括弧記法の変換でカーソルが飛ばないように、戻す位置を覚えておく
+  const caretRef = useRef(null)
 
   const paras = question.paras
   const text = useMemo(() => parasToText(paras), [paras])
@@ -198,6 +201,13 @@ export default function ClozeEditor({
   const canUnhide = hasSelection && rangeHasHidden(paras, selection.start, selection.end)
   // いま選んでいる箇所の文字色。スウォッチに印を付けるためだけに使う
   const currentColor = chars ? colorOfRange(paras, selection.start, selection.end) : null
+
+  useEffect(() => {
+    if (caretRef.current == null) return
+    const el = areaRef.current
+    if (el) el.setSelectionRange(caretRef.current, caretRef.current)
+    caretRef.current = null
+  })
 
   const syncSelection = useCallback(() => {
     const el = areaRef.current
@@ -348,7 +358,7 @@ export default function ClozeEditor({
             />
           ))}
           <span style={{ marginLeft: 'auto', fontSize: '11px', color: COLORS.muted }}>
-            Ctrl+F1 で隠す
+            {compact ? '［［ ］］でも隠せます' : 'Ctrl+F1 で隠す'}
           </span>
         </div>
 
@@ -359,8 +369,21 @@ export default function ClozeEditor({
             ref={areaRef}
             value={text}
             onChange={(e) => {
-              const next = e.target.value.slice(0, CLOZE_LIMITS.BODY_CHARS)
-              onUpdate(question.id, { paras: rebuildFromText(paras, next) })
+              const raw = e.target.value.slice(0, CLOZE_LIMITS.BODY_CHARS)
+              // [[ ]] で囲まれた箇所は、閉じた時点で括弧を外して「隠す」に変える
+              const { text: stripped, ranges, caret } = extractBracketRanges(
+                raw,
+                e.target.selectionStart ?? raw.length,
+              )
+              let nextParas = rebuildFromText(paras, stripped)
+              for (const range of ranges) {
+                nextParas = hideRange(nextParas, range.start, range.end)
+              }
+              onUpdate(question.id, { paras: nextParas })
+              if (ranges.length) {
+                // 括弧を消した分だけカーソルがずれるので、変換後の位置へ戻す
+                caretRef.current = caret
+              }
             }}
             onSelect={syncSelection}
             onKeyUp={syncSelection}
@@ -410,6 +433,23 @@ export default function ClozeEditor({
           <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: COLORS.muted }}>
             {chars}文字 / {paras.length}段落
           </span>
+        </div>
+
+        <div
+          style={{
+            marginTop: '8px',
+            padding: '10px 12px',
+            borderRadius: '10px',
+            background: COLORS.bg,
+            border: `1px solid ${COLORS.cardBorder}`,
+            fontSize: '11.5px',
+            color: COLORS.sub,
+            lineHeight: 1.8,
+          }}
+        >
+          隠したい語を <b style={{ color: COLORS.blue }}>[[ ]]</b> で囲んで入力しても隠せます。
+          例：植物は葉の[[葉緑体]]で —— 閉じた時点で括弧は消え、その語が隠す箇所になります。
+          文字を選びにくい端末では、こちらが早いです。
         </div>
 
         {chars > 0 && hidden === 0 && (

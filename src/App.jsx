@@ -18,6 +18,7 @@ import FooterNav from './components/FooterNav'
 import EmptyState from './components/EmptyState'
 import DataTransfer, { TransferInput } from './components/DataTransfer'
 import AppDrawer from './components/AppDrawer'
+import OfflineNotice from './components/OfflineNotice'
 import SettingsView from './components/SettingsView'
 import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
@@ -133,12 +134,18 @@ export default function App() {
     })
   }, [])
 
-  // 出題条件
-  const [opts, setOpts] = useState(DEFAULT_OPTS)
+  // 出題条件。1回の演習は1グループに絞るため、既定は先頭のグループにする
+  const [opts, setOpts] = useState(() => ({
+    ...DEFAULT_OPTS,
+    groupId: pool.poolRef.current.groups[0]?.id ?? '',
+  }))
 
   // セッションと進行状態
   const [session, setSession] = useState(() =>
-    createSession(pool.poolRef.current.questions, study.dataRef.current.records, DEFAULT_OPTS),
+    createSession(pool.poolRef.current.questions, study.dataRef.current.records, {
+      ...DEFAULT_OPTS,
+      groupId: pool.poolRef.current.groups[0]?.id ?? '',
+    }),
   )
   const [answers, setAnswers] = useState({}) // { [問題インデックス]: 回答記録 }
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -188,6 +195,13 @@ export default function App() {
     },
     [opts, startSession],
   )
+
+  // グループが削除された・空になったときは、先頭のグループへ寄せる
+  useEffect(() => {
+    if (!pool.groups.length) return
+    if (pool.groups.some((g) => g.id === opts.groupId)) return
+    setOpts((prev) => ({ ...prev, groupId: pool.groups[0].id }))
+  }, [pool.groups, opts.groupId])
 
   /** 演習を終了して結果画面へ。 */
   const finish = useCallback(() => {
@@ -565,6 +579,7 @@ export default function App() {
 
       {view === VIEWS.QUIZ && (
         <StudyToolbar
+          total={total}
           qtype={opts.qtype}
           onChangeType={(qtype) =>
             updateOpts(
@@ -697,6 +712,11 @@ export default function App() {
             onRemove={pool.removeQuestion}
             onDuplicate={pool.duplicateQuestion}
             onReorderAuthored={pool.reorderAuthored}
+            onMoveToGroup={(ids, groupId) => {
+              const name = pool.groups.find((g) => g.id === groupId)?.name ?? ''
+              pool.moveQuestionsToGroup(ids, groupId)
+              toast.show({ tone: 'success', title: `${ids.length}問を「${name}」へ移動しました` })
+            }}
             onImportClick={openFilePicker}
             onSaved={(groupId) => {
               // 保存の区切りとして、編集していた問題のグループの設問一覧へ移す
@@ -879,6 +899,8 @@ export default function App() {
         onImportStudyData={study.importData}
         onNotify={toast.show}
       />
+
+      <OfflineNotice />
 
       <ToastHost toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
