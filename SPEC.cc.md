@@ -70,6 +70,20 @@ TABLE (card, virtualized; assume 100+ rows)
   ★: filled amber / ☆ #cbd5e1. click toggles bookmark, stopPropagation.
   row click -> select (desktop: fill detail; tablet: open panel). selected row bg=blueLight. hover bg=rowHover.
   footer: "1–n / N問を表示" + ← →
+GROUPS (設問一覧の1階層目) — 並び順 (v2.1)
+  ヘッダー行: "問題グループ" + "Nグループ / 全M問" + [並び順 select][向きボタン] + [⬆ 読み込む][＋ グループを作成]
+  select: 名前順 | 更新順 。向きボタンはラベルが文脈で変わる:
+    名前順 -> 「↑ あ→ん」/「↓ ん→あ」   更新順 -> 「↑ 古い順」/「↓ 新しい順」
+  名前は localeCompare(name,'ja')。実測で読み仮名順になる（青森→大阪→東京→北海道。コードポイント順ではない）。
+  更新は ISO 文字列をそのまま比較。同着は必ず名前の昇順に落として、並びが揺れないようにする。
+  保存: localStorage 'quizmake.groupSort.v1' = {by,dir}。端末ごとの好みなので session ではなく local。
+
+MODEL 追記 (v2.1)
+  Group{id; name; createdAt; updatedAt}
+  updatedAt は setPool の中で **中身が変わったグループにだけ**打つ(storage/pool.js stampUpdatedGroups)。
+  判定は問題オブジェクトの参照比較（不変更新なので、触っていない問題は同じ参照で残る）＋グループ名の変化。
+  対象: 追加・編集・削除・移動(移動元と移動先の両方)・改名。旧データは createdAt で埋める。
+
 FOOTER-CTA card: "絞り込み中の N問 を対象に" + [⇄ シャッフル演習] -> start 演習 with current filtered set.
   ※「この条件で(演習を)開始」ボタンは廃止(v2)。条件を変えた時点で出題が引き直される。
 BULK (include=YES): >=1 checked -> bottom bar bg#1e293b r14: "N問を選択中" + [★ ブックマーク][⧉ 複製][→ 移動…(group select)]
@@ -98,18 +112,13 @@ ENTRY(v2): 入口は「グループを決める分岐画面」。この時点で
   0件のとき: "まだグループがありません。左の「新しいグループを作成」から始めてください。"
   まだ1問も無い間は、この画面に 書き出す/読み込む を置く(左カラムが存在しないため)。
 LAYOUT desktop 3-pane (編集中のみ): sidebar 268 | editor 528 | preview flex sticky top:24.
-PREVIEW ACCORDION (v2.1, >=1024 のみ):
-  PREVIEW_TIGHT_QUERY='(max-width:1279px)' に一致する間は **既定で畳む**。
-    根拠: 余白32×2 + 268 + 528 + gap20×2 = 900px を消費するため、プレビューの実測幅は「画面幅 − 900」。
-          iPad Pro 横 1194px では 279px しか残らず、選択肢が折り返して確認にならない（実測値）。
-  columns:
-    プレビュー無し   : '268px 528px minmax(0, 1fr)'
-    開いている       : '268px minmax(0, 528px) minmax(360px, 1fr)'
-    畳んでいる       : '268px minmax(528px, 1fr) 48px'
-  開いているとき editor を **固定 528 にしない**。固定すると 1194px で grid が 1228px になり横スクロールが出る（実測）。
-  畳んだとき: 3列目に w48/h220 の縦帯ボタン「‹ プレビュー」(writing-mode: vertical-rl)。押すと開く。
-  開いたとき: プレビュー見出しの上に [プレビューを畳む ›]。
-  compact(<=1023) は従来どおり segmented [編集|プレビュー] の切替（この開閉は使わない）。
+3ペインを出す境界 (v2.1):
+  **3ペインは PREVIEW_TIGHT_QUERY='(max-width:1279px)' に一致しない幅（>=1280）でだけ出す。**
+  1280px 未満は画面幅にかかわらず compact と同じ segmented [編集|プレビュー] の切替に回す。
+  根拠: 余白32×2 + 268 + 528 + gap20×2 = 900px を消費するため、プレビューの実測幅は「画面幅 − 900」。
+        iPad Pro 横 1194px では 279px しか残らず、選択肢が折り返して確認にならない（実測値）。
+  DECISION: 一時期この幅で「畳める3ペイン」を出したが、iPad で縦横を回すたびに操作が変わるため取りやめた。
+            **縦・横で同じ操作にすること**が優先。畳む縦帯ボタンは廃止。
 LAYOUT compact: sidebar -> ☰ ドロワー "問題一覧（N）"; segmented [編集|プレビュー]; editor full-width; underline toolbar pinned to 問題文 label row.
 LAYOUT phone(<=600): 編集画面を出さず PHONE GATE に差し替え。
 SIDEBAR (v2)

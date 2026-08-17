@@ -31,11 +31,55 @@ export function newGroupId() {
 
 /** グループを作る。 */
 export function makeGroup(name) {
+  const now = new Date().toISOString()
   return {
     id: newGroupId(),
     name: toText(name, GROUP_NAME_MAX) || DEFAULT_GROUP_NAME,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   }
+}
+
+/**
+ * 中身が変わったグループに updatedAt を打つ。「更新順」の並べ替えに使う。
+ *
+ * プールの変更はすべて setPool を通るので、判定はここ1か所で足りる。
+ * 変更の有無は「問題オブジェクトの同一性」で見る。React の更新は不変更新なので、
+ * 触っていない問題は同じ参照のまま残り、書き換えた問題だけ別物になる。
+ *
+ * @param {{groups:Array, questions:Array}} prev 変更前
+ * @param {{groups:Array, questions:Array}} next 変更後（連番の振り直し済み）
+ */
+export function stampUpdatedGroups(prev, next, now = new Date().toISOString()) {
+  if (prev === next) return next
+
+  const touched = new Set()
+  const before = new Map()
+  for (const q of prev.questions) before.set(q.id, q)
+
+  for (const q of next.questions) {
+    const was = before.get(q.id)
+    // 追加された・中身が書き換わった
+    if (was !== q) touched.add(q.groupId)
+    // 別のグループから移ってきた（移動元も「変わった」）
+    if (was && was.groupId !== q.groupId) touched.add(was.groupId)
+    before.delete(q.id)
+  }
+  // 残ったものは消された問題
+  for (const q of before.values()) touched.add(q.groupId)
+
+  const prevGroups = new Map(prev.groups.map((g) => [g.id, g]))
+  let changed = false
+  const groups = next.groups.map((g) => {
+    const was = prevGroups.get(g.id)
+    // 新しいグループは makeGroup が updatedAt を入れている
+    if (!was) return g
+    if (was.name === g.name && !touched.has(g.id)) return g
+    changed = true
+    return { ...g, updatedAt: now }
+  })
+
+  return changed ? { ...next, groups } : next
 }
 
 /** 同梱の問題で初期プールを作る（種の group 名がそのままグループになる）。 */
@@ -71,6 +115,9 @@ function normalizeGroups(raw) {
       id,
       name: toText(g.name, GROUP_NAME_MAX) || DEFAULT_GROUP_NAME,
       createdAt: toText(g.createdAt, 40) || new Date().toISOString(),
+      // 更新順の並べ替え用。旧データには無いので、作成日時で埋めておく
+      updatedAt:
+        toText(g.updatedAt, 40) || toText(g.createdAt, 40) || new Date().toISOString(),
     })
   }
   return out

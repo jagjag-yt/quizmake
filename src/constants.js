@@ -19,6 +19,15 @@ export const DEFAULT_GROUP_NAME = '未分類'
 /** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
 export const LIST_STATE_KEY = 'quizmake.listState.v1'
 
+/** グループ一覧の並び順を覚えておくキー（端末ごとの好みなので localStorage）。 */
+export const GROUP_SORT_KEY = 'quizmake.groupSort.v1'
+
+/** グループ一覧の並び順。 */
+export const GROUP_SORTS = {
+  NAME: 'name',
+  UPDATED: 'updated',
+}
+
 /** 問題タイプ（作成後に変更できない構造上の区別）。 */
 export const QUESTION_TYPES = {
   CHOICE: 'choice',
