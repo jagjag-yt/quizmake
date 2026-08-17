@@ -178,6 +178,16 @@ export const COMPACT_QUERY = '(max-width: 1023px)'
  */
 export const PHONE_QUERY = '(max-width: 600px)'
 
+/**
+ * 3ペイン（左カラム268 + 編集528 + プレビュー）で、プレビューの幅が足りなくなる画面幅。
+ *
+ * ページの左右余白32×2＋左カラム268＋編集528＋ペースの隙間20×2で 900px を使うため、
+ * プレビューに残るのは「画面幅 − 900px」。1280px を下回ると 380px を切り、
+ * 演習カードの選択肢が折り返して見た目の確認にならない（iPad Pro 横 1194px で発生）。
+ * この幅では既定でプレビューを畳み、必要なときだけ開く。
+ */
+export const PREVIEW_TIGHT_QUERY = '(max-width: 1279px)'
+
 /** ホバーできる入力機器か（タッチ端末では一致しない）。 */
 export const HOVER_QUERY = '(hover: hover)'
 
