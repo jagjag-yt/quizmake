@@ -1,5 +1,5 @@
 import { COLORS, SPACING } from '../constants'
-import { useCompactLayout } from '../hooks/useMediaQuery'
+import { useCompactLayout, usePhoneLayout } from '../hooks/useMediaQuery'
 import { BOX_LABELS } from '../utils/srs'
 
 /**
@@ -44,6 +44,10 @@ function Stat({ label, value, sub, color = COLORS.text }) {
 
 /** 日別の学習量（正解/不正解の積み上げ棒グラフ）。 */
 function DailyChart({ series }) {
+  // スマホではカードの内側が 276px しかなく、最小幅 320px のままだと
+  // グラフがカードからはみ出して切れる（実測: 右端 363px / カード右端 340px）。
+  // viewBox で縮むので、最小幅を外して画面に収める。
+  const phone = usePhoneLayout()
   const W = 640
   const H = 150
   const max = Math.max(1, ...series.map((d) => d.answered))
@@ -51,14 +55,14 @@ function DailyChart({ series }) {
   const barW = Math.max(3, slot - 3)
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', minWidth: 0 }}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
         height={H}
         role="img"
         aria-label="直近30日の学習量"
-        style={{ display: 'block', minWidth: '320px' }}
+        style={{ display: 'block', minWidth: phone ? 0 : '320px' }}
       >
         <title>直近30日の学習量（緑＝正解、赤＝不正解）</title>
         {/* 基準線 */}
@@ -110,11 +114,21 @@ function DailyChart({ series }) {
 
 /** 横棒（割合表示）。 */
 function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
+  // スマホでは 110px + 112px の固定幅を並べるとバーが 30px しか残らない。
+  // 名前を上の段に出し、バーと数値で1行を使い切る。
+  const phone = usePhoneLayout()
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: phone ? 'stretch' : 'center',
+        flexDirection: phone ? 'column' : 'row',
+        gap: phone ? '4px' : '12px',
+      }}
+    >
       <span
         style={{
-          width: '110px',
+          width: phone ? '100%' : '110px',
           flexShrink: 0,
           fontSize: '13px',
           fontWeight: 700,
@@ -127,9 +141,11 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
       >
         {label}
       </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
       <div
         style={{
           flex: 1,
+          minWidth: 0,
           height: '10px',
           borderRadius: '999px',
           background: '#f1f5f9',
@@ -159,6 +175,7 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
         {valueText}
         {sub && <span style={{ color: COLORS.muted }}> {sub}</span>}
       </span>
+      </div>
     </div>
   )
 }
