@@ -169,6 +169,15 @@ export const LIMITS = {
  */
 export const COMPACT_QUERY = '(max-width: 1023px)'
 
+/**
+ * スマートフォンとみなす幅。
+ *
+ * この幅では問題作成の入力欄が実用にならない（選択肢の欄が全角4文字ほどに
+ * なってしまう）ため、作成はタブレット・パソコンに任せ、解くことに絞る。
+ * iPad mini の縦（744px）はタブレット扱いにしたいので 600px で切る。
+ */
+export const PHONE_QUERY = '(max-width: 600px)'
+
 /** ホバーできる入力機器か（タッチ端末では一致しない）。 */
 export const HOVER_QUERY = '(hover: hover)'
 
