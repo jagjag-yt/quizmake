@@ -738,6 +738,11 @@ export default function EditorView({
   const [deletingChecked, setDeletingChecked] = useState(false)
   // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
   const [dirty, setDirty] = useState(false)
+  // 不備があるまま保存を押したか（押すまでは赤い指摘を出さない）
+  const [saveTried, setSaveTried] = useState(false)
+  // 「変更を破棄」で戻す先。編集を始めた時点の内容を控えておく
+  const snapshotRef = useRef(null)
+  const [discarding, setDiscarding] = useState(false)
 
   const onUpdate = useCallback(
     (id, patch) => {
@@ -752,9 +757,16 @@ export default function EditorView({
     [questions, selectedId],
   )
 
-  // 別の問題に移ったら「変更あり」を持ち越さない
+  // スナップショットを撮るためだけに最新の一覧を持つ（依存に questions を入れると毎回撮り直してしまう）
+  const questionsRef = useRef(questions)
+  questionsRef.current = questions
+
+  // 別の問題に移ったら「変更あり」を持ち越さない。あわせて戻す先を控え直す
   useEffect(() => {
     setDirty(false)
+    setSaveTried(false)
+    setTouched({})
+    snapshotRef.current = questionsRef.current.find((q) => q.id === selectedId) ?? null
   }, [selectedId])
 
   const text = question && !isCloze(question) ? segmentsToText(question.segments) : ''
@@ -920,35 +932,138 @@ export default function EditorView({
     />
   )
 
+  // 「変更を破棄」で戻す先が、まだ何も書かれていない問題か
+  // （作った直後に破棄したのに空の問題が残ると、一覧に不備つきの行が増えてしまう）
+  const snapshotIsBlank = (snap) => {
+    if (!snap) return false
+    if (isCloze(snap)) {
+      return !(snap.paras ?? [])
+        .flat()
+        .map((r) => r.text ?? '')
+        .join('')
+        .trim()
+    }
+    return (
+      !segmentsToText(snap.segments ?? []).trim() &&
+      !(snap.choices ?? []).some((c) => (c ?? '').trim())
+    )
+  }
+
+  const discardEdit = () => {
+    const snap = snapshotRef.current
+    setDiscarding(false)
+    setDirty(false)
+    setSaveTried(false)
+    setTouched({})
+    if (!snap) return
+    if (snapshotIsBlank(snap)) {
+      // 作った直後に破棄したときは、空の問題ごと取り消す
+      onRemove(snap.id)
+      onSelect(null)
+      return
+    }
+    onUpdateProp(snap.id, snap)
+  }
+
   const dialogs = (
     <>
       {dirty && question && (
-        <button
-          type="button"
-          onClick={() => {
-            setDirty(false)
-            onSaved?.(question.groupId)
-          }}
+        <div
           style={{
             position: 'fixed',
             right: '24px',
             bottom: '24px',
             zIndex: 50,
-            minHeight: `${TAP_MIN}px`,
-            padding: '0 24px',
-            borderRadius: '999px',
-            border: `1px solid ${COLORS.blue}`,
-            background: COLORS.blue,
-            color: '#ffffff',
-            fontSize: '14px',
-            fontWeight: 700,
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(37,99,235,0.32)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: '10px',
           }}
         >
-          保存
-        </button>
+          {/* 不備があるまま保存を押したときだけ、何が足りないかを出す */}
+          {saveTried && errors.length > 0 && (
+            <div
+              role="alert"
+              style={{
+                alignSelf: 'center',
+                maxWidth: 'min(320px, 60vw)',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                background: COLORS.redLight,
+                border: `1px solid ${COLORS.red}`,
+                color: COLORS.redDark,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                lineHeight: 1.7,
+                boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+              }}
+            >
+              保存できません：{errors.join(' / ')}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDiscarding(true)}
+            style={{
+              minHeight: `${TAP_MIN}px`,
+              padding: '0 20px',
+              borderRadius: '999px',
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.card,
+              color: COLORS.body,
+              fontSize: '14px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+            }}
+          >
+            変更を破棄
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              // 未完成のまま問題を増やさない。押した時点で不備を全部見せる
+              if (errors.length > 0) {
+                setSaveTried(true)
+                setTouched({ text: true, choices: true })
+                return
+              }
+              setDirty(false)
+              setSaveTried(false)
+              onSaved?.(question.groupId)
+            }}
+            style={{
+              minHeight: `${TAP_MIN}px`,
+              padding: '0 24px',
+              borderRadius: '999px',
+              border: `1px solid ${COLORS.blue}`,
+              background: COLORS.blue,
+              color: '#ffffff',
+              fontSize: '14px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(37,99,235,0.32)',
+            }}
+          >
+            保存
+          </button>
+        </div>
+      )}
+      {discarding && (
+        <ConfirmDialog
+          title="変更を破棄しますか？"
+          message={
+            snapshotIsBlank(snapshotRef.current)
+              ? 'この問題は作ったばかりで中身がまだありません。破棄すると、この問題ごと取り消します。'
+              : '編集を始めたときの内容に戻します。元に戻せません。'
+          }
+          confirmLabel="破棄する"
+          onCancel={() => setDiscarding(false)}
+          onConfirm={discardEdit}
+        />
       )}
       {deleting && question && (
         <ConfirmDialog

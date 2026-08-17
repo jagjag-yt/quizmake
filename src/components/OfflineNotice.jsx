@@ -14,14 +14,23 @@ export default function OfflineNotice() {
   const [offline, setOffline] = useState(() =>
     typeof navigator !== 'undefined' ? navigator.onLine === false : false,
   )
+  // 一度読んだら消せるようにする。次に切れたときはまた出す（気づけないと困るため）
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    const goOffline = () => setOffline(true)
+    const goOffline = () => {
+      setOffline(true)
+      setDismissed(false)
+    }
     const goOnline = () => setOffline(false)
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     // 表示に戻ったときに実際の状態と合わせ直す
-    const sync = () => setOffline(navigator.onLine === false)
+    const sync = () => {
+      const isOffline = navigator.onLine === false
+      setOffline(isOffline)
+      if (!isOffline) setDismissed(false)
+    }
     document.addEventListener('visibilitychange', sync)
     return () => {
       window.removeEventListener('offline', goOffline)
@@ -30,7 +39,7 @@ export default function OfflineNotice() {
     }
   }, [])
 
-  if (!offline) return null
+  if (!offline || dismissed) return null
 
   return (
     <div
@@ -59,6 +68,31 @@ export default function OfflineNotice() {
       </span>
       オフラインです
       <span style={{ fontWeight: 400, color: COLORS.dashed }}>演習は続けられます</span>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label="オフラインの表示を閉じる"
+        title="閉じる"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '24px',
+          height: '24px',
+          marginLeft: '2px',
+          marginRight: '-6px',
+          borderRadius: '999px',
+          border: 'none',
+          background: 'transparent',
+          color: '#ffffff',
+          fontSize: '13px',
+          lineHeight: 1,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+        }}
+      >
+        ✕
+      </button>
     </div>
   )
 }
