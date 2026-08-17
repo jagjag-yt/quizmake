@@ -16,7 +16,7 @@ import {
 } from '../data/questions'
 import { clozeHeadline, hiddenCount } from '../data/cloze'
 import { isCloze } from '../data/questions'
-import { useCompactLayout } from '../hooks/useMediaQuery'
+import { useCompactLayout, usePhoneLayout } from '../hooks/useMediaQuery'
 import ClozeEditor from './ClozeEditor'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
@@ -466,6 +466,95 @@ function MoveGroupDialog({ count, groups, onCancel, onConfirm }) {
 }
 
 /**
+ * スマートフォンで問題作成を開いたときの案内。
+ *
+ * この幅では選択肢の入力欄が全角4文字ほどになり、実用にならない。
+ * 「壊れている」と受け取られないよう、意図してそうしていることと、
+ * この端末で何ができるかを伝える。どうしても必要な人のために逃げ道は残す。
+ */
+function PhoneNotice({ onGoQuiz, onForce, pad }) {
+  return (
+    <div
+      style={{
+        gridColumn: '1 / -1',
+        ...card(pad),
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '14px',
+        padding: '48px 24px',
+        textAlign: 'center',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '56px',
+          height: '56px',
+          borderRadius: '999px',
+          background: COLORS.blueLight,
+          color: COLORS.blue,
+          fontSize: '24px',
+        }}
+      >
+        ✎
+      </span>
+      <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
+        問題づくりは、画面の広い端末で
+      </p>
+      <p style={{ margin: 0, fontSize: '13.5px', color: COLORS.sub, lineHeight: 1.9 }}>
+        この画面幅では選択肢の入力欄が数文字分しか取れず、
+        <br />
+        まともに入力できないため、作成は開いていません。
+        <br />
+        タブレットかパソコンでお試しください。
+      </p>
+      <p style={{ margin: 0, fontSize: '13.5px', color: COLORS.body, lineHeight: 1.9 }}>
+        この端末では<b>演習と復習</b>が使えます。
+        <br />
+        作った問題はそのまま解けます。
+      </p>
+      <button
+        type="button"
+        onClick={onGoQuiz}
+        style={{
+          minHeight: `${TAP_MIN}px`,
+          padding: '0 24px',
+          borderRadius: '12px',
+          border: `1px solid ${COLORS.blue}`,
+          background: COLORS.blue,
+          color: '#ffffff',
+          fontSize: '14px',
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+        }}
+      >
+        演習にすすむ
+      </button>
+      <button
+        type="button"
+        onClick={onForce}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          color: COLORS.muted,
+          fontSize: '12.5px',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          textDecoration: 'underline',
+        }}
+      >
+        それでもこの端末で作成する
+      </button>
+    </div>
+  )
+}
+
+/**
  * 問題作成の入口。
  *
  * 問題は必ずどれかのグループの中に入るため、いきなり1問目を作らせるのではなく
@@ -617,6 +706,7 @@ export default function EditorView({
   onDuplicate,
   onReorderAuthored,
   onMoveToGroup,
+  onGoQuiz,
   onImportClick,
   onSaved,
   transferSlot,
@@ -626,7 +716,10 @@ export default function EditorView({
   onCreateGroup,
 }) {
   const compact = useCompactLayout()
+  const phone = usePhoneLayout()
   const space = compact ? SPACING.compact : SPACING.wide
+  // スマホでは作成を開かない。どうしても必要な人だけ、案内から進める
+  const [forcePhoneEdit, setForcePhoneEdit] = useState(false)
   const [poolFilter, setPoolFilter] = useState('all')
   const [previewMode, setPreviewMode] = useState('before')
   const [tabletPane, setTabletPane] = useState('edit')
@@ -908,6 +1001,17 @@ export default function EditorView({
       )}
     </>
   )
+
+  // スマホでは作成の入力欄が実用にならないため、案内だけを出す
+  if (phone && !forcePhoneEdit) {
+    return (
+      <PhoneNotice
+        pad={space.card}
+        onGoQuiz={onGoQuiz}
+        onForce={() => setForcePhoneEdit(true)}
+      />
+    )
+  }
 
   // 問題を選んでいないあいだは入口の画面だけを出す。
   // 左カラム（作成した問題の一覧）を重ねると、入口の説明が隠れてしまうため。

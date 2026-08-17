@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { COMPACT_QUERY, HOVER_QUERY } from '../constants'
+import { COMPACT_QUERY, HOVER_QUERY, PHONE_QUERY } from '../constants'
 
 /**
  * CSS メディアクエリの一致状態を購読する。
@@ -48,6 +48,14 @@ export function useMediaQuery(query) {
  */
 export function useCompactLayout() {
   return useMediaQuery(COMPACT_QUERY)
+}
+
+/**
+ * スマートフォンの幅か。
+ * 問題作成をタブレット・パソコンに限るための判定に使う。
+ */
+export function usePhoneLayout() {
+  return useMediaQuery(PHONE_QUERY)
 }
 
 /**

@@ -717,6 +717,7 @@ export default function App() {
               pool.moveQuestionsToGroup(ids, groupId)
               toast.show({ tone: 'success', title: `${ids.length}問を「${name}」へ移動しました` })
             }}
+            onGoQuiz={() => setView(VIEWS.QUIZ)}
             onImportClick={openFilePicker}
             onSaved={(groupId) => {
               // 保存の区切りとして、編集していた問題のグループの設問一覧へ移す
