@@ -73,7 +73,20 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
         [□ 隠すのを解除](enabled when selection intersects a hidden run)
         divider + 文字色: 6 swatches 22px circle r999, active = 0 0 0 2px #fff, 0 0 0 3px #2563eb
         disabled state (empty body): swatch/button bg #f1f5f9 fg #cbd5e1
-      contenteditable area b1 #2563eb r10 p16 min-h230 15.5px/1.95
+      入力欄 b1 #2563eb r10 p16 min-h230 15.5px/1.95
+      IMPLEMENTATION (二層構造。contenteditable ではない):
+        下: EditorOverlay(position:absolute; inset:0; pointer-events:none) がマーカーの見た目を描く
+        上: <textarea>(背景 transparent, -webkit-text-fill-color: transparent) が入力と選択を受ける
+        textarea を選んだ理由: selectionStart/End がそのまま範囲指定に使え、日本語入力でも壊れないため。
+      AUTO-GROW (非交渉):
+        textarea は **中身の高さに合わせて伸ばす**。overflow:hidden / resize:none / display:block。
+        高さは height='auto' -> scrollHeight + (offsetHeight - clientHeight) で測り直す。
+        text の変化と、window の resize / orientationchange で再計算する（折り返しが幅で変わるため）。
+        NG: 固定高＋textarea 内スクロール。**下の層は inset:0 で固定されスクロールしないため、
+            はみ出した瞬間に文字が二重にずれて見える**（実機で発生。選択すると特に目立つ）。
+            display を inline-block のままにするのも不可（ベースライン分の余白で下層が数px高くなる）。
+        実測(1280px幅): 73字→230px / 292字→397px / 730字→941px。いずれも内部スクロール無し、
+            下層とのズレ top/left/height すべて 0px。
       edit-mode mark render (NOT the real fill — author must stay able to read own text):
         background:#eff6ff; box-shadow:inset 0 0 0 1px #93c5fd; padding:0 5px; line-height:1.35; border-radius:0
         + same number badge, color #1e293b
