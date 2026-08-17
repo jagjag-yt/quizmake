@@ -48,7 +48,7 @@ export default function OfflineNotice() {
       style={{
         position: 'fixed',
         right: '24px',
-        bottom: '84px',
+        bottom: `calc(84px + env(safe-area-inset-bottom, 0px))`,
         zIndex: 55,
         display: 'inline-flex',
         alignItems: 'center',

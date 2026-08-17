@@ -196,6 +196,9 @@ export default function Dashboard({
     <div
       style={{
         gridColumn: '1 / -1',
+        // grid の子は既定で min-width:auto。0 にしないと中身の最小幅に押し広げられ、
+        // スマホ（360px）で画面からはみ出す（実測 386px）
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',

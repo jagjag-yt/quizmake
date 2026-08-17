@@ -5,7 +5,7 @@ import { hiddenCount } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import { useCompactLayout } from './hooks/useMediaQuery'
+import { useCompactLayout, usePhoneLayout } from './hooks/useMediaQuery'
 import { exportQuestionsToXlsx } from './utils/exportExcel'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
@@ -100,6 +100,8 @@ export default function App() {
   const toast = useToast()
   // iPad 縦などの中間幅では余白を詰め、問題文と選択肢の幅を確保する
   const compact = useCompactLayout()
+  // スマホ（縦）は2カラムだと1列が170px程度になり、問題も解説も読めない
+  const phone = usePhoneLayout()
   const space = compact ? SPACING.compact : SPACING.wide
 
   const questions = pool.questions
@@ -608,9 +610,10 @@ export default function App() {
           width: '100%',
           maxWidth: '1400px',
           margin: '0 auto',
-          padding: `${space.mainTop}px ${space.pageX}px 12px ${space.pageX}px`,
+          padding: `${space.mainTop}px calc(${space.pageX}px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(${space.pageX}px + env(safe-area-inset-left, 0px))`,
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          // スマホは1列にして、問題が上・答えが下の縦並びにする（DOMの順がそのまま並ぶ）
+          gridTemplateColumns: phone ? '1fr' : '1fr 1fr',
           gap: `${space.gap}px`,
           alignItems: 'stretch',
         }}

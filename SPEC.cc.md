@@ -221,6 +221,28 @@ S3 /settings 設定 (v2 追加。drawer 最下段から入る)
   VIEWS.SETTINGS。タブ扱いにはしない(4タブの並びに入れない)。
 
 ============================================================
+PHONE LAYOUT (<=600px, v2.4)
+  想定端末: iPhone / Android の縦持ち。実測は 390x844(iPhone) と 360x800(Android) で行う。
+  main grid: phone は '1fr'（PC/タブレットは '1fr 1fr'）。
+    演習は DOM の順がそのまま縦並びになり、**問題が上・答えが下**になる。
+    実測(390px): 問題カード y=135 h=545 / 答えカード y=696 h=621、横スクロール無し。
+  設問一覧の表: 7列(GRID=40 68 76 1fr 118 78 36, MIN_TABLE_W=760)は入らない。
+    phone は 1行を2段に組み替える: columns '28px 1fr 36px' / ROW_H_PHONE=78
+      上段: 番号 + 種別pill + 学習状況    下段: 問題文(1行 ellipsis)    右: ★
+    見出し行は phone では出さない（並べ替えはフィルタバーの「並び順」で行う）。
+    仮想スクロールの計算(start/end/スペーサ)は ROW_H ではなく rowH を使うこと。
+    NG: 列を残して横スクロールさせる。実測で 390px の画面に 782px はみ出した。
+  SAFE AREA: index.html が **viewport-fit=cover** のため、安全領域は自分で足す。
+    header: padding-top に env(safe-area-inset-top)
+    main  : 左右に env(safe-area-inset-left/right)、下に env(safe-area-inset-bottom)
+    画面下に固定するもの（保存/破棄・一括操作バー・統合バー・オフライン通知）は
+      bottom: calc(元の値 + env(safe-area-inset-bottom, 0px))
+    ※ デスクトップのブラウザでは env() が 0 になるため、**実機でしか検証できない**。
+  MIN-WIDTH: main の子（各 View のルート）には min-width:0 を付ける。
+    grid の子は既定で min-width:auto のため、中身の最小幅に押し広げられる。
+    実測: Dashboard で 360px の画面に 386px はみ出していた。
+  TAP: チェックボックスは phone/compact で 22px（既定 18px は指で押しづらい）。
+
 PHONE GATE (<=600px, 問題作成のみ)
   問題作成を開いても編集画面を出さず、案内カードを出す (EditorView.PhoneNotice)。
   reason: この幅では選択肢の入力欄が全角4文字ほどになり実用にならない。
