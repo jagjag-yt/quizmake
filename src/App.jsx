@@ -110,6 +110,8 @@ export default function App() {
   // 設問一覧で開いているグループ（null ならグループ一覧を表示）
   const [openGroupId, setOpenGroupId] = useState(null)
   const [editorGroupId, setEditorGroupId] = useState(null)
+  // 問題作成で「追加先」に選ばれているグループ（読み込み先の判定にも使う）
+  const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
   const [exportOpen, setExportOpen] = useState(false)
   const transferInputRef = useRef(null)
   const [resetOpen, setResetOpen] = useState(false)
@@ -335,11 +337,31 @@ export default function App() {
   )
 
   /**
-   * Excel 読み込み：プールへ追加し（番号が衝突したら枝番）、
-   * 読み込んだ問題で演習を始められるようにする。
+   * Excel 読み込み。
+   *
+   * 問題作成の途中で読み込んだときは、いま開いているグループの末尾に足す。
+   * 作りかけの並びに割り込ませず、番号も続きから振る。
+   * それ以外（設問一覧などから読み込んだとき）は、従来どおり
+   * 1ファイル＝1グループで取り込み、そのまま演習を始められるようにする。
    */
   const loadQuestions = useCallback(
     (loaded, groupName) => {
+      // activeEditorGroupId ではなく editorGroupId を見る。前者は未選択のとき
+      // 先頭グループにフォールバックするので、入口の画面から読み込んだだけで
+      // 関係のないグループへ入ってしまう
+      const intoEditor = view === VIEWS.EDITOR && !!editorGroupId
+
+      if (intoEditor) {
+        pool.importQuestions(loaded, { groupName, groupId: editorGroupId })
+        const name = pool.groups.find((g) => g.id === editorGroupId)?.name ?? groupName
+        toast.show({
+          tone: 'success',
+          title: `${loaded.length}問を読み込みました`,
+          description: `グループ「${name}」の末尾に追加しました（番号は続きから）`,
+        })
+        return
+      }
+
       const groupId = pool.importQuestions(loaded, { groupName })
       setOpts(DEFAULT_OPTS)
       startSession(DEFAULT_OPTS, { source: [...pool.poolRef.current.questions, ...loaded] })
@@ -350,7 +372,7 @@ export default function App() {
         description: `グループ「${groupName}」として追加しました`,
       })
     },
-    [pool, startSession, toast],
+    [pool, startSession, toast, view, editorGroupId],
   )
 
   /** 一覧などから、指定した問題リストで演習を始める。 */
@@ -411,9 +433,6 @@ export default function App() {
     () => (openGroupId ? questions.filter((q) => q.groupId === openGroupId) : questions),
     [questions, openGroupId],
   )
-
-  /** 問題作成で「追加先」に選ばれているグループ。 */
-  const activeEditorGroupId = editorGroupId ?? pool.groups[0]?.id ?? null
 
   /** 「読み込む」のファイル選択を開く（Excel / バックアップの共通入口）。 */
   const openFilePicker = useCallback(() => {
@@ -532,9 +551,6 @@ export default function App() {
         position={total > 0 ? currentIndex + 1 : 0}
         total={total}
         questionTotal={questions.length}
-        accuracy={dashboard.overview.accuracy}
-        stats={study.data.totals}
-        onResetStats={study.resetStats}
         examMode={session.examMode}
         remainingSec={remainingSec}
         clozeMode={!!displayQuestion && isCloze(displayQuestion)}
@@ -746,6 +762,7 @@ export default function App() {
             streak={dashboard.streak}
             dueCount={counts[MODES.DUE]}
             cloze={dashboard.cloze}
+            onResetStats={study.resetStats}
             onResetAll={resetAll}
           />
         ) : view === VIEWS.SUMMARY ? (

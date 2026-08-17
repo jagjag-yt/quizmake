@@ -171,7 +171,7 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
  *   boxes: { counts: number[], unstudied: number },
  *   streak: number,
  *   dueCount: number,
- *   onResetAll: () => void,
+ *   onResetStats: () => void, onResetAll: () => void,
  * }} props
  */
 export default function Dashboard({
@@ -182,6 +182,7 @@ export default function Dashboard({
   streak,
   dueCount,
   cloze,
+  onResetStats,
   onResetAll,
 }) {
   const compact = useCompactLayout()
@@ -201,9 +202,40 @@ export default function Dashboard({
       }}
     >
       <section style={card}>
-        <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 700, color: COLORS.text }}>
-          学習記録
-        </h2>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+            margin: '0 0 16px 0',
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: COLORS.text }}>
+            学習記録
+          </h2>
+          {/* 正答率はこの画面だけに出すことにしたので、リセットもここに置く */}
+          <button
+            type="button"
+            onClick={onResetStats}
+            title="正答率の記録をリセット"
+            style={{
+              marginLeft: 'auto',
+              minHeight: '36px',
+              padding: '0 14px',
+              borderRadius: '10px',
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.card,
+              color: COLORS.sub,
+              fontSize: '12.5px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            &#8635; 正答率をリセット
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <Stat
             label="通算正答率"
@@ -224,7 +256,6 @@ export default function Dashboard({
             sub="直近で間違えた問題"
             color={overview.wrong > 0 ? COLORS.red : COLORS.text}
           />
-          <Stat label="ブックマーク" value={overview.bookmarked} color={COLORS.amberDark} />
         </div>
       </section>
 

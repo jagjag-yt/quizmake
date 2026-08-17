@@ -108,7 +108,8 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
 
 C. CLOZE QUIZ SCREEN (演習)
   LAYOUT = SINGLE COLUMN, centered, max-width 1000px. reason: right card is 正解と解説; with no grading it would be empty.
-  header right slot: "虫食いは採点対象外" | divider | "虫食い n/N問目" | progressbar 220x6 (正答率 hidden while type=虫食い)
+  header right slot: "虫食いは採点対象外" | divider | "虫食い n/N問目" | progressbar 220x6
+    ※ v2.2 で正答率はヘッダーから全廃。選択式でも出さない（学習記録のみ）。
   condition bar (card, above): 既定は **1行の要約**「全問題 · <グループ名> / N問で出題中 / [条件を変える]」。押すと展開する。
     展開時: 種別 segmented すべて/選択式/虫食い + グループ select(「すべて」は無い) + 出題数 + 本番モード
     虫食い時は "Nか所中 Mか所 表示中" + [すべて表示|すべて隠す](toggle h44)
