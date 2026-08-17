@@ -13,12 +13,14 @@ import {
 } from '../constants'
 import { clozeHiddenCount, isCloze, questionKey, segmentsToText } from '../data/questions'
 import { clozeHeadline } from '../data/cloze'
-import { useCompactLayout } from '../hooks/useMediaQuery'
+import { useCompactLayout, usePhoneLayout } from '../hooks/useMediaQuery'
 import { isPlainObject, safeJsonParse } from '../utils/safe'
 import QuestionDetail, { BoxMeter, StatusBadge } from './QuestionDetail'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 
 const ROW_H = 56
+/** スマホの行。7列は入らないので2段に組み替え、その分だけ高くする。 */
+const ROW_H_PHONE = 78
 const GRID = '40px 68px 76px 1fr 118px 78px 36px'
 /** 固定列(494px)＋余白を確保できる最小幅。これ未満は横スクロールにする。 */
 const MIN_TABLE_W = 760
@@ -168,6 +170,12 @@ export default function QuestionsView({
   loadingCount,
 }) {
   const compact = useCompactLayout()
+  // スマホでは表を7列のまま出せない（実測で 390px の画面に 782px はみ出した）。
+  // 列を潰して読めなくするのではなく、1行を2段に組み替えて縦に積む。
+  const phone = usePhoneLayout()
+  const rowH = phone ? ROW_H_PHONE : ROW_H
+  const gridCols = phone ? '28px 1fr 36px' : GRID
+  const tableMinW = phone ? 0 : MIN_TABLE_W
   const space = compact ? SPACING.compact : SPACING.wide
 
   const [state, setState] = useState(loadListState)
@@ -253,8 +261,8 @@ export default function QuestionsView({
   }, [rows, selectedId])
 
   const viewportH = compact ? 460 : 560
-  const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 6)
-  const end = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW_H) + 6)
+  const start = Math.max(0, Math.floor(scrollTop / rowH) - 6)
+  const end = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / rowH) + 6)
   const visible = rows.slice(start, end)
 
   const toggleChecked = useCallback((id) => {
@@ -310,11 +318,11 @@ export default function QuestionsView({
       const next = Math.max(0, Math.min(rows.length - 1, focusIndex + (e.key === 'ArrowDown' ? 1 : -1)))
       setFocusIndex(next)
       setSelectedId(rows[next].q.id)
-      const top = next * ROW_H
+      const top = next * rowH
       if (scrollRef.current) {
         const el = scrollRef.current
         if (top < el.scrollTop) el.scrollTop = top
-        else if (top + ROW_H > el.scrollTop + viewportH) el.scrollTop = top + ROW_H - viewportH
+        else if (top + rowH > el.scrollTop + viewportH) el.scrollTop = top + rowH - viewportH
       }
     } else if (e.key === 'Enter') {
       e.preventDefault()
@@ -349,7 +357,7 @@ export default function QuestionsView({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID, gap: '10px', height: `${ROW_H}px`, alignItems: 'center' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '10px', height: `${rowH}px`, alignItems: 'center' }}>
               {[36, 48, 72, 320, 96, 64, 40, 24].map((w, j) => (
                 <div key={j} style={{ height: '14px', width: `${w}px`, maxWidth: '100%', borderRadius: '999px', background: COLORS.chipTrack }} />
               ))}
@@ -522,7 +530,8 @@ export default function QuestionsView({
               outline: 'none',
             }}
           >
-            {/* 見出し */}
+            {/* 見出し。スマホでは列が無いので出さない（並び替えはフィルタバーの「並び順」で行う） */}
+            {!phone && (
             <div
               role="row"
               style={{
@@ -557,8 +566,9 @@ export default function QuestionsView({
               <span>定着度</span>
               <span>★</span>
             </div>
+            )}
 
-            <div style={{ height: `${start * ROW_H}px` }} />
+            <div style={{ height: `${start * rowH}px` }} />
 
             {visible.map(({ q, rec }, i) => {
               const index = start + i
@@ -579,12 +589,12 @@ export default function QuestionsView({
                   }}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: GRID,
-                    gap: '10px',
+                    gridTemplateColumns: gridCols,
+                    gap: phone ? '8px' : '10px',
                     alignItems: 'center',
-                    padding: '0 18px',
-                    minWidth: `${MIN_TABLE_W}px`,
-                    height: `${ROW_H}px`,
+                    padding: phone ? '0 12px' : '0 18px',
+                    minWidth: tableMinW ? `${tableMinW}px` : 0,
+                    height: `${rowH}px`,
                     borderBottom: `1px solid ${COLORS.rowBorder}`,
                     background: isSelected ? COLORS.blueLight : COLORS.card,
                     cursor: 'pointer',
@@ -596,41 +606,91 @@ export default function QuestionsView({
                     onClick={(e) => e.stopPropagation()}
                     onChange={() => toggleChecked(q.id)}
                     aria-label={`問題 ${q.questionNumber} を選択`}
-                    style={{ width: '18px', height: '18px', accentColor: COLORS.blue, cursor: 'pointer' }}
+                    style={{
+                      width: phone ? '22px' : '18px',
+                      height: phone ? '22px' : '18px',
+                      accentColor: COLORS.blue,
+                      cursor: 'pointer',
+                    }}
                   />
+                  {phone ? (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <b style={{ fontSize: '13px', color: COLORS.text, fontVariantNumeric: 'tabular-nums' }}>
+                          {q.questionNumber}
+                        </b>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: isCloze(q) ? COLORS.blueLight : COLORS.chipTrack,
+                            color: isCloze(q) ? COLORS.blue : COLORS.body,
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {TYPE_LABELS[q.type]}
+                        </span>
+                        {isCloze(q) ? (
+                          <span style={{ fontSize: '11px', color: COLORS.muted }}>— 採点なし</span>
+                        ) : (
+                          <StatusBadge record={rec} />
+                        )}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          color: COLORS.body,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {isCloze(q)
+                          ? clozeHeadline(q)
+                          : segmentsToText(q.segments) || '（無題の問題）'}
+                      </span>
+                    </span>
+                  ) : (
                   <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text, fontVariantNumeric: 'tabular-nums' }}>
                     {q.questionNumber}
                   </span>
-                  <span
-                    style={{
-                      justifySelf: 'start',
-                      padding: '4px 10px',
-                      borderRadius: '999px',
-                      background: isCloze(q) ? COLORS.blueLight : COLORS.chipTrack,
-                      color: isCloze(q) ? COLORS.blue : COLORS.body,
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {TYPE_LABELS[q.type]}
-                  </span>
-                  <span style={{ fontSize: '13.5px', color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {isCloze(q)
-                      ? clozeHeadline(q)
-                      : segmentsToText(q.segments) || '（無題の問題）'}
-                  </span>
-                  {isCloze(q) ? (
-                    <span style={{ fontSize: '11.5px', color: COLORS.muted }}>— 採点なし</span>
-                  ) : (
-                    <StatusBadge record={rec} />
                   )}
-                  {isCloze(q) ? (
-                    <span style={{ fontSize: '11.5px', color: COLORS.sub }}>
-                      隠す {clozeHiddenCount(q)} か所
-                    </span>
-                  ) : (
-                    <BoxMeter box={rec.box} />
+                  {!phone && (
+                    <>
+                      <span
+                        style={{
+                          justifySelf: 'start',
+                          padding: '4px 10px',
+                          borderRadius: '999px',
+                          background: isCloze(q) ? COLORS.blueLight : COLORS.chipTrack,
+                          color: isCloze(q) ? COLORS.blue : COLORS.body,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {TYPE_LABELS[q.type]}
+                      </span>
+                      <span style={{ fontSize: '13.5px', color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {isCloze(q)
+                          ? clozeHeadline(q)
+                          : segmentsToText(q.segments) || '（無題の問題）'}
+                      </span>
+                      {isCloze(q) ? (
+                        <span style={{ fontSize: '11.5px', color: COLORS.muted }}>— 採点なし</span>
+                      ) : (
+                        <StatusBadge record={rec} />
+                      )}
+                      {isCloze(q) ? (
+                        <span style={{ fontSize: '11.5px', color: COLORS.sub }}>
+                          隠す {clozeHiddenCount(q)} か所
+                        </span>
+                      ) : (
+                        <BoxMeter box={rec.box} />
+                      )}
+                    </>
                   )}
                   <button
                     type="button"
@@ -657,7 +717,7 @@ export default function QuestionsView({
               )
             })}
 
-            <div style={{ height: `${Math.max(0, (rows.length - end) * ROW_H)}px` }} />
+            <div style={{ height: `${Math.max(0, (rows.length - end) * rowH)}px` }} />
 
             {/* 虫食いで絞り込んで0件のとき（SPEC E1）。Excelから読めないことをここで伝える */}
             {!rows.length && state.type === QUESTION_TYPES.CLOZE && (
@@ -744,7 +804,7 @@ export default function QuestionsView({
         style={{
           ...cardStyle(compact ? 16 : 20),
           position: 'sticky',
-          bottom: '12px',
+          bottom: `calc(12px + env(safe-area-inset-bottom, 0px))`,
           zIndex: 30,
           display: 'flex',
           alignItems: 'center',
@@ -783,7 +843,7 @@ export default function QuestionsView({
             position: 'fixed',
             left: '50%',
             // 下部に常時表示している演習開始バーの上に重ねる
-            bottom: '104px',
+            bottom: `calc(104px + env(safe-area-inset-bottom, 0px))`,
             transform: 'translateX(-50%)',
             zIndex: 50,
             display: 'flex',

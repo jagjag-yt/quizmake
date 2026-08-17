@@ -68,7 +68,7 @@ export default function ProgressHeader({
         justifyContent: 'space-between',
         gap: compact ? '10px' : '16px',
         flexWrap: 'wrap',
-        padding: `${space.headerY}px ${space.pageX}px`,
+        padding: `calc(${space.headerY}px + env(safe-area-inset-top, 0px)) ${space.pageX}px ${space.headerY}px`,
         background: COLORS.card,
         borderBottom: `1px solid ${COLORS.border}`,
       }}

@@ -277,7 +277,13 @@ export default function GroupsView({
                   checked={isChecked}
                   onChange={() => toggle(s.group.id)}
                   aria-label={`${s.group.name} を選択`}
-                  style={{ width: '18px', height: '18px', accentColor: COLORS.blue, cursor: 'pointer', marginTop: '3px' }}
+                  style={{
+                    width: compact ? '22px' : '18px',
+                    height: compact ? '22px' : '18px',
+                    accentColor: COLORS.blue,
+                    cursor: 'pointer',
+                    marginTop: '3px',
+                  }}
                 />
                 <button
                   type="button"
@@ -378,7 +384,7 @@ export default function GroupsView({
           style={{
             position: 'fixed',
             left: '50%',
-            bottom: '24px',
+            bottom: `calc(24px + env(safe-area-inset-bottom, 0px))`,
             transform: 'translateX(-50%)',
             zIndex: 50,
             display: 'flex',

@@ -972,7 +972,7 @@ export default function EditorView({
           style={{
             position: 'fixed',
             right: '24px',
-            bottom: '24px',
+            bottom: `calc(24px + env(safe-area-inset-bottom, 0px))`,
             zIndex: 50,
             display: 'flex',
             alignItems: 'flex-end',
