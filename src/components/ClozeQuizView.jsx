@@ -81,7 +81,7 @@ export default function ClozeQuizView({
   const headline = useMemo(() => clozeHeadline(question), [question])
 
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'center' }}>
+    <div style={{ gridColumn: '1 / -1', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* 開閉の状況と一括操作 */}
         <div

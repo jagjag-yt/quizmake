@@ -340,7 +340,7 @@ export default function QuestionsView({
   // ---------- 状態表示 ----------
   if (loading) {
     return (
-      <div style={{ gridColumn: '1 / -1', ...cardStyle(space.card) }}>
+      <div style={{ gridColumn: '1 / -1', minWidth: 0, ...cardStyle(space.card) }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: COLORS.text }}>
           ⏳ Excelを解析しています…（{loadingCount ?? 0}問）
         </div>
@@ -373,6 +373,7 @@ export default function QuestionsView({
       <div
         style={{
           gridColumn: '1 / -1',
+          minWidth: 0,
           ...cardStyle(space.card),
           display: 'flex',
           flexDirection: 'column',
@@ -435,7 +436,7 @@ export default function QuestionsView({
   ) : null
 
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ gridColumn: '1 / -1', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* グループ見出し（1階層目へ戻る） */}
       <div
         style={{

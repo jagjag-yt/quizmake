@@ -36,6 +36,7 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',

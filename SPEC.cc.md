@@ -238,9 +238,13 @@ PHONE LAYOUT (<=600px, v2.4)
     画面下に固定するもの（保存/破棄・一括操作バー・統合バー・オフライン通知）は
       bottom: calc(元の値 + env(safe-area-inset-bottom, 0px))
     ※ デスクトップのブラウザでは env() が 0 になるため、**実機でしか検証できない**。
-  MIN-WIDTH: main の子（各 View のルート）には min-width:0 を付ける。
-    grid の子は既定で min-width:auto のため、中身の最小幅に押し広げられる。
-    実測: Dashboard で 360px の画面に 386px はみ出していた。
+  MIN-WIDTH (非交渉。新しい画面を足すときも必ず): **main の子（各 View のルート）には min-width:0 を付ける。**
+    grid/flex の子は既定で min-width:auto のため、中身の最小幅にページごと押し広げられる。
+    このとき header は width:100%（=表示幅）のままなので、**ヘッダーだけ短く見える**という形で表面化する。
+    ページが横に伸びているのが原因で、ヘッダー側の不具合ではない。
+    対象は gridColumn:'1 / -1' を持つ全ルート（Cloze/Editor/Empty/Groups/Questions/Summary/Settings/Dashboard）。
+    タイル状の子（flex: '1 1 140px' など）にも同じ理由で min-width:0 が要る。
+    実測: Dashboard 360px→386px はみ出し / SessionSummary 390px→457px はみ出し。
   TAP: チェックボックスは phone/compact で 22px（既定 18px は指で押しづらい）。
   FOOTER NAV: 3つのボタンで幅を分けるため、phone では1つ 100px しか取れない。
     左右の余白 24px のままだと文字に 52px しか回らず「リトライ」でも2行に折れる（実測 h=68px）。

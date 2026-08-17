@@ -13,6 +13,7 @@ export default function EmptyState({ icon = '☆', title, message, actionLabel, 
     <div
       style={{
         gridColumn: '1 / -1',
+        minWidth: 0,
         background: COLORS.card,
         borderRadius: '20px',
         padding: '56px 32px',
