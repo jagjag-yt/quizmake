@@ -111,6 +111,15 @@ img {
   color: var(--blue);
 }
 
+/*
+ * ボタンだけは白抜きのまま。上の .site-nav a のほうが .btn より指定が強く、
+ * 何もしないと文字が本文色（ホバー時は青）になってしまう。
+ */
+.site-nav a.btn,
+.site-nav a.btn:hover {
+  color: #ffffff;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
