@@ -1,4 +1,4 @@
-import { COLORS } from '../constants'
+import { COLORS, inkColor } from '../constants'
 import { withMarkerIndexes } from '../data/cloze'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -69,7 +69,7 @@ export function Marker({ run, opened, onToggle, tablet = false }) {
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         background: opened ? COLORS.blueLight : COLORS.blue,
-        color: opened ? run.color : 'transparent',
+        color: opened ? inkColor(run.color) : 'transparent',
         boxShadow: opened ? `inset 0 -2px 0 ${COLORS.bluePale}` : 'none',
         WebkitTapHighlightColor: 'transparent',
       }}
@@ -110,7 +110,7 @@ export default function ClozeBody({
           {para.map((run, ri) => {
             if (!run.hide) {
               return (
-                <span key={ri} style={{ color: run.color }}>
+                <span key={ri} style={{ color: inkColor(run.color) }}>
                   {run.text}
                 </span>
               )
@@ -130,7 +130,7 @@ export default function ClozeBody({
                     borderRadius: 0,
                     lineHeight: 1.35,
                     background: opened ? COLORS.blueLight : COLORS.blue,
-                    color: opened ? run.color : 'transparent',
+                    color: opened ? inkColor(run.color) : 'transparent',
                     boxShadow: opened ? `inset 0 -2px 0 ${COLORS.bluePale}` : 'none',
                   }}
                 >

@@ -22,6 +22,13 @@ THEME (v2.5. ライト／ダーク)
   COLORS.onAccent = '#ffffff' 固定。青・緑・赤の面に載る文字はダークでも白のまま。
   新しく色を足すときは、必ず --c-* を増やしてから COLORS 経由で使う。
   ハードコードした色（'#f1f5f9' など）を直接書かない。ダークで取り残される。
+  DATA-STORED COLORS: 虫食いの文字色は **濃い hex が問題データに保存されている**。
+    そのまま出すとダークで背景に沈む（標準色 #1e293b はダークのカード色と同じ）。
+    表示のときだけ constants.js の inkColor() で --c-ink-* に読み替える。保存値は変えない。
+  反転した帯（background: COLORS.text ＋ 白文字）は作らない。
+    ダークでは COLORS.text が明るくなり、白地に白文字になる（実測 比1.23）。
+    一括操作の帯はカード面（COLORS.card ＋ border）に統一する。
+  背景と文字を対で決めること。片方だけトークン化すると、もう片方が取り残されて沈む。
 
 TOKENS (strict, no additions)
   font: 'Noto Sans JP',sans-serif

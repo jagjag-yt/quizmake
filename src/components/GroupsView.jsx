@@ -415,12 +415,13 @@ export default function GroupsView({
             gap: '12px',
             padding: '12px 18px',
             borderRadius: '14px',
-            background: COLORS.text,
-            boxShadow: '0 8px 24px rgba(15,23,42,0.24)',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            boxShadow: '0 8px 24px rgba(15,23,42,0.16)',
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
             {checked.length}グループを選択中
           </span>
           <button
