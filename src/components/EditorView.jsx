@@ -875,6 +875,29 @@ export default function EditorView({
   const sidebarItems =
     poolFilter === 'all' ? groupScoped : groupScoped.filter((q) => q.type === poolFilter)
 
+  /**
+   * 削除したあとに選ぶ問題を決める。
+   *
+   * null にすると入口の画面に戻ってしまい、作りかけの流れが切れる。
+   * 消した位置の次（無ければ前）に移り、作成画面のまま続けられるようにする。
+   * 消す対象しか残っていないときだけ null（表示するものが無い）。
+   *
+   * @param {string[]} removingIds 消す問題の id
+   * @returns {string|null} 次に選ぶ問題の id
+   */
+  const nextSelectionAfterRemoving = (removingIds) => {
+    const gone = new Set(removingIds)
+    const index = sidebarItems.findIndex((q) => q.id === selectedId)
+    const rest = sidebarItems.filter((q) => !gone.has(q.id))
+    if (!rest.length) return null
+    if (index === -1) return selectedId
+    // 消した位置から後ろに残っているもの → 無ければ前に残っているもの
+    const after = sidebarItems.slice(index + 1).find((q) => !gone.has(q.id))
+    if (after) return after.id
+    const before = sidebarItems.slice(0, index).filter((q) => !gone.has(q.id)).pop()
+    return before ? before.id : null
+  }
+
   // ---------- グループが1つも無いとき（作成はグループが先） ----------
   if (!groups.length) {
     return (
@@ -1075,8 +1098,9 @@ export default function EditorView({
           confirmLabel="削除する"
           onCancel={() => setDeleting(false)}
           onConfirm={() => {
+            const next = nextSelectionAfterRemoving([question.id])
             onRemove(question.id)
-            onSelect(null)
+            onSelect(next)
             setDeleting(false)
           }}
         />
@@ -1100,8 +1124,11 @@ export default function EditorView({
           confirmLabel="削除する"
           onCancel={() => setDeletingChecked(false)}
           onConfirm={() => {
+            const next = checkedIds.includes(selectedId)
+              ? nextSelectionAfterRemoving(checkedIds)
+              : selectedId
             checkedIds.forEach((id) => onRemove(id))
-            if (checkedIds.includes(selectedId)) onSelect(null)
+            onSelect(next)
             setCheckedIds([])
             setDeletingChecked(false)
           }}
@@ -1322,38 +1349,44 @@ export default function EditorView({
         })}
       </div>
 
-      {/* まとめて選んだときの操作 */}
+      {/*
+        まとめて選んだときの操作。
+        左カラムの中に置くと、すぐ下にある「複製 / 削除」（いま開いている1問への操作）と
+        紛らわしく、押し間違える。画面下に白い帯として出し、別物だと分かるようにする。
+      */}
       {checkedIds.length > 0 && (
         <div
           style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: `calc(24px + env(safe-area-inset-bottom, 0px))`,
+            transform: 'translateX(-50%)',
+            zIndex: 52,
+            maxWidth: 'calc(100vw - 32px)',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            padding: '10px',
-            borderRadius: '12px',
-            background: COLORS.blueLight,
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 14px',
+            borderRadius: '14px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            boxShadow: '0 8px 24px rgba(15,23,42,0.16)',
+            overflowX: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.blue }}>
-              {checkedIds.length}問を選択中
-            </span>
-            <button
-              type="button"
-              onClick={() => setCheckedIds([])}
-              style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: COLORS.sub, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              選択を解除
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.text, whiteSpace: 'nowrap' }}>
+            {checkedIds.length}問を選択中
+          </span>
+          <span style={{ width: '1px', height: '20px', background: COLORS.border, flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setMovingTo(true)}
               disabled={groups.length < 2}
               style={{
-                flex: 1,
                 minHeight: '36px',
+                padding: '0 14px',
+                whiteSpace: 'nowrap',
                 borderRadius: '10px',
                 border: `1px solid ${groups.length < 2 ? COLORS.border : COLORS.blue}`,
                 background: COLORS.card,
@@ -1370,8 +1403,9 @@ export default function EditorView({
               type="button"
               onClick={() => setDeletingChecked(true)}
               style={{
-                flex: 1,
                 minHeight: '36px',
+                padding: '0 14px',
+                whiteSpace: 'nowrap',
                 borderRadius: '10px',
                 border: `1px solid ${COLORS.border}`,
                 background: COLORS.card,
@@ -1385,6 +1419,22 @@ export default function EditorView({
               🗑 削除
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setCheckedIds([])}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: COLORS.sub,
+              fontSize: '12px',
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            選択を解除
+          </button>
         </div>
       )}
 
