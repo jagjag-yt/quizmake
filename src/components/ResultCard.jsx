@@ -121,7 +121,7 @@ export default function ResultCard({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            border: '2px dashed #cbd5e1',
+            border: `2px dashed ${COLORS.dashed}`,
             borderRadius: '16px',
             padding: '40px',
           }}
@@ -155,7 +155,7 @@ export default function ResultCard({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '10px',
-            border: '2px dashed #cbd5e1',
+            border: `2px dashed ${COLORS.dashed}`,
             borderRadius: '16px',
             padding: '40px',
             textAlign: 'center',
@@ -218,7 +218,7 @@ export default function ResultCard({
               style={{
                 fontSize: '14.5px',
                 lineHeight: '1.9',
-                color: '#334155',
+                color: COLORS.body,
                 margin: 0,
                 whiteSpace: 'pre-wrap',
               }}

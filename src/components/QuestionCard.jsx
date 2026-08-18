@@ -142,7 +142,7 @@ function Choice({ letter, text, state, onSelect }) {
   let bg = COLORS.card
   let border = COLORS.border
   let color = COLORS.text
-  let badgeBg = '#f1f5f9'
+  let badgeBg = COLORS.chipTrack
   let badgeColor = COLORS.body
 
   if (reveal) {
@@ -162,7 +162,7 @@ function Choice({ letter, text, state, onSelect }) {
     } else {
       // その他の未選択肢：減光
       color = COLORS.muted
-      badgeColor = '#cbd5e1'
+      badgeColor = COLORS.dashed
     }
   } else if (isSelected) {
     // 選択済み（未採点、または本番モードで正誤を伏せている状態）
@@ -295,7 +295,7 @@ export default function QuestionCard({
               style={{
                 padding: '5px 12px',
                 borderRadius: '999px',
-                background: '#f1f5f9',
+                background: COLORS.chipTrack,
                 color: COLORS.body,
                 fontSize: '12px',
                 fontWeight: 700,

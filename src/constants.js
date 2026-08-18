@@ -19,6 +19,16 @@ export const DEFAULT_GROUP_NAME = '未分類'
 /** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
 export const LIST_STATE_KEY = 'quizmake.listState.v1'
 
+/** 見た目（ライト／ダーク）を覚えておくキー。 */
+export const THEME_KEY = 'quizmake.theme.v1'
+
+/** 見た目の選択肢。SYSTEM は端末の設定（prefers-color-scheme）に従う。 */
+export const THEMES = {
+  SYSTEM: 'system',
+  LIGHT: 'light',
+  DARK: 'dark',
+}
+
 /** グループ一覧の並び順を覚えておくキー（端末ごとの好みなので localStorage）。 */
 export const GROUP_SORT_KEY = 'quizmake.groupSort.v1'
 
@@ -217,29 +227,31 @@ export const TAP_MIN = 44
 
 /** デザイントークン（ハンドオフ準拠）。 */
 export const COLORS = {
-  bg: '#f8fafc',
-  card: '#ffffff',
-  border: '#e2e8f0',
-  cardBorder: '#eef2f7',
-  text: '#1e293b',
-  sub: '#64748b',
-  muted: '#94a3b8',
-  body: '#475569',
-  blue: '#2563eb',
-  blueLight: '#eff6ff',
-  bluePale: '#93c5fd',
-  green: '#16a34a',
-  greenLight: '#f0fdf4',
-  greenDark: '#166534',
-  red: '#dc2626',
-  redLight: '#fef2f2',
-  redDark: '#991b1b',
-  chipTrack: '#f1f5f9',
-  rowHover: '#f8fafc',
-  rowBorder: '#f1f5f9',
-  scrim: 'rgba(15,23,42,0.28)',
-  dashed: '#cbd5e1',
-  amber: '#f59e0b',
-  amberLight: '#fffbeb',
-  amberDark: '#b45309',
+  bg: 'var(--c-bg)',
+  card: 'var(--c-card)',
+  border: 'var(--c-border)',
+  cardBorder: 'var(--c-card-border)',
+  text: 'var(--c-text)',
+  sub: 'var(--c-sub)',
+  muted: 'var(--c-muted)',
+  body: 'var(--c-body)',
+  blue: 'var(--c-blue)',
+  blueLight: 'var(--c-blue-light)',
+  bluePale: 'var(--c-blue-pale)',
+  green: 'var(--c-green)',
+  greenLight: 'var(--c-green-light)',
+  greenDark: 'var(--c-green-dark)',
+  red: 'var(--c-red)',
+  redLight: 'var(--c-red-light)',
+  redDark: 'var(--c-red-dark)',
+  chipTrack: 'var(--c-chip-track)',
+  rowHover: 'var(--c-row-hover)',
+  rowBorder: 'var(--c-row-border)',
+  scrim: 'var(--c-scrim)',
+  dashed: 'var(--c-dashed)',
+  amber: 'var(--c-amber)',
+  amberLight: 'var(--c-amber-light)',
+  amberDark: 'var(--c-amber-dark)',
+  /** 色付きの面（青・緑・赤）の上に載せる文字。ダークでも白のまま。 */
+  onAccent: '#ffffff',
 }

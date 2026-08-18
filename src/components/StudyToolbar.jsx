@@ -43,6 +43,7 @@ export default function StudyToolbar({
   onChangeExamMode,
   examMinutes,
   onChangeExamMinutes,
+  onFinish,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
@@ -111,7 +112,8 @@ export default function StudyToolbar({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         style={{
-          width: '100%',
+          flex: 1,
+          minWidth: 0,
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
@@ -133,6 +135,33 @@ export default function StudyToolbar({
           {open ? '閉じる' : '条件を変える'}
         </span>
       </button>
+
+      {/*
+        途中でやめるための出口。最後まで進まないと結果が見られないと、
+        時間が無いときに「投げ出す」しかなくなる。ここまでの分で採点して終わる。
+      */}
+      {onFinish && total > 0 && (
+        <button
+          type="button"
+          onClick={onFinish}
+          title="ここまでの解答で採点して、結果画面に移ります"
+          style={{
+            minHeight: `${TAP_MIN - 4}px`,
+            padding: '0 14px',
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            color: COLORS.body,
+            fontSize: '12.5px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          演習を終了
+        </button>
+      )}
 
       {open && (
       <>

@@ -635,6 +635,7 @@ export default function App() {
           onChangeExamMode={(examMode) => updateOpts({ examMode })}
           examMinutes={opts.examMinutes}
           onChangeExamMinutes={(examMinutes) => updateOpts({ examMinutes })}
+          onFinish={view === VIEWS.QUIZ ? finish : undefined}
         />
       )}
 

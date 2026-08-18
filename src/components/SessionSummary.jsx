@@ -179,7 +179,7 @@ export default function SessionSummary({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: status === 'skip' ? '#e2e8f0' : color,
+                    background: status === 'skip' ? COLORS.border : color,
                     color: '#ffffff',
                     fontSize: '13px',
                     fontWeight: 700,
