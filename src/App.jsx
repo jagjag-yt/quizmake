@@ -176,6 +176,40 @@ export default function App() {
     [questions, study.dataRef],
   )
 
+  /**
+   * 消えた問題をセッションからも外す。
+   *
+   * セッションは開始時の配列を持ち続けるため、グループごと削除しても
+   * 演習の画面には残ったままだった。プールから消えたものは出題対象から外す。
+   * 番号のずれた回答記録は当てにならないので、あわせて解答状況を捨てる。
+   */
+  useEffect(() => {
+    const alive = new Set(questions.map((q) => q.id))
+    const keep = session.questions
+      .map((q, i) => i)
+      .filter((i) => alive.has(session.questions[i].id))
+    if (keep.length === session.questions.length) return
+    setSession((prev) => ({
+      ...prev,
+      questions: keep.map((i) => prev.questions[i]),
+      orders: keep.map((i) => prev.orders[i]),
+    }))
+    setAnswers({})
+    setCurrentIndex(0)
+    setDraft([])
+    setFinishedAt(null)
+  }, [questions, session])
+
+  /**
+   * 絞り込み先のグループが消えたら、残っている先頭のグループに移す。
+   * 消えたグループを指したままだと、次にセッションを組んだときに0問になる。
+   */
+  useEffect(() => {
+    if (!pool.groups.length) return
+    if (pool.groups.some((g) => g.id === opts.groupId)) return
+    setOpts((prev) => ({ ...prev, groupId: pool.groups[0].id }))
+  }, [pool.groups, opts.groupId])
+
   /** 出題条件の変更（変更のたびにセッションを組み直す）。 */
   const updateOpts = useCallback(
     (patch) => {

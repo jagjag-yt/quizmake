@@ -142,8 +142,28 @@ export default function GroupsView({
   const toggle = (id) =>
     setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
+  /**
+   * グループ名を入れてもらうダイアログ。
+   * 空状態は早期 return で返すため、そこでも出せるように切り出しておく
+   * （切り出す前は、0件のときだけ「グループを作成」を押しても何も出なかった）。
+   */
+  const createDialog = creating && (
+    <PromptDialog
+      title="グループを作成"
+      label="グループ名"
+      placeholder="例：循環器"
+      confirmLabel="作成する"
+      onCancel={() => setCreating(false)}
+      onConfirm={(name) => {
+        onCreateGroup(name)
+        setCreating(false)
+      }}
+    />
+  )
+
   if (!groups.length) {
     return (
+      <>
       <div
         style={{
           gridColumn: '1 / -1',
@@ -192,6 +212,8 @@ export default function GroupsView({
           </button>
         </div>
       </div>
+      {createDialog}
+      </>
     )
   }
 
@@ -434,19 +456,7 @@ export default function GroupsView({
         />
       )}
 
-      {creating && (
-        <PromptDialog
-          title="グループを作成"
-          label="グループ名"
-          placeholder="例：循環器"
-          confirmLabel="作成する"
-          onCancel={() => setCreating(false)}
-          onConfirm={(name) => {
-            onCreateGroup(name)
-            setCreating(false)
-          }}
-        />
-      )}
+      {createDialog}
 
       {merging && (
         <PromptDialog
