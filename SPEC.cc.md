@@ -11,6 +11,18 @@ META
     >=1024 desktop(design@1440) | 601-1023 compact(tablet, design@820) | <=600 phone
     phone は演習・設問一覧・学習記録・設定のみ。問題作成は案内画面に差し替える（下記 PHONE GATE）。
 
+THEME (v2.5. ライト／ダーク)
+  色の実体は **src/index.css の CSS 変数 --c-***。constants.js の COLORS は `var(--c-*)` を指すだけ。
+  切り替えは <html data-theme="light|dark"> の付け外しだけで済ませる（各画面には手を入れない）。
+    data-theme 無し = 端末に合わせる（prefers-color-scheme）。設定で選んだときだけ属性が付く。
+  保存: localStorage 'quizmake.theme.v1' = 'system'|'light'|'dark'。
+  適用は main.jsx で **描画前**に行う（あとから当てると一瞬明るい画面が出てちらつく）。
+  ダークの作り方: 下地(*Light)は暗く、その上に載る文字(*Dark)は明るく入れ替える。
+    役割が対になっているので、明暗をひっくり返すだけで読める組み合わせが保たれる。
+  COLORS.onAccent = '#ffffff' 固定。青・緑・赤の面に載る文字はダークでも白のまま。
+  新しく色を足すときは、必ず --c-* を増やしてから COLORS 経由で使う。
+  ハードコードした色（'#f1f5f9' など）を直接書かない。ダークで取り残される。
+
 TOKENS (strict, no additions)
   font: 'Noto Sans JP',sans-serif
   bg#f8fafc card#fff border#e2e8f0 cardBorder#eef2f7 text#1e293b sub#64748b muted#94a3b8 body#475569
@@ -211,6 +223,7 @@ IMPORT COEXISTENCE
 ============================================================
 S3 /settings 設定 (v2 追加。drawer 最下段から入る)
   1カラム, maxw720, card 20r。3セクション:
+    見た目 : segmented [端末に合わせる|ライト|ダーク]（THEME を見よ）
     キーボードショートカット : 説明文 + 一覧(ShortcutList)。ヘッダーから移設した常設の置き場。
     通知   : pill「準備中」 + "「今日の復習」がたまったときにお知らせする機能を準備しています。
              お使いの端末に通知を届けるにはアカウントが必要なため、アカウント機能と一緒に提供します。"

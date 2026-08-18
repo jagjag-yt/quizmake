@@ -70,10 +70,16 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
     文章 required:
       toolbar (p8, b1 border, r12, bg #f8fafc, position:sticky top:0 on tablet):
         [■ 隠す](primary, enabled only when selection non-empty, shortcut **Ctrl+F1**（実装の主。⌘/Ctrl+H も受ける）)
+        [同じ語をすべて隠す](enabled when selection non-empty)
+          選んだ語と同じ語を文章全体からまとめて隠す。隠しても文字数は変わらないので、
+          元の文章での位置をそのまま使って順に hideRange する。
+          RATIONALE: **ブラウザは離れた複数箇所の同時選択を持てない**（Chrome 148 で実測。
+          textarea も contenteditable も rangeCount は 1 に潰れる。複数レンジは Firefox のみ）。
+          「飛び地を選んで一気に隠す」は実装できないため、これで代える。もう一つの手段は [[ ]] 記法。
         [□ 隠すのを解除](enabled when selection intersects a hidden run)
         divider + 文字色: 6 swatches 22px circle r999, active = 0 0 0 2px #fff, 0 0 0 3px #2563eb
         disabled state (empty body): swatch/button bg #f1f5f9 fg #cbd5e1
-      入力欄 b1 #2563eb r10 p16 min-h230 15.5px/1.95
+      入力欄 b1 #2563eb r10 p16 min-h230
       IMPLEMENTATION (二層構造。contenteditable ではない):
         下: EditorOverlay(position:absolute; inset:0; pointer-events:none) がマーカーの見た目を描く
         上: <textarea>(背景 transparent, -webkit-text-fill-color: transparent) が入力と選択を受ける
@@ -100,6 +106,16 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
                         例：植物は葉の[[葉緑体]]で —— 閉じた時点で括弧は消え、その語が隠す箇所になります。"
       reason: 選択してボタンを押す操作は書きながらだと手が止まる。貼り付け後の一括指定にも使える。
     footnote block (bg #f8fafc, b1 cardBorder, r14): "虫食い問題は採点しないため、正答率・定着度・今日の復習には含まれません。Excelにも書き出されません。"
+  SHORTCUT の挙動(v2.5):
+    Ctrl+F1（⌘/Ctrl+H）は **トグル**。隠れている箇所を選んでいれば元に戻し、そうでなければ隠す。
+    押したあとは選択を解き、カーソルを範囲の末尾に置く。選択が残っていると続けて押したときに
+    同じ場所へ何度も効いてしまう。
+    判定は **state ではなく入力欄の今の選択（selectionStart/End）を直接読む**。
+    state は同じ処理の中では前の値のままで、押した瞬間の選択とずれる。
+  本文の文字(v2.5): 入力欄とプレビューで **同じ 18px / 行間 2.05**（compact は 17px）にする。
+    別々の値だと同じ文章でも折り返しと行数が変わり、左右で高さが揃わない。
+    EditorOverlay と textarea は重ねているので、必ず同じ値を渡すこと。
+
   serialize rules: merge adjacent runs with identical (hide,color); drop empty; renumber markers.
   PREVIEW pane: exact 演習 card. segmented [閉じた状態|開いた状態] switches all markers (preview markers are not individually clickable).
     header: 虫食い pill + group pill + "N / N問目"; title 20b; body; footer "Nか所中 Mか所 表示中" + [すべて表示]

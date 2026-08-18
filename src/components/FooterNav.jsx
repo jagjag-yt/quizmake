@@ -57,7 +57,7 @@ export default function FooterNav({
     ...base,
     border: `1px solid ${COLORS.border}`,
     background: COLORS.card,
-    color: disabled ? '#cbd5e1' : COLORS.body,
+    color: disabled ? COLORS.dashed : COLORS.body,
     cursor: disabled ? 'default' : 'pointer',
     opacity: disabled ? 0.6 : 1,
   })

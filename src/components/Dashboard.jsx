@@ -148,7 +148,7 @@ function BarRow({ label, ratio, valueText, color = COLORS.blue, sub }) {
           minWidth: 0,
           height: '10px',
           borderRadius: '999px',
-          background: '#f1f5f9',
+          background: COLORS.chipTrack,
           overflow: 'hidden',
         }}
       >

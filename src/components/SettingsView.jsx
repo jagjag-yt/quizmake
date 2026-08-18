@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { COLORS, SPACING, TAP_MIN } from '../constants'
+import { COLORS, SPACING, TAP_MIN, THEMES } from '../constants'
+import { loadTheme, saveTheme } from '../utils/theme'
 import ConfirmDialog from './ConfirmDialog'
 import { ShortcutList } from './ShortcutHelp'
 import { useCompactLayout } from '../hooks/useMediaQuery'
@@ -31,6 +32,7 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const [confirming, setConfirming] = useState(false)
+  const [theme, setTheme] = useState(loadTheme)
 
   return (
     <div
@@ -45,6 +47,57 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
       }}
     >
       <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: COLORS.text }}>設定</h2>
+
+      {/* 見た目 */}
+      <section style={card(space.card)}>
+        <h3 style={heading}>見た目</h3>
+        <p style={{ ...note, marginBottom: '12px' }}>
+          暗い場所で使うときはダークが目に楽です。「端末に合わせる」を選ぶと、
+          お使いの端末の設定（ダークモードの切り替え）にそのまま従います。
+        </p>
+        <div
+          role="radiogroup"
+          aria-label="見た目"
+          style={{
+            display: 'inline-flex',
+            gap: '2px',
+            padding: '3px',
+            borderRadius: '999px',
+            background: COLORS.chipTrack,
+          }}
+        >
+          {[
+            { key: THEMES.SYSTEM, text: '端末に合わせる' },
+            { key: THEMES.LIGHT, text: 'ライト' },
+            { key: THEMES.DARK, text: 'ダーク' },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.key}
+              onClick={() => {
+                setTheme(t.key)
+                saveTheme(t.key)
+              }}
+              style={{
+                minHeight: '34px',
+                padding: '0 14px',
+                borderRadius: '999px',
+                border: 'none',
+                background: theme === t.key ? COLORS.blue : 'transparent',
+                color: theme === t.key ? COLORS.onAccent : COLORS.sub,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {t.text}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* 通知 */}
       <section style={card(space.card)}>

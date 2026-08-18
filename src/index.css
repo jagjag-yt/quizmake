@@ -1,17 +1,111 @@
 @import 'tailwindcss';
 
+/*
+ * 色は全部ここで定義する。
+ *
+ * 画面はインラインスタイルで組んでいるが、値は constants.js の COLORS 経由で
+ * この CSS 変数を指している。そのため <html data-theme="dark"> を付けるだけで
+ * 全画面の色が入れ替わる（各コンポーネントには手を入れない）。
+ *
+ * 既定（data-theme 無し）は端末の設定に従う。設定画面で選んだときだけ
+ * data-theme が付き、端末の設定より優先される。
+ */
 :root {
-  --bg: #f8fafc;
+  --c-bg: #f8fafc;
+  --c-card: #ffffff;
+  --c-border: #e2e8f0;
+  --c-card-border: #eef2f7;
+  --c-text: #1e293b;
+  --c-sub: #64748b;
+  --c-muted: #94a3b8;
+  --c-body: #475569;
+  --c-blue: #2563eb;
+  --c-blue-light: #eff6ff;
+  --c-blue-pale: #93c5fd;
+  --c-green: #16a34a;
+  --c-green-light: #f0fdf4;
+  --c-green-dark: #166534;
+  --c-red: #dc2626;
+  --c-red-light: #fef2f2;
+  --c-red-dark: #991b1b;
+  --c-chip-track: #f1f5f9;
+  --c-row-hover: #f8fafc;
+  --c-row-border: #f1f5f9;
+  --c-scrim: rgba(15, 23, 42, 0.28);
+  --c-dashed: #cbd5e1;
+  --c-amber: #f59e0b;
+  --c-amber-light: #fffbeb;
+  --c-amber-dark: #b45309;
+
+  --bg: var(--c-bg);
+  color-scheme: light;
 }
 
-* {
-  box-sizing: border-box;
+/*
+ * ダークの値。
+ * 「下地（*Light）」は暗く、「その上に載る文字（*Dark）」は明るく入れ替える。
+ * 役割が対になっているので、明暗をひっくり返すだけで読める組み合わせが保たれる。
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c-bg: #0f172a;
+    --c-card: #1e293b;
+    --c-border: #334155;
+    --c-card-border: #334155;
+    --c-text: #e2e8f0;
+    --c-sub: #94a3b8;
+    --c-muted: #7c8ba1;
+    --c-body: #cbd5e1;
+    --c-blue: #3b82f6;
+    --c-blue-light: #1e3a5f;
+    --c-blue-pale: #60a5fa;
+    --c-green: #22c55e;
+    --c-green-light: #14532d;
+    --c-green-dark: #86efac;
+    --c-red: #ef4444;
+    --c-red-light: #4c1d1d;
+    --c-red-dark: #fca5a5;
+    --c-chip-track: #334155;
+    --c-row-hover: #26344a;
+    --c-row-border: #334155;
+    --c-scrim: rgba(2, 6, 23, 0.6);
+    --c-dashed: #64748b;
+    --c-amber: #f59e0b;
+    --c-amber-light: #422006;
+    --c-amber-dark: #fcd34d;
+
+    color-scheme: dark;
+  }
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
+:root[data-theme='dark'] {
+  --c-bg: #0f172a;
+  --c-card: #1e293b;
+  --c-border: #334155;
+  --c-card-border: #334155;
+  --c-text: #e2e8f0;
+  --c-sub: #94a3b8;
+  --c-muted: #7c8ba1;
+  --c-body: #cbd5e1;
+  --c-blue: #3b82f6;
+  --c-blue-light: #1e3a5f;
+  --c-blue-pale: #60a5fa;
+  --c-green: #22c55e;
+  --c-green-light: #14532d;
+  --c-green-dark: #86efac;
+  --c-red: #ef4444;
+  --c-red-light: #4c1d1d;
+  --c-red-dark: #fca5a5;
+  --c-chip-track: #334155;
+  --c-row-hover: #26344a;
+  --c-row-border: #334155;
+  --c-scrim: rgba(2, 6, 23, 0.6);
+  --c-dashed: #64748b;
+  --c-amber: #f59e0b;
+  --c-amber-light: #422006;
+  --c-amber-dark: #fcd34d;
+
+  color-scheme: dark;
 }
 
 /* ドロワー：本文を押し出さず、暗幕の上を左からすべり込ませる */
@@ -41,10 +135,20 @@ body {
   }
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
 body {
   background: var(--bg);
   font-family: 'Noto Sans JP', sans-serif;
-  color: #1e293b;
+  color: var(--c-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

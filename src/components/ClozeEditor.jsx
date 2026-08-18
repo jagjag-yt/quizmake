@@ -16,6 +16,14 @@ import {
 import { useCompactLayout } from '../hooks/useMediaQuery'
 import { shouldInline } from '../utils/clozeRender'
 
+/**
+ * 本文の文字。入力欄とプレビューで同じ値を使う。
+ * 別々の値にすると、同じ文章でも折り返しと行数が変わり、左右で高さが揃わない。
+ * 値はプレビュー（＝演習画面の見た目）に合わせている。
+ */
+const BODY_LINE_HEIGHT = 2.05
+const bodyFontSizeFor = (compact) => (compact ? '17px' : '18px')
+
 const card = (pad) => ({
   background: COLORS.card,
   borderRadius: '20px',
@@ -58,7 +66,7 @@ const pill = (bg, color) => ({
  * 編集中は薄い下地＋細枠で「隠す対象」だけを示す（SPEC B: edit-mode mark render）。
  * 入力自体は下に重ねた textarea が受け持ち、この層は見た目だけを担当する。
  */
-function EditorOverlay({ paras }) {
+function EditorOverlay({ paras, fontSize, lineHeight }) {
   const indexed = withMarkerIndexes(paras)
   return (
     <div
@@ -69,8 +77,8 @@ function EditorOverlay({ paras }) {
         boxSizing: 'border-box',
         border: '1px solid transparent',
         padding: '16px',
-        fontSize: '15.5px',
-        lineHeight: 1.95,
+        fontSize,
+        lineHeight,
         fontFamily: 'inherit',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
@@ -185,6 +193,7 @@ export default function ClozeEditor({
   pane = 'editor',
 }) {
   const compact = useCompactLayout()
+  const bodyFontSize = bodyFontSizeFor(compact)
   const space = compact ? SPACING.compact : SPACING.wide
   const [previewOpen, setPreviewOpen] = useState(false)
   const [selection, setSelection] = useState({ start: 0, end: 0 })
@@ -242,15 +251,48 @@ export default function ClozeEditor({
     if (el) setSelection({ start: el.selectionStart, end: el.selectionEnd })
   }, [])
 
+  /**
+   * 指定した範囲に反映したあと、選択を解いて末尾にカーソルを置く。
+   * 選択が残っていると、続けて押したときに同じ場所へ何度も効いてしまう。
+   */
+  const applyAndDeselect = useCallback(
+    (nextParas) => {
+      onUpdate(question.id, { paras: nextParas })
+      caretRef.current = selection.end
+      setSelection({ start: selection.end, end: selection.end })
+    },
+    [onUpdate, question.id, selection.end],
+  )
+
   const applyHide = useCallback(() => {
     if (!hasSelection) return
-    onUpdate(question.id, { paras: hideRange(paras, selection.start, selection.end) })
-  }, [hasSelection, onUpdate, question.id, paras, selection])
+    applyAndDeselect(hideRange(paras, selection.start, selection.end))
+  }, [hasSelection, applyAndDeselect, paras, selection])
 
   const applyUnhide = useCallback(() => {
     if (!hasSelection) return
-    onUpdate(question.id, { paras: unhideRange(paras, selection.start, selection.end) })
-  }, [hasSelection, onUpdate, question.id, paras, selection])
+    applyAndDeselect(unhideRange(paras, selection.start, selection.end))
+  }, [hasSelection, applyAndDeselect, paras, selection])
+
+  /**
+   * 選んだ語と同じ語を、文章全体でまとめて隠す。
+   *
+   * ブラウザは離れた複数箇所の同時選択を持てない（Chrome では範囲が1つに潰れる）。
+   * 「飛び地を選んで一気に隠す」の代わりに、同じ語の一括指定を用意する。
+   */
+  const hideAllSame = useCallback(() => {
+    if (!hasSelection) return
+    const word = text.slice(selection.start, selection.end)
+    if (!word.trim()) return
+    let next = paras
+    let at = text.indexOf(word)
+    while (at !== -1) {
+      // 隠しても文字数は変わらないので、元の文章での位置をそのまま使える
+      next = hideRange(next, at, at + word.length)
+      at = text.indexOf(word, at + word.length)
+    }
+    applyAndDeselect(next)
+  }, [hasSelection, text, selection, paras, applyAndDeselect])
 
   const applyColor = useCallback(
     (color) => {
@@ -262,22 +304,32 @@ export default function ClozeEditor({
     [hasSelection, onUpdate, question.id, paras, selection],
   )
 
-  // 「隠す」のショートカット。Ctrl+F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
+  // 隠す/戻すのショートカット。Ctrl+F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
   useEffect(() => {
     const onKey = (e) => {
       const hit =
         (e.ctrlKey && e.key === 'F1') ||
         ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H'))
       if (!hit) return
+      const el = areaRef.current
       // 入力欄の中にいるときだけ効かせる（他画面のキー操作を邪魔しない）
-      if (document.activeElement !== areaRef.current) return
+      if (document.activeElement !== el) return
       e.preventDefault()
-      syncSelection()
-      applyHide()
+      // state ではなく入力欄の今の選択を読む。state は同じ処理の中では古いままのため
+      const start = el.selectionStart
+      const end = el.selectionEnd
+      if (end <= start) return
+      const next = rangeHasHidden(paras, start, end)
+        ? unhideRange(paras, start, end)
+        : hideRange(paras, start, end)
+      onUpdate(question.id, { paras: next })
+      // 隠したらその場の選択は解く。残っていると続けて押したとき同じ場所に効く
+      caretRef.current = end
+      setSelection({ start: end, end })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [applyHide, syncSelection])
+  }, [paras, onUpdate, question.id])
 
   const toolbarButton = (enabled, primary) => ({
     minHeight: '36px',
@@ -361,6 +413,15 @@ export default function ClozeEditor({
           >
             {compact ? '□ 解除' : '□ 隠すのを解除'}
           </button>
+          <button
+            type="button"
+            onClick={hideAllSame}
+            disabled={!hasSelection}
+            title="選んだ語と同じ語を、文章の中からまとめて隠す"
+            style={toolbarButton(hasSelection, false)}
+          >
+            {compact ? '同じ語' : '同じ語をすべて隠す'}
+          </button>
           <span style={{ width: '1px', height: '24px', background: COLORS.border }} />
           <span style={{ ...label, fontSize: '12px' }}>文字色</span>
           {TEXT_COLORS.map((c) => (
@@ -392,7 +453,7 @@ export default function ClozeEditor({
 
         {/* 入力欄（下に見た目の層、上に透明なtextarea） */}
         <div style={{ position: 'relative', marginTop: '10px' }}>
-          <EditorOverlay paras={paras} />
+          <EditorOverlay paras={paras} fontSize={bodyFontSize} lineHeight={BODY_LINE_HEIGHT} />
           <textarea
             ref={areaRef}
             value={text}
@@ -433,8 +494,8 @@ export default function ClozeEditor({
               background: 'transparent',
               color: COLORS.text,
               caretColor: COLORS.text,
-              fontSize: '15.5px',
-              lineHeight: 1.95,
+              fontSize: bodyFontSize,
+              lineHeight: BODY_LINE_HEIGHT,
               fontFamily: 'inherit',
               // 高さは中身に追従させる。手で変えられると下の層とずれる
               resize: 'none',
