@@ -430,7 +430,6 @@ export default function QuestionsView({
       noteKey={questionKey(selected.q)}
       onToggleBookmark={() => onToggleBookmark(questionKey(selected.q))}
       onSaveNote={(note) => onSaveNote(questionKey(selected.q), note)}
-      onStartFromHere={() => onStartQuiz(filteredQuestions, { startAtId: selected.q.id })}
       cardPadding={space.card}
     />
   ) : null
@@ -988,7 +987,7 @@ export default function QuestionsView({
               </span>
             </div>
 
-            {/* 1問だけへの操作（複製・移動・削除） */}
+            {/* この問題への操作。演習 → 編集 → 複製 → 移動 → 削除 の順に並べる */}
             <div
               style={{
                 display: 'flex',
@@ -1000,6 +999,18 @@ export default function QuestionsView({
                 background: COLORS.bg,
               }}
             >
+              <button
+                type="button"
+                onClick={() => onStartQuiz(filteredQuestions, { startAtId: selected.q.id })}
+                style={{
+                  ...panelAction(),
+                  borderColor: COLORS.blue,
+                  background: COLORS.blue,
+                  color: COLORS.onAccent,
+                }}
+              >
+                ▶ この問題から演習
+              </button>
               <button
                 type="button"
                 onClick={() => onEdit(selected.q.id)}
@@ -1041,7 +1052,7 @@ export default function QuestionsView({
                     closeAfter: true,
                   })
                 }
-                style={{ ...panelAction(), marginLeft: 'auto', borderColor: COLORS.red, color: COLORS.red }}
+                style={{ ...panelAction(), borderColor: COLORS.red, color: COLORS.red }}
               >
                 🗑 削除
               </button>

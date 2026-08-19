@@ -126,7 +126,11 @@ DETAIL content order:
   自分メモ (h14b+bb) editable textarea-look input10, autosave onBlur; empty -> "メモはまだありません。クリックして入力できます。"
   ANSWER VISIBILITY(v2): 詳細パネルは既定で答えを伏せる。segmented [答えを隠す|答えを表示] DEFAULT=答えを隠す。
     reason: 一覧から復習に使うため、開いた瞬間に正解が見えると確認にならない。虫食いの D2 も同じ既定に揃えた。
-  ACTIONS(detail panel 上部): [✎ 編集][⧉ 複製][→ 移動][🗑 削除]
+  ACTIONS(detail panel 上部, v2.7): **1行に [▶ この問題から演習][✎ 編集][⧉ 複製][→ 移動…][🗑 削除] の順**。
+    「この問題から演習」は primary(青塗り)。以前は見出し行の右端に単独で置いていたが、
+    同じ問題への操作なのに離れていて探しづらいため、操作の行の先頭にまとめた。
+    削除の marginLeft:auto は外す（右端に飛ぶと並び順が崩れる）。
+    スマホ幅では折り返して2行になるが、順序は保たれる（実測 390px で 3個＋2個）。
   meta line muted12: 定着度 ●●●○○ · "n回中m回正解 · 最終 YYYY/MM/DD" | "未学習"
 STATES
   empty: 📄 in circle chipTrack + "問題がまだありません" + "Excelを読み込むか、アプリ内で作成すると/ここに一覧が表示されます。" + [📄 Excelを読み込む][＋ 問題を作成]

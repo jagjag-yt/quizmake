@@ -156,7 +156,6 @@ export default function QuestionDetail({
   noteKey,
   onToggleBookmark,
   onSaveNote,
-  onStartFromHere,
   cardPadding = 32,
 }) {
   // 未入力のまま残っている選択肢・基本事項は表示しない
@@ -214,26 +213,6 @@ export default function QuestionDetail({
           }}
         >
           {record?.bookmarked ? '★' : '☆'}
-        </button>
-        <button
-          type="button"
-          onClick={onStartFromHere}
-          style={{
-            marginLeft: 'auto',
-            minHeight: `${TAP_MIN - 8}px`,
-            padding: '8px 16px',
-            borderRadius: '12px',
-            border: `1px solid ${COLORS.blue}`,
-            background: COLORS.blue,
-            color: '#ffffff',
-            fontSize: '13px',
-            fontWeight: 700,
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          この問題から演習
         </button>
       </div>
 
