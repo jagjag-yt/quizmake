@@ -56,7 +56,8 @@ export default function OfflineNotice() {
         padding: '10px 16px',
         borderRadius: '999px',
         background: COLORS.text,
-        color: '#ffffff',
+        // 背景がテーマで反転するので、文字は必ずその逆（＝カードの色）にする
+        color: COLORS.card,
         fontSize: '12.5px',
         fontWeight: 700,
         boxShadow: '0 8px 24px rgba(15,23,42,0.24)',
@@ -67,7 +68,7 @@ export default function OfflineNotice() {
         ⚡
       </span>
       オフラインです
-      <span style={{ fontWeight: 400, color: COLORS.dashed }}>演習は続けられます</span>
+      <span style={{ fontWeight: 400, color: COLORS.muted }}>演習は続けられます</span>
       <button
         type="button"
         onClick={() => setDismissed(true)}
@@ -84,7 +85,7 @@ export default function OfflineNotice() {
           borderRadius: '999px',
           border: 'none',
           background: 'transparent',
-          color: '#ffffff',
+          color: COLORS.card,
           fontSize: '13px',
           lineHeight: 1,
           fontFamily: 'inherit',

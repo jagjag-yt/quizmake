@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, TEXT_COLORS } from '../constants'
+import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, TEXT_COLORS, inkColor } from '../constants'
 import {
   bodyLength,
   colorOfRange,
@@ -100,13 +100,13 @@ function EditorOverlay({ paras, fontSize, lineHeight }) {
                     background: COLORS.blueLight,
                     boxShadow: `inset 0 0 0 1px ${COLORS.bluePale}`,
                     borderRadius: 0,
-                    color: run.color,
+                    color: inkColor(run.color),
                   }}
                 >
                   {run.text}
                 </span>
               ) : (
-                <span key={ri} style={{ color: run.color }}>
+                <span key={ri} style={{ color: inkColor(run.color) }}>
                   {run.text}
                 </span>
               ),
@@ -128,7 +128,7 @@ function PreviewBody({ paras, allOpen, compact }) {
           {para.map((run, ri) => {
             if (!run.hide) {
               return (
-                <span key={ri} style={{ color: run.color }}>
+                <span key={ri} style={{ color: inkColor(run.color) }}>
                   {run.text}
                 </span>
               )
@@ -145,7 +145,7 @@ function PreviewBody({ paras, allOpen, compact }) {
                   borderRadius: 0,
                   lineHeight: 1.35,
                   background: allOpen ? COLORS.blueLight : COLORS.blue,
-                  color: allOpen ? run.color : 'transparent',
+                  color: allOpen ? inkColor(run.color) : 'transparent',
                   boxShadow: allOpen ? `inset 0 -2px 0 ${COLORS.bluePale}` : 'none',
                 }}
               >
@@ -304,11 +304,11 @@ export default function ClozeEditor({
     [hasSelection, onUpdate, question.id, paras, selection],
   )
 
-  // 隠す/戻すのショートカット。Ctrl+F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
+  // 隠す/戻すのショートカット。F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
   useEffect(() => {
     const onKey = (e) => {
       const hit =
-        (e.ctrlKey && e.key === 'F1') ||
+        (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey) ||
         ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H'))
       if (!hit) return
       const el = areaRef.current
@@ -400,7 +400,7 @@ export default function ClozeEditor({
             type="button"
             onClick={applyHide}
             disabled={!hasSelection}
-            title="選択した範囲を隠す（Ctrl+F1）"
+            title="選択した範囲を隠す（F1）"
             style={toolbarButton(hasSelection, true)}
           >
             ■ 隠す
@@ -438,16 +438,18 @@ export default function ClozeEditor({
                 borderRadius: '999px',
                 border: 'none',
                 // 本文が空のときだけ灰色にする。文章があれば選択前でも色見本として見せる（SPEC B）
-                background: chars ? c.value : COLORS.chipTrack,
+                background: chars ? inkColor(c.value) : COLORS.chipTrack,
                 boxShadow:
-                  currentColor === c.value ? `0 0 0 2px #ffffff, 0 0 0 3px ${COLORS.blue}` : 'none',
+                  currentColor === c.value
+                    ? `0 0 0 2px ${COLORS.card}, 0 0 0 3px ${COLORS.blue}`
+                    : 'none',
                 cursor: hasSelection ? 'pointer' : 'default',
                 padding: 0,
               }}
             />
           ))}
           <span style={{ marginLeft: 'auto', fontSize: '11px', color: COLORS.muted }}>
-            {compact ? '［［ ］］でも隠せます' : 'Ctrl+F1 で隠す'}
+            {compact ? '［［ ］］でも隠せます' : 'F1 で隠す'}
           </span>
         </div>
 

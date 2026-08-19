@@ -82,9 +82,9 @@ const ghostButton = {
   minHeight: '36px',
   padding: '0 14px',
   borderRadius: '10px',
-  border: `1px solid ${COLORS.sub}`,
-  background: 'transparent',
-  color: '#ffffff',
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.card,
+  color: COLORS.body,
   fontSize: '12.5px',
   fontWeight: 700,
   fontFamily: 'inherit',
@@ -430,7 +430,6 @@ export default function QuestionsView({
       noteKey={questionKey(selected.q)}
       onToggleBookmark={() => onToggleBookmark(questionKey(selected.q))}
       onSaveNote={(note) => onSaveNote(questionKey(selected.q), note)}
-      onStartFromHere={() => onStartQuiz(filteredQuestions, { startAtId: selected.q.id })}
       cardPadding={space.card}
     />
   ) : null
@@ -852,12 +851,13 @@ export default function QuestionsView({
             gap: '12px',
             padding: '12px 18px',
             borderRadius: '14px',
-            background: COLORS.text,
-            boxShadow: '0 8px 24px rgba(15,23,42,0.24)',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            boxShadow: '0 8px 24px rgba(15,23,42,0.16)',
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
             {checkedIds.length}問を選択中
           </span>
           <button
@@ -866,7 +866,7 @@ export default function QuestionsView({
               onBulkBookmark(checkedIds)
               setCheckedIds([])
             }}
-            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.amber}`, background: 'transparent', color: COLORS.amberLight, fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.amber}`, background: COLORS.card, color: COLORS.amberDark, fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             ★ ブックマーク
           </button>
@@ -902,7 +902,7 @@ export default function QuestionsView({
           <button
             type="button"
             onClick={() => setSplitting(true)}
-            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.sub}`, background: 'transparent', color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+            style={{ minHeight: '36px', padding: '0 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: COLORS.card, color: COLORS.body, fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             ⇱ 別グループへ分割
           </button>
@@ -911,7 +911,7 @@ export default function QuestionsView({
             onClick={() =>
               setDeleting({ ids: [...checkedIds], label: `選択した${checkedIds.length}問` })
             }
-            style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.redLight }}
+            style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.red }}
           >
             🗑 削除
           </button>
@@ -987,7 +987,7 @@ export default function QuestionsView({
               </span>
             </div>
 
-            {/* 1問だけへの操作（複製・移動・削除） */}
+            {/* この問題への操作。演習 → 編集 → 複製 → 移動 → 削除 の順に並べる */}
             <div
               style={{
                 display: 'flex',
@@ -999,6 +999,18 @@ export default function QuestionsView({
                 background: COLORS.bg,
               }}
             >
+              <button
+                type="button"
+                onClick={() => onStartQuiz(filteredQuestions, { startAtId: selected.q.id })}
+                style={{
+                  ...panelAction(),
+                  borderColor: COLORS.blue,
+                  background: COLORS.blue,
+                  color: COLORS.onAccent,
+                }}
+              >
+                ▶ この問題から演習
+              </button>
               <button
                 type="button"
                 onClick={() => onEdit(selected.q.id)}
@@ -1040,7 +1052,7 @@ export default function QuestionsView({
                     closeAfter: true,
                   })
                 }
-                style={{ ...panelAction(), marginLeft: 'auto', borderColor: COLORS.red, color: COLORS.red }}
+                style={{ ...panelAction(), borderColor: COLORS.red, color: COLORS.red }}
               >
                 🗑 削除
               </button>

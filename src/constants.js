@@ -64,6 +64,35 @@ export const TEXT_COLORS = [
 
 export const DEFAULT_TEXT_COLOR = '#1e293b'
 
+/**
+ * 文字色の「保存値 → 表示に使う色」の対応。
+ *
+ * 保存されるのは TEXT_COLORS の値（濃い色）そのままで、これは作った問題の中に
+ * 残る。そのままダークで表示すると、暗い背景に暗い文字が乗って読めなくなる
+ * （標準色 #1e293b はダークのカード色と同じ）。
+ * 表示のときだけ CSS 変数に読み替え、ライト／ダークで濃さを入れ替える。
+ * 保存されている値は変えないので、既存の問題もそのまま使える。
+ */
+const INK_VARS = {
+  '#1e293b': 'var(--c-ink)',
+  '#2563eb': 'var(--c-ink-blue)',
+  '#166534': 'var(--c-ink-green)',
+  '#991b1b': 'var(--c-ink-red)',
+  '#b45309': 'var(--c-ink-amber)',
+  '#64748b': 'var(--c-ink-gray)',
+}
+
+/**
+ * 保存されている文字色を、いまの見た目に合う色に読み替える。
+ * 対応表に無い値（古いデータなど）はそのまま返す。
+ *
+ * @param {string|undefined} value 保存値
+ * @returns {string} 表示に使う色
+ */
+export function inkColor(value) {
+  return INK_VARS[value] ?? value ?? 'var(--c-ink)'
+}
+
 /** 虫食いの見出し・本文の上限。 */
 export const CLOZE_LIMITS = {
   TITLE_CHARS: 120,

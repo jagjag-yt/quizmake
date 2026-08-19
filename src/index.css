@@ -37,6 +37,14 @@
   --c-amber-light: #fffbeb;
   --c-amber-dark: #b45309;
 
+  /* 虫食いの文字色（保存値からの読み替え先）。ライトは濃く、ダークは淡く */
+  --c-ink: #1e293b;
+  --c-ink-blue: #2563eb;
+  --c-ink-green: #166534;
+  --c-ink-red: #991b1b;
+  --c-ink-amber: #b45309;
+  --c-ink-gray: #64748b;
+
   --bg: var(--c-bg);
   color-scheme: light;
 }
@@ -59,7 +67,7 @@
     --c-blue: #3b82f6;
     --c-blue-light: #1e3a5f;
     --c-blue-pale: #60a5fa;
-    --c-green: #22c55e;
+    --c-green: #16a34a;
     --c-green-light: #14532d;
     --c-green-dark: #86efac;
     --c-red: #ef4444;
@@ -69,10 +77,17 @@
     --c-row-hover: #26344a;
     --c-row-border: #334155;
     --c-scrim: rgba(2, 6, 23, 0.6);
-    --c-dashed: #64748b;
+    --c-dashed: #8b9ab0;
     --c-amber: #f59e0b;
     --c-amber-light: #422006;
     --c-amber-dark: #fcd34d;
+
+    --c-ink: #e2e8f0;
+    --c-ink-blue: #93c5fd;
+    --c-ink-green: #86efac;
+    --c-ink-red: #fca5a5;
+    --c-ink-amber: #fcd34d;
+    --c-ink-gray: #94a3b8;
 
     color-scheme: dark;
   }
@@ -90,7 +105,7 @@
   --c-blue: #3b82f6;
   --c-blue-light: #1e3a5f;
   --c-blue-pale: #60a5fa;
-  --c-green: #22c55e;
+  --c-green: #16a34a;
   --c-green-light: #14532d;
   --c-green-dark: #86efac;
   --c-red: #ef4444;
@@ -100,10 +115,17 @@
   --c-row-hover: #26344a;
   --c-row-border: #334155;
   --c-scrim: rgba(2, 6, 23, 0.6);
-  --c-dashed: #64748b;
+  --c-dashed: #8b9ab0;
   --c-amber: #f59e0b;
   --c-amber-light: #422006;
   --c-amber-dark: #fcd34d;
+
+  --c-ink: #e2e8f0;
+  --c-ink-blue: #93c5fd;
+  --c-ink-green: #86efac;
+  --c-ink-red: #fca5a5;
+  --c-ink-amber: #fcd34d;
+  --c-ink-gray: #94a3b8;
 
   color-scheme: dark;
 }
