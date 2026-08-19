@@ -304,11 +304,11 @@ export default function ClozeEditor({
     [hasSelection, onUpdate, question.id, paras, selection],
   )
 
-  // 隠す/戻すのショートカット。Ctrl+F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
+  // 隠す/戻すのショートカット。F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
   useEffect(() => {
     const onKey = (e) => {
       const hit =
-        (e.ctrlKey && e.key === 'F1') ||
+        (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey) ||
         ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H'))
       if (!hit) return
       const el = areaRef.current
@@ -400,7 +400,7 @@ export default function ClozeEditor({
             type="button"
             onClick={applyHide}
             disabled={!hasSelection}
-            title="選択した範囲を隠す（Ctrl+F1）"
+            title="選択した範囲を隠す（F1）"
             style={toolbarButton(hasSelection, true)}
           >
             ■ 隠す
@@ -449,7 +449,7 @@ export default function ClozeEditor({
             />
           ))}
           <span style={{ marginLeft: 'auto', fontSize: '11px', color: COLORS.muted }}>
-            {compact ? '［［ ］］でも隠せます' : 'Ctrl+F1 で隠す'}
+            {compact ? '［［ ］］でも隠せます' : 'F1 で隠す'}
           </span>
         </div>
 

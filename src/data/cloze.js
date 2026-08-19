@@ -235,12 +235,45 @@ export function rebuildFromText(prevParas, text) {
     return hit ? { hide: hit.run.hide, color: hit.run.color } : {}
   }
 
+  const prevText = parasToText(prevParas)
+  const next = String(text ?? '')
+
+  // 変わっていない先頭と末尾を求め、その間だけを「今おこなった編集」とみなす。
+  // 位置をそのまま引き写すと、前に文字を足したときに隠す箇所だけ取り残されて
+  // 文字とずれる（実際に報告された症状）。前後を突き合わせて位置をずらす。
+  const limit = Math.min(prevText.length, next.length)
+  let prefix = 0
+  while (prefix < limit && prevText[prefix] === next[prefix]) prefix += 1
+  let suffix = 0
+  while (
+    suffix < limit - prefix &&
+    prevText[prevText.length - 1 - suffix] === next[next.length - 1 - suffix]
+  ) {
+    suffix += 1
+  }
+
+  const editedEnd = next.length - suffix // 新しい文章での編集範囲の終わり
+  const shift = prevText.length - next.length // 末尾側の位置のずれ
+
+  // 打った文字が隠す範囲の「内側」なら、その範囲の設定を引き継いで一緒に伸びる。
+  // 範囲の境目（直前・直後）で打った文字は巻き込まない。
+  const before = prefix > 0 ? attrAt(prefix - 1) : {}
+  const after = attrAt(prevText.length - suffix)
+  const insideAttr =
+    before.hide && after.hide && before.color === after.color ? before : {}
+
+  const attrFor = (pos) => {
+    if (pos < prefix) return attrAt(pos)
+    if (pos >= editedEnd) return attrAt(pos + shift)
+    return insideAttr
+  }
+
   const paras = []
   let pos = 0
-  for (const chunk of String(text ?? '').split('\n')) {
+  for (const chunk of next.split('\n')) {
     const runs = []
     for (const ch of chunk) {
-      runs.push(makeRun(ch, attrAt(pos)))
+      runs.push(makeRun(ch, attrFor(pos)))
       pos += 1
     }
     paras.push(mergeRuns(runs))

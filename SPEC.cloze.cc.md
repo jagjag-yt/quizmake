@@ -69,7 +69,7 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
     見出し (optional, h44) hint "未入力なら文章の冒頭を一覧に表示"
     文章 required:
       toolbar (p8, b1 border, r12, bg #f8fafc, position:sticky top:0 on tablet):
-        [■ 隠す](primary, enabled only when selection non-empty, shortcut **Ctrl+F1**（実装の主。⌘/Ctrl+H も受ける）)
+        [■ 隠す](primary, enabled only when selection non-empty, shortcut **F1**（修飾キー無し。⌘/Ctrl+H も受ける）)
         [同じ語をすべて隠す](enabled when selection non-empty)
           選んだ語と同じ語を文章全体からまとめて隠す。隠しても文字数は変わらないので、
           元の文章での位置をそのまま使って順に hideRange する。
@@ -97,7 +97,7 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
         background:#eff6ff; box-shadow:inset 0 0 0 1px #93c5fd; padding:0 5px; line-height:1.35; border-radius:0
         + same number badge, color #1e293b
       status row: pill "隠す箇所 N か所" + "薄い青枠が演習でマーカーになる範囲です" + right "N文字 / N段落"
-      hint row: compact「［［ ］］でも隠せます」/ desktop「Ctrl+F1 で隠す」
+      hint row: compact「［［ ］］でも隠せます」/ desktop「F1 で隠す」
     BRACKET INPUT (v2。選択操作を要らなくする第2の入力手段):
       本文に [[語句]] と入力すると、**閉じ括弧を打った時点で**括弧が消え、その語が「隠す箇所」になる。
       キャレットは括弧が消えた分だけ追従させる（ずれると連続入力ができない）。
@@ -107,7 +107,8 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
       reason: 選択してボタンを押す操作は書きながらだと手が止まる。貼り付け後の一括指定にも使える。
     footnote block (bg #f8fafc, b1 cardBorder, r14): "虫食い問題は採点しないため、正答率・定着度・今日の復習には含まれません。Excelにも書き出されません。"
   SHORTCUT の挙動(v2.5):
-    Ctrl+F1（⌘/Ctrl+H）は **トグル**。隠れている箇所を選んでいれば元に戻し、そうでなければ隠す。
+    F1（⌘/Ctrl+H）は **トグル**。隠れている箇所を選んでいれば元に戻し、そうでなければ隠す。
+    F1 はブラウザのヘルプに割り当てられているので、preventDefault を必ず呼ぶ。
     押したあとは選択を解き、カーソルを範囲の末尾に置く。選択が残っていると続けて押したときに
     同じ場所へ何度も効いてしまう。
     判定は **state ではなく入力欄の今の選択（selectionStart/End）を直接読む**。
@@ -115,6 +116,16 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
   本文の文字(v2.5): 入力欄とプレビューで **同じ 18px / 行間 2.05**（compact は 17px）にする。
     別々の値だと同じ文章でも折り返しと行数が変わり、左右で高さが揃わない。
     EditorOverlay と textarea は重ねているので、必ず同じ値を渡すこと。
+
+  文字を打ったときの追従(v2.6, 非交渉):
+    rebuildFromText は「位置をそのまま引き写す」ことをしない。
+    前の文章と新しい文章で **変わっていない先頭と末尾** を求め、その間だけを今回の編集とみなし、
+    末尾側の属性は文字数の差だけずらして引き継ぐ。
+    NG: 絶対位置で属性を引くだけの実装。前に文字を足すと隠す箇所だけ取り残され、文字とずれる
+        （実際に報告された症状）。
+    打った文字は、隠す範囲の **内側** のときだけ巻き込む（直前・直後は巻き込まない）。
+    実測: 先頭に挿入／直前に挿入／先頭を削除 -> 範囲は「葉緑体」のまま追従。
+          内側に挿入 -> 「葉XX緑体」に伸びる。直後に挿入 -> 巻き込まない。
 
   serialize rules: merge adjacent runs with identical (hide,color); drop empty; renumber markers.
   PREVIEW pane: exact 演習 card. segmented [閉じた状態|開いた状態] switches all markers (preview markers are not individually clickable).
