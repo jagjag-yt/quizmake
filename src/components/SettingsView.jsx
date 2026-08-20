@@ -212,7 +212,7 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
       {confirming && (
         <ConfirmDialog
           title="すべてのデータを削除しますか？"
-          message="作成した問題・グループ・学習記録がすべて消え、最初の状態に戻ります。元に戻せません。"
+          message="作成した問題とグループは、ごみ箱へ移してから最初の状態に戻します（あとから戻せます）。学習記録はここで消え、元に戻せません。完全に消したいときは、このあとごみ箱も空にしてください。"
           confirmLabel="削除する"
           onCancel={() => setConfirming(false)}
           onConfirm={() => {

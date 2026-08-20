@@ -506,6 +506,10 @@ export default function GroupsView({
       {merging && (
         <PromptDialog
           title={`${checked.length}個のグループを統合`}
+          message={`「${groups
+            .filter((g) => checked.includes(g.id))
+            .map((g) => g.name)
+            .join('」「')}」を1つにまとめます。中の問題はすべて残りますが、2個目以降のグループは無くなります。どの問題がどのグループにあったかは残らないため、分け直すには手作業が必要です。`}
           label="統合後のグループ名"
           defaultValue={groups.find((g) => g.id === checked[0])?.name ?? ''}
           confirmLabel="統合する"

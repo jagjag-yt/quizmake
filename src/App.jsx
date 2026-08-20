@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { COLORS, LETTERS, MODES, MODE_LABELS, QUESTION_TYPES, SPACING, VIEWS } from './constants'
+import {
+  COLORS,
+  LETTERS,
+  LIMITS,
+  MODES,
+  MODE_LABELS,
+  QUESTION_TYPES,
+  SPACING,
+  VIEWS,
+} from './constants'
 import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
 import { hiddenCount } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
@@ -178,6 +187,30 @@ export default function App() {
     },
     [questions, study.dataRef],
   )
+
+  /**
+   * 問題文が変わったら、学習記録も一緒に引っ越す。
+   *
+   * 記録は問題文をキーにしているので、誤字を直しただけでも別の問題になり、
+   * 正答率・定着度・ブックマーク・メモが行き先を失っていた。
+   * id ごとに前回のキーを覚えておき、変わったものだけ付け替える。
+   */
+  const questionKeysRef = useRef(null)
+  useEffect(() => {
+    const next = new Map(questions.map((q) => [q.id, questionKey(q)]))
+    const prev = questionKeysRef.current
+    questionKeysRef.current = next
+    if (!prev) return // 初回は控えるだけ
+
+    for (const [id, key] of next) {
+      const before = prev.get(id)
+      if (!before || before === key) continue
+      // 同じ問題文の問題が他にも残っているなら、その問題の記録なので動かさない
+      const stillUsed = questions.some((q) => q.id !== id && questionKey(q) === before)
+      if (stillUsed) continue
+      study.moveRecord(before, key)
+    }
+  }, [questions, study])
 
   /**
    * 消えた問題をセッションからも外す。
@@ -663,7 +696,11 @@ export default function App() {
         savedAt={pool.savedAt}
       />
 
-      {study.saveError && (
+      {/*
+        保存の失敗は必ず画面に出す。黙っていると、直したつもりのまま編集を続けて
+        次に開いたときに消えている、という形で気づく。問題側と学習記録側の両方を見る。
+      */}
+      {(pool.saveError || study.saveError) && (
         <div
           role="alert"
           style={{
@@ -675,7 +712,7 @@ export default function App() {
             borderBottom: `1px solid ${COLORS.red}`,
           }}
         >
-          {study.saveError}
+          {pool.saveError || study.saveError}
         </div>
       )}
 
@@ -781,7 +818,12 @@ export default function App() {
             }}
             onDuplicate={(ids) => {
               ids.forEach((id) => pool.duplicateQuestion(id))
-              toast.show({ tone: 'success', title: `${ids.length}問を複製しました` })
+              toast.show({
+                tone: 'success',
+                title: `${ids.length}問を複製しました`,
+                // 記録は問題文をキーにしているので、文面が同じ間は同じ記録を指す
+                description: '問題文を変えるまで、学習記録は元の問題と共通です',
+              })
             }}
             onMoveToGroup={(ids, groupId) => {
               const name = pool.groups.find((g) => g.id === groupId)?.name ?? ''
@@ -851,12 +893,15 @@ export default function App() {
               const item = pool.restoreFromTrash(itemId)
               if (!item) return
               toast.show({
-                tone: 'success',
+                tone: item.dropped > 0 ? 'error' : 'success',
                 title:
                   item.kind === 'group'
                     ? `グループ「${item.group?.name ?? ''}」を戻しました`
                     : '問題を戻しました',
-                description: `${item.questions.length}問`,
+                description:
+                  item.dropped > 0
+                    ? `${item.questions.length - item.dropped}問だけ戻りました（上限 ${LIMITS.QUESTIONS}問）`
+                    : `${item.questions.length}問`,
               })
             }}
             onPurge={pool.purgeFromTrash}
@@ -1025,7 +1070,16 @@ export default function App() {
         inputRef={transferInputRef}
         onLoadQuestions={loadQuestions}
         onImportStudyData={study.importData}
-        onImportPool={pool.importPool}
+        onImportPool={(incoming, opts) => {
+          const { dropped } = pool.importPool(incoming, opts) ?? { dropped: 0 }
+          if (dropped > 0) {
+            toast.show({
+              tone: 'error',
+              title: `${dropped}問は読み込めませんでした`,
+              description: `1つの端末に持てるのは ${LIMITS.QUESTIONS}問までです`,
+            })
+          }
+        }}
         onNotify={toast.show}
       />
 

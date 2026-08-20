@@ -115,6 +115,34 @@ export function useStudyData() {
     })
   }, [])
 
+  /**
+   * 記録のキーを付け替える。
+   *
+   * 記録は問題文をキーにしているため、問題文を直すと別の問題として扱われ、
+   * 正答率・定着度・ブックマーク・メモが行き先を失う（誤字を直しただけで消える）。
+   * 問題文が変わったときはここで記録を引っ越す。
+   *
+   * @param {string} fromKey 変更前のキー
+   * @param {string} toKey 変更後のキー
+   */
+  const moveRecord = useCallback((fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return
+    setData((prev) => {
+      const moving = prev.records[fromKey]
+      if (!moving) return prev
+      const records = Object.create(null)
+      for (const [key, value] of Object.entries(prev.records)) {
+        if (key === fromKey) continue
+        records[key] = value
+      }
+      // 引っ越し先に既に記録があるなら、解いた回数が多いほうを残す
+      const existing = prev.records[toKey]
+      records[toKey] =
+        existing && existing.attempts > moving.attempts ? existing : moving
+      return { ...prev, records }
+    })
+  }, [])
+
   /** 正答率・日別統計のみリセット（ブックマーク・メモ・SRSは残す）。 */
   const resetStats = useCallback(() => {
     setData((prev) => ({
@@ -147,8 +175,19 @@ export function useStudyData() {
       resetAll,
       importData,
       exportJson,
+      moveRecord,
     }),
-    [recordAnswer, markViewed, toggleBookmark, setNote, resetStats, resetAll, importData, exportJson],
+    [
+      recordAnswer,
+      markViewed,
+      toggleBookmark,
+      setNote,
+      resetStats,
+      resetAll,
+      importData,
+      exportJson,
+      moveRecord,
+    ],
   )
 
   return { data, dataRef, getRecord, saveError, ...actions }

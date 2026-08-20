@@ -908,15 +908,6 @@ export default function QuestionsView({
           </button>
           <button
             type="button"
-            onClick={() =>
-              setDeleting({ ids: [...checkedIds], label: `選択した${checkedIds.length}問` })
-            }
-            style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.red }}
-          >
-            🗑 削除
-          </button>
-          <button
-            type="button"
             onClick={() => {
               const picked = rows.filter((r) => checkedIds.includes(r.q.id)).map((r) => r.q)
               if (picked.length) onStartQuiz(picked, {})
@@ -924,6 +915,18 @@ export default function QuestionsView({
             style={{ minHeight: '36px', padding: '0 16px', borderRadius: '10px', border: `1px solid ${COLORS.blue}`, background: COLORS.blue, color: '#ffffff', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             ▶ 演習
+          </button>
+            <span
+              style={{ width: '1px', height: '22px', background: COLORS.border, flexShrink: 0 }}
+            />
+          <button
+            type="button"
+            onClick={() =>
+              setDeleting({ ids: [...checkedIds], label: `選択した${checkedIds.length}問` })
+            }
+            style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.red }}
+          >
+            🗑 削除
           </button>
           <button
             type="button"
@@ -1067,7 +1070,7 @@ export default function QuestionsView({
         <PromptDialog
           title={`選択した${checkedIds.length}問を新しいグループへ`}
           label="新しいグループ名"
-          defaultValue={group?.name ? `${group.name} 分割` : ''}
+          defaultValue={group?.name ? `${group.name}から切り出し` : ''}
           confirmLabel="分割する"
           onCancel={() => setSplitting(false)}
           onConfirm={(name) => {

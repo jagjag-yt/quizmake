@@ -76,12 +76,14 @@ export function saveTrash(trash) {
   const write = (items) => {
     localStorage.setItem(TRASH_KEY, JSON.stringify({ version: 1, items }))
   }
+  // 読み込み側だけで切ると、保存領域には上限を超えた分が残り続ける
+  const capped = trash.items.slice(0, TRASH_MAX)
   try {
-    write(trash.items)
+    write(capped)
     return { ok: true }
   } catch {
     try {
-      write(trash.items.slice(0, Math.floor(trash.items.length / 2)))
+      write(capped.slice(0, Math.floor(capped.length / 2)))
       return { ok: true, trimmed: true }
     } catch {
       return { ok: false }
