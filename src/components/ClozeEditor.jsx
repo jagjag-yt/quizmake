@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, TEXT_COLORS, inkColor } from '../constants'
+import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, inkColor } from '../constants'
 import {
   bodyLength,
-  colorOfRange,
-  colorRange,
   extractBracketRanges,
   hiddenCount,
   hideRange,
@@ -208,8 +206,6 @@ export default function ClozeEditor({
   const chars = bodyLength(paras)
   const hasSelection = selection.end > selection.start
   const canUnhide = hasSelection && rangeHasHidden(paras, selection.start, selection.end)
-  // いま選んでいる箇所の文字色。スウォッチに印を付けるためだけに使う
-  const currentColor = chars ? colorOfRange(paras, selection.start, selection.end) : null
 
   useEffect(() => {
     if (caretRef.current == null) return
@@ -293,16 +289,6 @@ export default function ClozeEditor({
     }
     applyAndDeselect(next)
   }, [hasSelection, text, selection, paras, applyAndDeselect])
-
-  const applyColor = useCallback(
-    (color) => {
-      if (!hasSelection) return
-      onUpdate(question.id, {
-        paras: colorRange(paras, selection.start, selection.end, color),
-      })
-    },
-    [hasSelection, onUpdate, question.id, paras, selection],
-  )
 
   // 隠す/戻すのショートカット。F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
   useEffect(() => {
@@ -391,7 +377,8 @@ export default function ClozeEditor({
             border: `1px solid ${COLORS.border}`,
             borderRadius: '12px',
             background: COLORS.bg,
-            position: compact ? 'sticky' : 'static',
+            // 文章が長くなっても操作を探しに戻らなくて済むよう、幅によらず上部へ貼り付ける
+            position: 'sticky',
             top: 0,
             zIndex: 2,
           }}
@@ -422,32 +409,6 @@ export default function ClozeEditor({
           >
             {compact ? '同じ語' : '同じ語をすべて隠す'}
           </button>
-          <span style={{ width: '1px', height: '24px', background: COLORS.border }} />
-          <span style={{ ...label, fontSize: '12px' }}>文字色</span>
-          {TEXT_COLORS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => applyColor(c.value)}
-              disabled={!hasSelection}
-              aria-label={`文字色を${c.name}にする`}
-              title={c.name}
-              style={{
-                width: '22px',
-                height: '22px',
-                borderRadius: '999px',
-                border: 'none',
-                // 本文が空のときだけ灰色にする。文章があれば選択前でも色見本として見せる（SPEC B）
-                background: chars ? inkColor(c.value) : COLORS.chipTrack,
-                boxShadow:
-                  currentColor === c.value
-                    ? `0 0 0 2px ${COLORS.card}, 0 0 0 3px ${COLORS.blue}`
-                    : 'none',
-                cursor: hasSelection ? 'pointer' : 'default',
-                padding: 0,
-              }}
-            />
-          ))}
           <span style={{ marginLeft: 'auto', fontSize: '11px', color: COLORS.muted }}>
             {compact ? '［［ ］］でも隠せます' : 'F1 で隠す'}
           </span>
