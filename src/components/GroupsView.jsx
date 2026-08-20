@@ -67,6 +67,8 @@ export default function GroupsView({
   onStartQuiz,
   onExportGroup,
   onImportClick,
+  onOpenTrash,
+  trashCount = 0,
 }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
@@ -214,6 +216,12 @@ export default function GroupsView({
             ＋ グループを作成
           </button>
         </div>
+        {/* 全部消したあとが、いちばん戻したい場面なのでここにも出す */}
+        {onOpenTrash && trashCount > 0 && (
+          <button type="button" style={smallBtn(false)} onClick={onOpenTrash}>
+            🗑 ごみ箱から戻す（{trashCount}）
+          </button>
+        )}
       </div>
       {createDialog}
       </>
@@ -260,6 +268,11 @@ export default function GroupsView({
         </span>
 
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {onOpenTrash && (
+            <button type="button" style={smallBtn(false)} onClick={onOpenTrash}>
+              🗑 ごみ箱{trashCount > 0 ? `（${trashCount}）` : ''}
+            </button>
+          )}
           <button type="button" style={smallBtn(false)} onClick={onImportClick}>
             ⬆ 読み込む
           </button>

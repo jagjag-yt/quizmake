@@ -22,6 +22,7 @@ import DataTransfer, { TransferInput } from './components/DataTransfer'
 import AppDrawer from './components/AppDrawer'
 import OfflineNotice from './components/OfflineNotice'
 import SettingsView from './components/SettingsView'
+import TrashView from './components/TrashView'
 import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
 import SessionSummary from './components/SessionSummary'
@@ -637,6 +638,7 @@ export default function App() {
       <AppDrawer
         open={drawerOpen}
         view={view}
+        trashCount={pool.trash.items.length}
         onChangeView={(next) => {
           if (next === VIEWS.QUESTIONS) setOpenGroupId(null)
           setView(next)
@@ -747,6 +749,8 @@ export default function App() {
             onStartQuiz={startQuizWith}
             onExportGroup={exportGroup}
             onImportClick={openFilePicker}
+            onOpenTrash={() => setView(VIEWS.TRASH)}
+            trashCount={pool.trash.items.length}
           />
         ) : view === VIEWS.QUESTIONS ? (
           <QuestionsView
@@ -838,6 +842,31 @@ export default function App() {
               setEditorGroupId(id)
               toast.show({ tone: 'success', title: `グループ「${name}」を作成しました` })
               return id
+            }}
+          />
+        ) : view === VIEWS.TRASH ? (
+          <TrashView
+            trash={pool.trash}
+            onRestore={(itemId) => {
+              const item = pool.restoreFromTrash(itemId)
+              if (!item) return
+              toast.show({
+                tone: 'success',
+                title:
+                  item.kind === 'group'
+                    ? `グループ「${item.group?.name ?? ''}」を戻しました`
+                    : '問題を戻しました',
+                description: `${item.questions.length}問`,
+              })
+            }}
+            onPurge={pool.purgeFromTrash}
+            onEmpty={() => {
+              pool.emptyTrash()
+              toast.show({ tone: 'success', title: 'ごみ箱を空にしました' })
+            }}
+            onBack={() => {
+              setOpenGroupId(null)
+              setView(VIEWS.QUESTIONS)
             }}
           />
         ) : view === VIEWS.SETTINGS ? (

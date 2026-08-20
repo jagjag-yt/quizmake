@@ -61,10 +61,12 @@ export function snappyDecompress(buf, start = 0, maxOutput = 32 * 1024 * 1024) {
         const extra = litLen - 59
         if (i + extra > buf.length) return null
         litLen = 0
-        for (let k = 0; k < extra; k += 1) litLen |= buf[i + k] << (8 * k)
+        // 4バイト長のときに符号ビットへ食い込むため、符号なしに直しながら足す
+        for (let k = 0; k < extra; k += 1) litLen += buf[i + k] * 2 ** (8 * k)
         i += extra
       }
       litLen += 1
+      if (!Number.isFinite(litLen) || litLen < 0 || litLen > length) return null
       if (i + litLen > buf.length || outPos + litLen > length) return null
       buf.copy(out, outPos, i, i + litLen)
       outPos += litLen
