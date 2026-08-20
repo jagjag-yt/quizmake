@@ -171,6 +171,20 @@ body {
   background: var(--bg);
   font-family: 'Noto Sans JP', sans-serif;
   color: var(--c-text);
+  /*
+   * 半角の長い連続文字（英単語・URL・記号の羅列）でも枠の中で折り返す。
+   * 日本語は文字単位で折り返せるが、半角は既定だと単語の切れ目でしか折り返さず、
+   * 切れ目が無いとそのまま枠から飛び出す（実測: プレビュー幅434pxに中身1188px）。
+   * overflow-wrap は継承するので、ここ1か所で全画面のテキストに効く。
+   *
+   * break-word ではなく anywhere にしている。break-word は「折り返しの計算」だけを変え、
+   * 要素の最小幅の計算には影響しない。そのため flex や grid の子（選択肢の行など）が
+   * 長い語の幅のまま縮まず、枠から溢れたままになる（実測: 幅495pxの行に中身1423px）。
+   * anywhere は最小幅も一緒に縮むので、入れ子の中でも収まる。
+   * どちらも「入りきらない語だけ」を折るので、通常の行送りは変わらない。
+   * 折り返してほしくない箇所は white-space: nowrap を指定しているので影響を受けない。
+   */
+  overflow-wrap: anywhere;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
