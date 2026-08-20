@@ -115,7 +115,7 @@ const itemStyle = (active) => ({
  *   view: string, onChangeView: (v: string) => void, onClose: () => void,
  * }} props
  */
-export default function AppDrawer({ open, view, onChangeView, onClose }) {
+export default function AppDrawer({ open, view, onChangeView, onClose, trashCount = 0 }) {
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => {
@@ -178,6 +178,19 @@ export default function AppDrawer({ open, view, onChangeView, onClose }) {
       >
         アカウント
         <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700 }}>準備中</span>
+      </button>
+      <button
+        type="button"
+        aria-current={view === VIEWS.TRASH ? 'page' : undefined}
+        onClick={() => pick(VIEWS.TRASH)}
+        style={itemStyle(view === VIEWS.TRASH)}
+      >
+        ごみ箱
+        {trashCount > 0 && (
+          <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, color: COLORS.sub }}>
+            {trashCount}
+          </span>
+        )}
       </button>
       <button
         type="button"

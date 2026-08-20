@@ -91,7 +91,9 @@ export function TransferInput({
     }
   }
 
-  const apply = (merge) => {
+  const apply = () => {
+    // 置き換えは用意しない。今ある問題を消してしまう操作で、取り返しがつかないため
+    const merge = true
     if (pending.study) onImportStudyData(pending.study, { merge })
     if (pending.pool) onImportPool(pending.pool, { merge })
     const parts = []
@@ -99,7 +101,7 @@ export function TransferInput({
     if (pending.study) parts.push(`記録 ${Object.keys(pending.study.records).length} 件`)
     onNotify({
       tone: 'success',
-      title: `${merge ? '追加' : '置き換え'}しました`,
+      title: '追加しました',
       description: parts.join(' ／ '),
     })
     setPending(null)
@@ -126,13 +128,12 @@ export function TransferInput({
       />
       {pending && (
         <ConfirmDialog
-          title="読み込んだ内容をどう反映しますか？"
-          message={`${summary}。「追加する」は今ある問題を残したまま足します（同じ名前のグループは別の名前で作られます）。「置き換える」を選ぶと、いまの端末の問題と学習記録は失われます。`}
-          cancelLabel="置き換える"
+          title="読み込んだ内容を追加しますか？"
+          message={`${summary}。今ある問題は消えません。同じ名前のグループがあるときは、別の名前で新しく作られます。`}
           confirmLabel="追加する"
           danger={false}
-          onCancel={() => apply(false)}
-          onConfirm={() => apply(true)}
+          onCancel={() => setPending(null)}
+          onConfirm={() => apply()}
         />
       )}
     </>

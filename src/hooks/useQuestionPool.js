@@ -16,6 +16,14 @@ import {
   uniqueGroupName,
 } from '../storage/pool'
 import { toText } from '../utils/safe'
+import {
+  countQuestions,
+  loadTrash,
+  removeItem,
+  saveTrash,
+  trashGroup,
+  trashQuestion,
+} from '../storage/trash'
 
 /** 作成直後の空の問題（タイプごとに必要な項目だけ持たせる）。 */
 function emptyQuestion(questionNumber, groupId, type = QUESTION_TYPES.CHOICE) {
@@ -94,6 +102,19 @@ export function useQuestionPool() {
     })
   }, [])
 
+  /**
+   * ごみ箱。消した問題とグループはここへ移す。
+   * 保存はその場で行う（プールと違って更新が多くないため、遅らせる必要がない）。
+   */
+  const [trash, setTrashState] = useState(loadTrash)
+  const trashRef = useRef(trash)
+  trashRef.current = trash
+
+  const setTrash = useCallback((next) => {
+    setTrashState(next)
+    saveTrash(next)
+  }, [])
+
   const [savedAt, setSavedAt] = useState(null)
   const [saveError, setSaveError] = useState('')
   const timerRef = useRef(null)
@@ -159,11 +180,17 @@ export function useQuestionPool() {
 
   /** グループを削除する。中の問題も一緒に消える。 */
   const removeGroup = useCallback((groupId) => {
+    const current = poolRef.current
+    const group = current.groups.find((g) => g.id === groupId)
+    if (group) {
+      const inside = current.questions.filter((q) => q.groupId === groupId)
+      setTrash(trashGroup(trashRef.current, group, inside))
+    }
     setPool((prev) => ({
       groups: prev.groups.filter((g) => g.id !== groupId),
       questions: prev.questions.filter((q) => q.groupId !== groupId),
     }))
-  }, [setPool])
+  }, [setPool, setTrash])
 
   /**
    * 複数のグループを1つに統合する。
@@ -252,8 +279,53 @@ export function useQuestionPool() {
   }, [setPool])
 
   const removeQuestion = useCallback((id) => {
+    const current = poolRef.current
+    const question = current.questions.find((q) => q.id === id)
+    if (question) {
+      const group = current.groups.find((g) => g.id === question.groupId) ?? null
+      setTrash(trashQuestion(trashRef.current, question, group))
+    }
     setPool((prev) => ({ ...prev, questions: prev.questions.filter((q) => q.id !== id) }))
-  }, [setPool])
+  }, [setPool, setTrash])
+
+  /**
+   * ごみ箱から戻す。
+   * 元のグループが残っていればそこへ、無ければ消したときのグループを作り直す。
+   */
+  const restoreFromTrash = useCallback((itemId) => {
+    const item = trashRef.current.items.find((it) => it.id === itemId)
+    if (!item) return null
+    setPool((prev) => {
+      const groups = [...prev.groups]
+      let targetId = item.group?.id ?? null
+      const alive = targetId ? groups.some((g) => g.id === targetId) : false
+      if (item.group && !alive) {
+        // 同じ id で戻すと、その中の問題の所属もそのまま合う
+        groups.push({ ...item.group, name: uniqueGroupName(item.group.name, groups) })
+        targetId = item.group.id
+      }
+      const restored = item.questions.map((q) => ({
+        ...q,
+        groupId: targetId ?? prev.groups[0]?.id ?? q.groupId,
+      }))
+      return ensureIntegrity({
+        groups,
+        questions: [...prev.questions, ...restored].slice(0, LIMITS.QUESTIONS),
+      })
+    })
+    setTrash(removeItem(trashRef.current, itemId))
+    return item
+  }, [setPool, setTrash])
+
+  /** ごみ箱から完全に消す。 */
+  const purgeFromTrash = useCallback((itemId) => {
+    setTrash(removeItem(trashRef.current, itemId))
+  }, [setTrash])
+
+  /** ごみ箱を空にする。 */
+  const emptyTrashNow = useCallback(() => {
+    setTrash({ version: 1, items: [] })
+  }, [setTrash])
 
   /** 複製した問題を末尾に追加し、その id を返す。 */
   const duplicateQuestion = useCallback((id) => {
@@ -354,5 +426,10 @@ export function useQuestionPool() {
     reorderAuthored,
     importQuestions,
     importPool,
+    trash,
+    trashCount: countQuestions(trash),
+    restoreFromTrash,
+    purgeFromTrash,
+    emptyTrash: emptyTrashNow,
   }
 }

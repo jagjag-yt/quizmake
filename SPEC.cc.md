@@ -95,6 +95,21 @@ TABLE (card, virtualized; assume 100+ rows)
   ★: filled amber / ☆ #cbd5e1. click toggles bookmark, stopPropagation.
   row click -> select (desktop: fill detail; tablet: open panel). selected row bg=blueLight. hover bg=rowHover.
   footer: "1–n / N問を表示" + ← →
+TRASH (ごみ箱, v2.9)
+  削除した問題とグループは消さず、ここへ移す。**削除は取り返しがつかず、しかも一度に
+  何十問も消せる**ため、戻せる場所を1つ挟む（実際に別端末で15問を失う事故が起きた）。
+  保存: localStorage 'quizmake.trash.v1' = { version:1, items:[TrashItem] }
+    TrashItem = { id, deletedAt, kind:'question'|'group', group, questions[] }
+      kind='group' はグループと中の問題を**1件**として持ち、戻すときも一緒に戻る。
+    新しいものが先頭。上限 TRASH_MAX=100 件、超えたら古いものから落とす。
+    保存に失敗したら件数を半分にして再試行する（ごみ箱のせいで問題本体が保存できなくなるのを避ける）。
+  入口: **削除の経路は removeQuestion / removeGroup の2つだけ**なので、そこでごみ箱へ入れる。
+    UI 側（一覧・作成・詳細・一括削除）には手を入れない。新しい削除口を作らないこと。
+  戻し方: 元のグループが残っていればそこへ。無ければ**同じ id で作り直す**
+    （id を変えると中の問題の所属が合わなくなる）。名前は uniqueGroupName で重複を避ける。
+  導線: ドロワー（件数つき）と、設問一覧のグループ一覧のヘッダー。
+    グループを全部消したあとの空状態にも出す（そこが一番戻したい場面）。
+
 GROUPS (設問一覧の1階層目) — 並び順 (v2.1)
   ヘッダー行: "問題グループ" + "Nグループ / 全M問" + [並び順 select][向きボタン] + [⬆ 読み込む][＋ グループを作成]
   select: 名前順 | 更新順 。向きボタンはラベルが文脈で変わる:
@@ -236,6 +251,8 @@ IMPORT COEXISTENCE
     それ以外 -> 従来どおり 1ファイル＝1グループ。取り込み後そのまま演習を始められる
     ※ activeEditorGroupId(未選択時に先頭グループへフォールバックする値)で判定しないこと。
       入口の画面から読み込んだだけで無関係なグループへ入ってしまう。
+  **「置き換える」は用意しない(v2.9)。** 今ある問題を丸ごと消す操作で取り返しがつかない。
+    読み込みは常に追加。ダイアログは [キャンセル][追加する] の2つだけ。
   one pool. origin flag only. imported rows fully editable+deletable. sidebar filter 作成/読込. export scope selectable. import column mismatch -> red toast "読み込みに失敗しました（列が一致しません）" + [詳細].
 
 ============================================================

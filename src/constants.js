@@ -19,6 +19,9 @@ export const DEFAULT_GROUP_NAME = '未分類'
 /** 設問一覧の絞り込み状態を保持するキー（セッション内のみ）。 */
 export const LIST_STATE_KEY = 'quizmake.listState.v1'
 
+/** ごみ箱（消した問題とグループの置き場）のキー。 */
+export const TRASH_KEY = 'quizmake.trash.v1'
+
 /** 見た目（ライト／ダーク）を覚えておくキー。 */
 export const THEME_KEY = 'quizmake.theme.v1'
 
@@ -133,6 +136,7 @@ export const VIEWS = {
   SUMMARY: 'summary',
   EDITOR: 'editor',
   DASHBOARD: 'dashboard',
+  TRASH: 'trash',
   SETTINGS: 'settings',
 }
 
