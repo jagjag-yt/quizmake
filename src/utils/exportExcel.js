@@ -1,4 +1,5 @@
 import { EXPORT_COLUMNS, LETTERS } from '../constants'
+import { dateKey } from './safe'
 import { compactQuestion, segmentsToMarks, segmentsToText } from '../data/questions'
 
 /**
@@ -81,11 +82,16 @@ export function questionToRow(question) {
   return row
 }
 
-/** ファイル名。例: quizmake_120問.xlsx / quizmake_循環器_20問.xlsx */
+/**
+ * ファイル名。例: 2026-08-20_循環器_20問.xlsx / 2026-08-20_quizmake_120問.xlsx
+ *
+ * 日付を先頭に置くと、ダウンロードフォルダで名前順に並べたときに時系列になる。
+ * グループ名を入れるのは、複数のグループを書き出したときに区別が付かないため。
+ */
 export function exportFileName(count, groupName) {
   // ファイル名に使えない文字は落とす
   const safe = String(groupName ?? '').replace(/[/:*?"<>|\\]/g, '').trim()
-  return safe ? `quizmake_${safe}_${count}問.xlsx` : `quizmake_${count}問.xlsx`
+  return `${dateKey()}_${safe || 'quizmake'}_${count}問.xlsx`
 }
 
 /**

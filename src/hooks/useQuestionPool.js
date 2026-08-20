@@ -9,6 +9,7 @@ import {
   nextQuestionNumber,
   renumberByGroup,
   reorderSubset,
+  appendPool,
   savePool,
   seedPool,
   stampUpdatedGroups,
@@ -316,6 +317,15 @@ export function useQuestionPool() {
     return group.id
   }, [setPool])
 
+  /**
+   * 書き出したファイルから読み込んだ問題を反映する。
+   * merge=true なら今のプールに足し（グループは別名で新設）、false なら丸ごと置き換える。
+   */
+  const importPool = useCallback((incoming, { merge = true } = {}) => {
+    if (!incoming) return
+    setPool((prev) => (merge ? appendPool(prev, incoming) : ensureIntegrity(incoming)))
+  }, [setPool])
+
   /** すべての問題とグループを消し、初期状態（同梱のサンプル）に戻す。 */
   const resetPool = useCallback(() => {
     setPool(seedPool())
@@ -343,5 +353,6 @@ export function useQuestionPool() {
     duplicateQuestion,
     reorderAuthored,
     importQuestions,
+    importPool,
   }
 }

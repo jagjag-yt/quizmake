@@ -4,6 +4,7 @@ import {
   LIMITS,
   STORAGE_KEY,
 } from '../constants'
+import { parsePoolBackup } from './pool'
 import {
   clamp,
   dateKey,
@@ -208,14 +209,23 @@ export function saveData(data) {
   }
 }
 
-/** エクスポート用のオブジェクト（メタ情報つき）。 */
-export function buildExport(data) {
+/**
+ * エクスポート用のオブジェクト（メタ情報つき）。
+ *
+ * 学習記録だけでなく **問題とグループも入れる**。以前は記録だけを書き出していたため、
+ * 書き出したファイルを読み込んでも問題が戻らなかった（バックアップとして使えなかった）。
+ *
+ * @param {ReturnType<typeof emptyData>} data 学習記録
+ * @param {{groups: Array, questions: Array}} [pool] 問題とグループ
+ */
+export function buildExport(data, pool) {
   return {
     app: 'quizmake',
-    kind: 'study-data',
+    kind: 'backup',
     version: DATA_VERSION,
     exportedAt: new Date().toISOString(),
     data: { records: data.records, daily: data.daily, totals: data.totals },
+    pool: pool ? { groups: pool.groups, questions: pool.questions } : undefined,
   }
 }
 
@@ -244,10 +254,14 @@ export function parseImport(text) {
 
   // 書き出し形式（data を内包）と、data 部分だけの両方を受け付ける
   const body = isPlainObject(parsed.data) ? parsed.data : parsed
-  if (!isPlainObject(body.records) && !isPlainObject(body.daily) && !isPlainObject(body.totals)) {
-    throw new Error('学習データが含まれていません。')
+  const hasStudy =
+    isPlainObject(body.records) || isPlainObject(body.daily) || isPlainObject(body.totals)
+  const pool = parsePoolBackup(parsed.pool)
+  if (!hasStudy && !pool) {
+    throw new Error('quizmake で書き出したファイルではないようです。')
   }
-  return normalizeData(body)
+  // 学習記録だけの古いバックアップも読めるようにしておく
+  return { study: hasStudy ? normalizeData(body) : null, pool }
 }
 
 /**

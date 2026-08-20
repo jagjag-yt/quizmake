@@ -50,7 +50,13 @@ const optionButton = {
  * 画面のどこからでも「読み込む」を押せるように、ボタンとは切り離して
  * アプリに常設する。拡張子で Excel（問題）と JSON（学習データ）を振り分ける。
  */
-export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, onNotify }) {
+export function TransferInput({
+  inputRef,
+  onLoadQuestions,
+  onImportStudyData,
+  onImportPool,
+  onNotify,
+}) {
   // 統合か置き換えかは window.confirm ではなくアプリ内のダイアログで選ぶ
   const [pending, setPending] = useState(null)
 
@@ -86,14 +92,28 @@ export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, on
   }
 
   const apply = (merge) => {
-    onImportStudyData(pending, { merge })
+    if (pending.study) onImportStudyData(pending.study, { merge })
+    if (pending.pool) onImportPool(pending.pool, { merge })
+    const parts = []
+    if (pending.pool) parts.push(`問題 ${pending.pool.questions.length} 問`)
+    if (pending.study) parts.push(`記録 ${Object.keys(pending.study.records).length} 件`)
     onNotify({
       tone: 'success',
-      title: `学習データを${merge ? '統合' : '置き換え'}しました`,
-      description: `記録 ${Object.keys(pending.records).length} 件`,
+      title: `${merge ? '追加' : '置き換え'}しました`,
+      description: parts.join(' ／ '),
     })
     setPending(null)
   }
+
+  /** 確認ダイアログに出す中身の内訳。 */
+  const summary = pending
+    ? [
+        pending.pool ? `問題 ${pending.pool.questions.length} 問` : null,
+        pending.study ? `学習記録 ${Object.keys(pending.study.records).length} 件` : null,
+      ]
+        .filter(Boolean)
+        .join(' ／ ')
+    : ''
 
   return (
     <>
@@ -106,10 +126,10 @@ export function TransferInput({ inputRef, onLoadQuestions, onImportStudyData, on
       />
       {pending && (
         <ConfirmDialog
-          title="読み込んだ学習データをどう反映しますか？"
-          message={`記録 ${Object.keys(pending.records).length} 件。「統合する」は回答数を合算します。「置き換える」を選ぶと、いまの端末の学習記録（正答率・ブックマーク・メモ）は失われます。`}
+          title="読み込んだ内容をどう反映しますか？"
+          message={`${summary}。「追加する」は今ある問題を残したまま足します（同じ名前のグループは別の名前で作られます）。「置き換える」を選ぶと、いまの端末の問題と学習記録は失われます。`}
           cancelLabel="置き換える"
-          confirmLabel="統合する"
+          confirmLabel="追加する"
           danger={false}
           onCancel={() => apply(false)}
           onConfirm={() => apply(true)}
@@ -134,7 +154,7 @@ export default function DataTransfer({ getStudyJson, onExportExcel, onImportClic
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `quizmake-backup-${dateKey()}.json`
+      a.download = `${dateKey()}_quizmake-backup.json`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -220,7 +240,7 @@ export default function DataTransfer({ getStudyJson, onExportExcel, onImportClic
               バックアップ（.json）
             </span>
             <span style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}>
-              学習記録（正答率・ブックマーク・メモ）を保存
+              問題と学習記録をまとめて保存。読み込むと元に戻せます
             </span>
           </button>
         </div>

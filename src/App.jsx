@@ -7,6 +7,8 @@ import { useQuestionPool } from './hooks/useQuestionPool'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useCompactLayout, usePhoneLayout } from './hooks/useMediaQuery'
 import { exportQuestionsToXlsx } from './utils/exportExcel'
+import { backupFileName, downloadJson } from './utils/backupFile'
+import { buildExport } from './storage/store'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
 import { boxDistribution, clozeStats, dailySeries, groupStats, overview, streakDays } from './utils/stats'
@@ -470,6 +472,72 @@ export default function App() {
     [questions, openGroupId],
   )
 
+  /**
+   * グループを1つ書き出す。
+   *
+   * xlsx は表計算ソフトで編集するため（虫食いは形式上入らない）。
+   * json はそのまま元に戻すため。そのグループの問題と、**その問題に紐づく学習記録だけ**を
+   * 入れる（他のグループの記録まで持ち出さない）。
+   *
+   * @param {string} groupId
+   * @param {'xlsx'|'json'} format
+   */
+  const exportGroup = useCallback(
+    async (groupId, format) => {
+      const group = pool.groups.find((g) => g.id === groupId)
+      if (!group) return
+      const list = questions.filter((q) => q.groupId === groupId)
+      if (!list.length) {
+        toast.show({ tone: 'error', title: 'このグループには問題がありません' })
+        return
+      }
+
+      try {
+        if (format === 'xlsx') {
+          const target = list.filter((q) => !isCloze(q)).map(compactQuestion)
+          if (!target.length) {
+            toast.show({
+              tone: 'error',
+              title: 'Excel に書き出せる問題がありません',
+              description: '虫食いは Excel の形式に入らないため、バックアップをお使いください',
+            })
+            return
+          }
+          const { fileName } = await exportQuestionsToXlsx(target, { groupName: group.name })
+          toast.show({
+            tone: 'success',
+            title: `${fileName} を書き出しました`,
+            description:
+              target.length < list.length
+                ? `虫食い ${list.length - target.length}問 は含まれていません`
+                : 'ダウンロードフォルダに保存されました',
+          })
+          return
+        }
+
+        const keys = new Set(list.map((q) => questionKey(q)))
+        const records = {}
+        for (const [key, value] of Object.entries(study.dataRef.current.records)) {
+          if (keys.has(key)) records[key] = value
+        }
+        const payload = buildExport(
+          { ...study.dataRef.current, records },
+          { groups: [group], questions: list },
+        )
+        const fileName = backupFileName(group.name)
+        downloadJson(JSON.stringify(payload, null, 2), fileName)
+        toast.show({
+          tone: 'success',
+          title: `${fileName} を書き出しました`,
+          description: `${list.length}問と学習記録を保存しました`,
+        })
+      } catch {
+        toast.show({ tone: 'error', title: '書き出しに失敗しました' })
+      }
+    },
+    [pool.groups, questions, study.dataRef, toast],
+  )
+
   /** 「読み込む」のファイル選択を開く（Excel / バックアップの共通入口）。 */
   const openFilePicker = useCallback(() => {
     transferInputRef.current?.click()
@@ -677,6 +745,7 @@ export default function App() {
               })
             }}
             onStartQuiz={startQuizWith}
+            onExportGroup={exportGroup}
             onImportClick={openFilePicker}
           />
         ) : view === VIEWS.QUESTIONS ? (
@@ -755,7 +824,7 @@ export default function App() {
             onImportClick={openFilePicker}
             transferSlot={
               <DataTransfer
-                getStudyJson={study.exportJson}
+                getStudyJson={() => study.exportJson(pool.poolRef.current)}
                 onExportExcel={() => setExportOpen(true)}
                 onImportClick={openFilePicker}
                 onNotify={toast.show}
@@ -927,6 +996,7 @@ export default function App() {
         inputRef={transferInputRef}
         onLoadQuestions={loadQuestions}
         onImportStudyData={study.importData}
+        onImportPool={pool.importPool}
         onNotify={toast.show}
       />
 
