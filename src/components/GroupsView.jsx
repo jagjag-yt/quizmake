@@ -65,6 +65,7 @@ export default function GroupsView({
   onRemoveGroup,
   onMergeGroups,
   onStartQuiz,
+  onExportGroup,
   onImportClick,
 }) {
   const compact = useCompactLayout()
@@ -75,6 +76,8 @@ export default function GroupsView({
   const [deleting, setDeleting] = useState(null) // { id, name, total }
   const [creating, setCreating] = useState(false)
   const [merging, setMerging] = useState(false)
+  // 書き出す形式を選んでもらうダイアログ（対象のグループを覚えておく）
+  const [exporting, setExporting] = useState(null)
   const [sort, setSortState] = useState(loadGroupSort)
 
   const setSort = (next) => {
@@ -377,6 +380,16 @@ export default function GroupsView({
                 >
                   ▶ 演習
                 </button>
+                {/* 5つだと2列に収まらず1マス空くので、書き出すだけ横いっぱいに使う */}
+                <button
+                  type="button"
+                  aria-label={`${s.group.name} を書き出す`}
+                  style={{ ...smallBtn(false), padding: '0 10px', gridColumn: '1 / -1' }}
+                  disabled={!s.total}
+                  onClick={() => setExporting({ id: s.group.id, name: s.group.name })}
+                >
+                  ⬇ 書き出す
+                </button>
                 <button
                   type="button"
                   aria-label={`${s.group.name} の名前を変更`}
@@ -453,6 +466,24 @@ export default function GroupsView({
           onConfirm={(name) => {
             onRenameGroup(renaming.id, name)
             setRenaming(null)
+          }}
+        />
+      )}
+
+      {exporting && (
+        <ConfirmDialog
+          title={`「${exporting.name}」を書き出す`}
+          message="Excel は表計算ソフトで編集できる形式です（虫食いは含まれません）。バックアップはこのグループの問題と学習記録をそのまま保存し、読み込めば元に戻せます。"
+          cancelLabel="Excel（.xlsx）"
+          confirmLabel="バックアップ（.json）"
+          danger={false}
+          onCancel={() => {
+            onExportGroup(exporting.id, 'xlsx')
+            setExporting(null)
+          }}
+          onConfirm={() => {
+            onExportGroup(exporting.id, 'json')
+            setExporting(null)
           }}
         />
       )}

@@ -102,7 +102,7 @@ export function seedPool() {
 }
 
 /** グループ配列を安全な形へ整える。 */
-function normalizeGroups(raw) {
+export function normalizeGroups(raw) {
   if (!Array.isArray(raw)) return []
   const seen = new Set()
   const out = []
@@ -156,6 +156,54 @@ function migrateFromV1() {
   } catch {
     return null
   }
+}
+
+/**
+ * 書き出したファイルに入っていたプールを読み取る。
+ *
+ * 外から来たデータなので、保存済みのものと同じ経路で正規化してから返す。
+ * 問題が1件も無ければ「プールは入っていない」とみなして null を返す
+ * （古い形式のバックアップ＝学習記録だけのファイルがこれに当たる）。
+ *
+ * @param {unknown} raw ファイル内の pool 部分
+ * @returns {{groups: Array, questions: Array}|null}
+ */
+export function parsePoolBackup(raw) {
+  if (!isPlainObject(raw) || !Array.isArray(raw.questions) || !raw.questions.length) return null
+  const groups = normalizeGroups(raw.groups)
+  const questions = raw.questions
+    .slice(0, LIMITS.QUESTIONS)
+    .map((q, i) => normalizeQuestion(q, i))
+  return ensureIntegrity({ groups, questions })
+}
+
+/**
+ * 読み込んだプールを、いまのプールに足す。
+ *
+ * グループは名前が重なったら別名にして必ず新しく作る。既存のグループに混ぜると、
+ * どちらの問題か分からなくなるうえ、番号も振り直されて元の並びが崩れるため。
+ *
+ * @param {{groups: Array, questions: Array}} current
+ * @param {{groups: Array, questions: Array}} incoming
+ */
+export function appendPool(current, incoming) {
+  const groups = [...current.groups]
+  const idMap = new Map()
+
+  for (const g of incoming.groups) {
+    const group = makeGroup(uniqueGroupName(g.name, groups))
+    idMap.set(g.id, group.id)
+    groups.push(group)
+  }
+
+  const questions = [...current.questions]
+  for (const q of incoming.questions) {
+    const groupId = idMap.get(q.groupId)
+    if (!groupId) continue
+    questions.push({ ...q, id: newQuestionId(), groupId })
+  }
+
+  return ensureIntegrity({ groups, questions: questions.slice(0, LIMITS.QUESTIONS) })
 }
 
 /** 保存されたプールを読み込む（無ければ移行、それも無ければ同梱問題）。 */

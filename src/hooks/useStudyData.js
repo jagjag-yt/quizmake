@@ -133,7 +133,7 @@ export function useStudyData() {
   }, [])
 
   const exportJson = useCallback(
-    () => JSON.stringify(buildExport(dataRef.current), null, 2),
+    (pool) => JSON.stringify(buildExport(dataRef.current, pool), null, 2),
     [],
   )
 
