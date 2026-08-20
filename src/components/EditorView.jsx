@@ -710,7 +710,6 @@ export default function EditorView({
   onMoveToGroup,
   onGoQuiz,
   onImportClick,
-  onSaved,
   transferSlot,
   groups,
   activeGroupId,
@@ -724,6 +723,8 @@ export default function EditorView({
   const [forcePhoneEdit, setForcePhoneEdit] = useState(false)
   const [poolFilter, setPoolFilter] = useState('all')
   const [previewMode, setPreviewMode] = useState('before')
+  // プレビューは常に開閉式。既定は閉じたままにして、見たいときだけ開く
+  const [previewOpen, setPreviewOpen] = useState(false)
   // 3ペインだとプレビューが潰れる幅（iPad 横 1194px など）。
   // この幅では縦画面と同じ [編集|プレビュー] の切り替えにして、向きを変えても操作を変えない
   const previewTight = usePreviewTight()
@@ -740,8 +741,6 @@ export default function EditorView({
   const [deletingChecked, setDeletingChecked] = useState(false)
   // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
   const [dirty, setDirty] = useState(false)
-  // 不備があるまま保存を押したか（押すまでは赤い指摘を出さない）
-  const [saveTried, setSaveTried] = useState(false)
   // 「変更を破棄」で戻す先。編集を始めた時点の内容を控えておく
   const snapshotRef = useRef(null)
   const [discarding, setDiscarding] = useState(false)
@@ -766,7 +765,6 @@ export default function EditorView({
   // 別の問題に移ったら「変更あり」を持ち越さない。あわせて戻す先を控え直す
   useEffect(() => {
     setDirty(false)
-    setSaveTried(false)
     setTouched({})
     snapshotRef.current = questionsRef.current.find((q) => q.id === selectedId) ?? null
   }, [selectedId])
@@ -979,7 +977,6 @@ export default function EditorView({
     const snap = snapshotRef.current
     setDiscarding(false)
     setDirty(false)
-    setSaveTried(false)
     setTouched({})
     if (!snap) return
     if (snapshotIsBlank(snap)) {
@@ -1005,8 +1002,8 @@ export default function EditorView({
             gap: '10px',
           }}
         >
-          {/* 不備があるまま保存を押したときだけ、何が足りないかを出す */}
-          {saveTried && errors.length > 0 && (
+          {/* 保存は自動なので、不備があるときは黙って残さずその場で伝える */}
+          {errors.length > 0 && (
             <div
               role="alert"
               style={{
@@ -1023,7 +1020,7 @@ export default function EditorView({
                 boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
               }}
             >
-              保存できません：{errors.join(' / ')}
+              未完成：{errors.join(' / ')}
             </div>
           )}
 
@@ -1047,35 +1044,6 @@ export default function EditorView({
             変更を破棄
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              // 未完成のまま問題を増やさない。押した時点で不備を全部見せる
-              if (errors.length > 0) {
-                setSaveTried(true)
-                setTouched({ text: true, choices: true })
-                return
-              }
-              setDirty(false)
-              setSaveTried(false)
-              onSaved?.(question.groupId)
-            }}
-            style={{
-              minHeight: `${TAP_MIN}px`,
-              padding: '0 24px',
-              borderRadius: '999px',
-              border: `1px solid ${COLORS.blue}`,
-              background: COLORS.blue,
-              color: '#ffffff',
-              fontSize: '14px',
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(37,99,235,0.32)',
-            }}
-          >
-            保存
-          </button>
         </div>
       )}
       {discarding && (
@@ -1795,21 +1763,83 @@ export default function EditorView({
   const editorPane = clozePanes ? clozePanes.editor : editor
   const previewNode = clozePanes ? clozePanes.preview : previewPane
 
-  // 1280px 以上でのみ3ペインを出す。それ未満は上の切り替え式に回している
+  // 1280px 以上でのみ3ペインを出す。それ未満は上の切り替え式に回している。
+  // プレビューは開いているときだけ場所を取り、閉じているときは開くための帯だけ残す。
+  const canPreview = !!previewNode
+  const columns = !canPreview
+    ? '268px 528px minmax(0, 1fr)'
+    : previewOpen
+      ? '268px minmax(0, 528px) minmax(360px, 1fr)'
+      : '268px minmax(528px, 1fr) 48px'
+
   return (
     <div
       style={{
         gridColumn: '1 / -1',
         minWidth: 0,
         display: 'grid',
-        gridTemplateColumns: '268px 528px minmax(0, 1fr)',
+        gridTemplateColumns: columns,
         gap: '20px',
         alignItems: 'start',
       }}
     >
       <div style={{ position: 'sticky', top: '24px' }}>{sidebar}</div>
       {editorPane}
-      <div style={{ position: 'sticky', top: '24px' }}>{previewNode}</div>
+      <div style={{ position: 'sticky', top: '24px' }}>
+        {canPreview && !previewOpen ? (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            title="演習画面プレビューを開く"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '48px',
+              minHeight: '220px',
+              padding: '16px 0',
+              borderRadius: '14px',
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.card,
+              color: COLORS.blue,
+              fontSize: '12.5px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              writingMode: 'vertical-rl',
+            }}
+          >
+            ‹ プレビュー
+          </button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {canPreview && (
+              <div style={{ display: 'flex' }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  style={{
+                    marginLeft: 'auto',
+                    minHeight: '34px',
+                    padding: '0 12px',
+                    borderRadius: '999px',
+                    border: `1px solid ${COLORS.border}`,
+                    background: COLORS.card,
+                    color: COLORS.sub,
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  プレビューを畳む ›
+                </button>
+              </div>
+            )}
+            {previewNode}
+          </div>
+        )}
+      </div>
       {dialogs}
     </div>
   )

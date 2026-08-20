@@ -753,12 +753,6 @@ export default function App() {
             }}
             onGoQuiz={() => setView(VIEWS.QUIZ)}
             onImportClick={openFilePicker}
-            onSaved={(groupId) => {
-              // 保存の区切りとして、編集していた問題のグループの設問一覧へ移す
-              setOpenGroupId(groupId)
-              setView(VIEWS.QUESTIONS)
-              toast.show({ tone: 'success', title: '保存しました' })
-            }}
             transferSlot={
               <DataTransfer
                 getStudyJson={study.exportJson}
