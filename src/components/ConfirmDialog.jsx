@@ -108,6 +108,7 @@ export default function ConfirmDialog({
  */
 export function PromptDialog({
   title,
+  message,
   label,
   defaultValue = '',
   placeholder = '',
@@ -164,6 +165,11 @@ export function PromptDialog({
         <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: COLORS.text }}>
           {title}
         </h2>
+        {message && (
+          <p style={{ margin: 0, fontSize: '13px', color: COLORS.body, lineHeight: 1.9 }}>
+            {message}
+          </p>
+        )}
         {label && (
           <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub }}>{label}</span>
         )}

@@ -295,6 +295,9 @@ export function useQuestionPool() {
   const restoreFromTrash = useCallback((itemId) => {
     const item = trashRef.current.items.find((it) => it.id === itemId)
     if (!item) return null
+    // 上限に当たると戻しきれない。呼び出し側で伝えられるよう件数を数えておく
+    const room = Math.max(0, LIMITS.QUESTIONS - poolRef.current.questions.length)
+    const dropped = Math.max(0, item.questions.length - room)
     setPool((prev) => {
       const groups = [...prev.groups]
       let targetId = item.group?.id ?? null
@@ -314,7 +317,7 @@ export function useQuestionPool() {
       })
     })
     setTrash(removeItem(trashRef.current, itemId))
-    return item
+    return { ...item, dropped }
   }, [setPool, setTrash])
 
   /** ごみ箱から完全に消す。 */
@@ -393,15 +396,37 @@ export function useQuestionPool() {
    * 書き出したファイルから読み込んだ問題を反映する。
    * merge=true なら今のプールに足し（グループは別名で新設）、false なら丸ごと置き換える。
    */
+  /**
+   * 読み込んだプールを反映する。
+   * 上限で切り捨てが起きたら、その件数を返す（黙って減らさない）。
+   *
+   * @returns {{dropped: number}}
+   */
   const importPool = useCallback((incoming, { merge = true } = {}) => {
-    if (!incoming) return
+    if (!incoming) return { dropped: 0 }
+    const before = poolRef.current.questions.length
+    const wanted = merge ? before + incoming.questions.length : incoming.questions.length
     setPool((prev) => (merge ? appendPool(prev, incoming) : ensureIntegrity(incoming)))
+    return { dropped: Math.max(0, wanted - Math.min(wanted, LIMITS.QUESTIONS)) }
   }, [setPool])
 
-  /** すべての問題とグループを消し、初期状態（同梱のサンプル）に戻す。 */
+  /**
+   * すべての問題とグループを消し、初期状態（同梱のサンプル）に戻す。
+   *
+   * 消す前にごみ箱へ移す。ここだけ素通りしていると、いちばん被害の大きい操作が
+   * いちばん戻せない、という食い違いになる。
+   * 本当に消したいときは、そのあとごみ箱を空にしてもらう。
+   */
   const resetPool = useCallback(() => {
+    const current = poolRef.current
+    let next = trashRef.current
+    for (const group of current.groups) {
+      const inside = current.questions.filter((q) => q.groupId === group.id)
+      next = trashGroup(next, group, inside)
+    }
+    if (next !== trashRef.current) setTrash(next)
     setPool(seedPool())
-  }, [setPool])
+  }, [setPool, setTrash])
 
   return {
     groups,
