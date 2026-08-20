@@ -1,148 +1,200 @@
 /**
- * ブラウザの保存領域（Chrome / Edge の localStorage）から、消してしまった問題を探し出す。
+ * ブラウザの保存領域から、消してしまった問題を探し出す。
  *
- * localStorage の実体は LevelDB で、上書きや削除をしても古い値がしばらくファイルに
- * 残っている。そこを直接なめて、問題データ（quizmake.pool.v2 の中身）の断片を拾う。
- *
- * 見つかったものは、アプリの「読み込む」でそのまま取り込める形（バックアップ .json）
- * にして書き出す。
+ * localStorage は上書きや削除をしても、古い値がしばらくファイルに残っている。
+ * そこを直接なめて、問題データ（quizmake.pool.v2 の中身）の断片を拾う。
+ * 見つかったものは、アプリの「読み込む」でそのまま取り込める形にして書き出す。
  *
  * 使い方:
  *   1) ブラウザを完全に終了する
- *   2) leveldb フォルダを**コピー**する（元は触らない）
- *        Chrome: %LocalAppData%\Google\Chrome\User Data\Default\Local Storage\leveldb
- *        Edge  : %LocalAppData%\Microsoft\Edge\User Data\Default\Local Storage\leveldb
- *   3) node scripts/recover-from-browser.mjs <コピーしたleveldbフォルダ> [出力先.json]
+ *   2) 保存フォルダを**コピー**する（元は触らない）
+ *        Firefox: %AppData%\Mozilla\Firefox\Profiles\  ← プロファイルごとコピーが確実
+ *        Chrome : %LocalAppData%\Google\Chrome\User Data\Default\Local Storage\leveldb
+ *        Edge   : %LocalAppData%\Microsoft\Edge\User Data\Default\Local Storage\leveldb
+ *   3) node scripts/recover-from-browser.mjs <コピーしたフォルダ> [出力先.json]
+ *
+ * Firefox は SQLite に保存し、値を Snappy で圧縮していることがあるため、
+ * 圧縮されたままの断片も展開して探す。
  *
  * 注意: 見つかるとは限らない。ブラウザを使い続けるほど、古い値は消えていく。
  */
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, extname } from 'node:path'
+import { snappyDecompress } from './lib/snappy.mjs'
 
 /** 探す目印。savePool が書く文字列の先頭。 */
 const NEEDLE = '{"version":2,"groups":['
 
+/** 中身を見ても意味が無いファイル。 */
+const SKIP_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.woff', '.woff2', '.ttf', '.ico'])
+
 /**
- * バイト列から JSON オブジェクトを1つ切り出す。
+ * 文字列から JSON オブジェクトを1つ切り出す。
+ * 文字列の中の波括弧を数えないよう、引用符とエスケープを見ながら進む。
  *
- * 文字列の中の波括弧を数えないように、引用符とエスケープを見ながら進む。
- * ASCII の記号は UTF-8 でも UTF-16LE でも同じ位置に現れるので、
- * 1文字あたりのバイト数さえ合わせれば同じ手順で数えられる。
- *
- * @param {Buffer} buf 対象
- * @param {number} start 開き波括弧の位置（バイト）
- * @param {1|2} step 1文字あたりのバイト数
- * @returns {string|null} 切り出した JSON 文字列
+ * @param {string} text 対象
+ * @param {number} start 開き波括弧の位置
+ * @returns {string|null}
  */
-function sliceJson(buf, start, step) {
+function sliceJsonString(text, start) {
   let depth = 0
   let inString = false
   let escaped = false
 
-  for (let i = start; i + step <= buf.length; i += step) {
-    const code = step === 2 ? buf.readUInt16LE(i) : buf[i]
-    // 制御文字が続くようならデータの切れ目とみなして打ち切る
-    if (code === 0 && step === 1) return null
-
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
     if (escaped) {
       escaped = false
       continue
     }
     if (inString) {
-      if (code === 0x5c) escaped = true // \
-      else if (code === 0x22) inString = false // "
+      if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
       continue
     }
-    if (code === 0x22) {
+    if (ch === '"') {
       inString = true
       continue
     }
-    if (code === 0x7b) depth += 1 // {
-    else if (code === 0x7d) {
-      depth -= 1 // }
-      if (depth === 0) {
-        const end = i + step
-        return buf.toString(step === 2 ? 'utf16le' : 'utf8', start, end)
-      }
+    if (ch === '{') depth += 1
+    else if (ch === '}') {
+      depth -= 1
+      if (depth === 0) return text.slice(start, i + 1)
     }
-    // 単純に長すぎるものは打ち切る（壊れた断片を延々と追わない）
-    if (i - start > 40 * 1024 * 1024) return null
   }
   return null
 }
 
-/** 1つのファイルから、問題データの候補をすべて拾う。 */
-function scanFile(path) {
-  const buf = readFileSync(path)
-  const found = []
+/** 切り出した文字列を問題データとして受け取れるか試す。 */
+function tryParse(text, into, source) {
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed?.questions) && parsed.questions.length) {
+      into.push({ ...source, pool: parsed })
+      return true
+    }
+  } catch {
+    // 途中で切れている断片は捨てる
+  }
+  return false
+}
 
-  for (const [encoding, step] of [
-    ['utf16le', 2],
-    ['utf8', 1],
-  ]) {
-    const pattern = Buffer.from(NEEDLE, encoding)
-    let at = buf.indexOf(pattern)
+/** 圧縮されずに入っている値を探す。 */
+function scanPlain(buf, found, path) {
+  const views = [
+    ['utf8', buf.toString('utf8')],
+    ['utf16le', buf.toString('utf16le')],
+    // 2バイト単位の境目がずれている場合に備えて、1バイトずらしたものも見る
+    ['utf16le+1', buf.length > 1 ? buf.subarray(1).toString('utf16le') : ''],
+  ]
+  for (const [label, text] of views) {
+    let at = text.indexOf(NEEDLE)
     while (at !== -1) {
-      const text = sliceJson(buf, at, step)
-      if (text) {
-        try {
-          const parsed = JSON.parse(text)
-          if (Array.isArray(parsed?.questions)) {
-            found.push({ path, encoding, offset: at, pool: parsed })
-          }
-        } catch {
-          // 途中で切れている断片は捨てる
-        }
-      }
-      at = buf.indexOf(pattern, at + pattern.length)
+      const json = sliceJsonString(text, at)
+      if (json) tryParse(json, found, { path, how: `そのまま(${label})` })
+      at = text.indexOf(NEEDLE, at + NEEDLE.length)
     }
   }
-  return found
+}
+
+/**
+ * Snappy で圧縮されたまま入っている値を探す。
+ *
+ * 圧縮されていても、先頭のあたりは「そのままの文字列」として入っていることが多い。
+ * 目印が見つかった位置から数バイト戻って、そこが圧縮の開始かどうかを試す。
+ */
+function scanCompressed(buf, found, path) {
+  for (const encoding of ['utf16le', 'utf8']) {
+    const marker = Buffer.from(NEEDLE, encoding)
+    let at = buf.indexOf(marker)
+    while (at !== -1) {
+      for (let back = 1; back <= 10; back += 1) {
+        const start = at - back
+        if (start < 0) break
+        const out = snappyDecompress(buf, start)
+        if (!out) continue
+        const text = out.toString(encoding)
+        const pos = text.indexOf(NEEDLE)
+        if (pos === -1) continue
+        const json = sliceJsonString(text, pos)
+        if (json && tryParse(json, found, { path, how: `圧縮を展開(${encoding})` })) break
+      }
+      at = buf.indexOf(marker, at + marker.length)
+    }
+  }
+}
+
+/** フォルダの中を再帰的に集める。 */
+function listFiles(dir, acc = [], depth = 0) {
+  if (depth > 8) return acc
+  let entries
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return acc
+  }
+  for (const name of entries) {
+    const path = join(dir, name)
+    let info
+    try {
+      info = statSync(path)
+    } catch {
+      continue
+    }
+    if (info.isDirectory()) listFiles(path, acc, depth + 1)
+    else if (info.isFile() && !SKIP_EXT.has(extname(name).toLowerCase())) acc.push(path)
+  }
+  return acc
 }
 
 const [, , dir, outputPath] = process.argv
 
 if (!dir) {
-  console.error('使い方: node scripts/recover-from-browser.mjs <leveldbフォルダ> [出力先.json]')
+  console.error('使い方: node scripts/recover-from-browser.mjs <コピーしたフォルダ> [出力先.json]')
   process.exit(1)
 }
 
-let entries
-try {
-  entries = readdirSync(dir).filter((n) => statSync(join(dir, n)).isFile())
-} catch {
-  console.error(`フォルダを開けませんでした: ${dir}`)
+const files = listFiles(dir)
+if (!files.length) {
+  console.error(`ファイルが見つかりませんでした: ${dir}`)
   process.exit(1)
 }
 
-console.log(`${entries.length} 個のファイルを調べます…\n`)
+console.log(`${files.length} 個のファイルを調べます…\n`)
 
-const all = []
-for (const name of entries) {
-  const hits = scanFile(join(dir, name))
-  if (hits.length) {
-    for (const hit of hits) {
-      const cloze = hit.pool.questions.filter((q) => q?.type === 'cloze').length
-      console.log(
-        `  ${name}  問題 ${hit.pool.questions.length}問` +
-          `（うち虫食い ${cloze}問） グループ ${hit.pool.groups?.length ?? 0}個`,
-      )
-    }
-    all.push(...hits)
+const found = []
+for (const path of files) {
+  let buf
+  try {
+    buf = readFileSync(path)
+  } catch {
+    continue
+  }
+  if (!buf.length) continue
+  const before = found.length
+  scanPlain(buf, found, path)
+  scanCompressed(buf, found, path)
+  for (const hit of found.slice(before)) {
+    const cloze = hit.pool.questions.filter((q) => q?.type === 'cloze').length
+    console.log(
+      `  見つかりました: ${path}\n` +
+        `    ${hit.how} / 問題 ${hit.pool.questions.length}問（うち虫食い ${cloze}問）` +
+        ` / グループ ${hit.pool.groups?.length ?? 0}個`,
+    )
   }
 }
 
-if (!all.length) {
+if (!found.length) {
   console.error('\n問題データは見つかりませんでした。')
-  console.error('ブラウザを使い続けると古い値は消えます。別の保存先も試してください:')
-  console.error('  ・フォルダのプロパティ →「以前のバージョン」から古い状態を復元する')
-  console.error('  ・別の端末やブラウザで同じアプリを開いたことがないか')
+  console.error('次の手も試せます:')
+  console.error('  ・フォルダのプロパティ →「以前のバージョン」から、削除前の状態を取り出す')
+  console.error('  ・プロファイルフォルダごと指定し直す（storage の下だけでなく全体を渡す）')
   process.exit(1)
 }
 
 // 一番たくさん問題が入っているものを採用する
-all.sort((a, b) => b.pool.questions.length - a.pool.questions.length)
-const best = all[0]
+found.sort((a, b) => b.pool.questions.length - a.pool.questions.length)
+const best = found[0]
 
 const payload = {
   app: 'quizmake',
@@ -157,7 +209,7 @@ const out = outputPath ?? '復元した問題.json'
 writeFileSync(out, JSON.stringify(payload, null, 2), 'utf8')
 
 const cloze = best.pool.questions.filter((q) => q?.type === 'cloze').length
-console.log(`\n見つかった中で一番多いものを採用しました。`)
+console.log(`\n候補 ${found.length} 件のうち、一番多いものを採用しました。`)
 console.log(`  問題 ${best.pool.questions.length}問（うち虫食い ${cloze}問）`)
 console.log(`  グループ: ${(best.pool.groups ?? []).map((g) => g.name).join(' / ')}`)
 console.log(`\n${out} を書き出しました。`)
