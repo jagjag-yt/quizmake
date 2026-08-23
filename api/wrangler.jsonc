@@ -1,0 +1,35 @@
+{
+  // バックアップAPI（段階6a）のデプロイ設定。
+  //
+  // このリポジトリには設定ファイルが3つある。取り違えないこと。
+  //   ルート  wrangler.jsonc … アプリ本体（app.quiz-make.com）
+  //   site/   wrangler.jsonc … ホームページ（quiz-make.com）
+  //   api/    wrangler.jsonc … これ（api.quiz-make.com）
+  //
+  // Cloudflare 側の「Root directory」を api にして、このファイルを使わせる。
+  //
+  // 秘密の値は wrangler secret put で入れる（このファイルには書かない）:
+  //   RESEND_API_KEY … メール送信の鍵
+  //   SECRET_PEPPER  … ハッシュに混ぜる文字列。変えると全員がログアウトされる
+  "name": "quizmake-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-18",
+
+  "vars": {
+    // 送信元。Resend で認証したドメインのアドレスにする
+    "MAIL_FROM": "quizmake <no-reply@quiz-make.com>"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "quizmake",
+      // 実際の id は `wrangler d1 create quizmake` で作ったあとに差し替える
+      "database_id": "PLACEHOLDER_DATABASE_ID"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}
