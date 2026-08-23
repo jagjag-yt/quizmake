@@ -17,7 +17,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useCompactLayout, usePhoneLayout } from './hooks/useMediaQuery'
 import { exportQuestionsToXlsx } from './utils/exportExcel'
 import { backupFileName, downloadJson } from './utils/backupFile'
-import { buildExport } from './storage/store'
+import { buildExport, parseImport } from './storage/store'
 import { makeOrder, reorderQuestion, shuffled } from './utils/shuffle'
 import { isDue } from './utils/srs'
 import { boxDistribution, clozeStats, dailySeries, groupStats, overview, streakDays } from './utils/stats'
@@ -445,6 +445,36 @@ export default function App() {
       })
     },
     [pool, startSession, toast, view, editorGroupId],
+  )
+
+  /**
+   * 預けたものを取り戻す（設定の「預ける・取り戻す」から）。
+   *
+   * ファイルの読み込みと同じ道を通す。**足すだけ**で、いまある問題は消さない。
+   * 置き換えを用意しないのは読み込みと同じ理由で、押し間違いが取り返しつかないため。
+   *
+   * @returns {{questions: number, records: number}} 取り込んだ件数
+   */
+  const restoreBackup = useCallback(
+    (payload) => {
+      const parsed = parseImport(JSON.stringify(payload))
+      if (parsed.study) study.importData(parsed.study, { merge: true })
+      if (parsed.pool) {
+        const { dropped } = pool.importPool(parsed.pool, { merge: true }) ?? { dropped: 0 }
+        if (dropped > 0) {
+          toast.show({
+            tone: 'error',
+            title: `${dropped}問は取り込めませんでした`,
+            description: `1つの端末に持てるのは ${LIMITS.QUESTIONS}問までです`,
+          })
+        }
+      }
+      return {
+        questions: parsed.pool?.questions.length ?? 0,
+        records: parsed.study ? Object.keys(parsed.study.records).length : 0,
+      }
+    },
+    [pool, study, toast],
   )
 
   /** 一覧などから、指定した問題リストで演習を始める。 */
@@ -923,6 +953,9 @@ export default function App() {
           />
         ) : view === VIEWS.SETTINGS ? (
           <SettingsView
+            onBuildPayload={() => buildExport(study.dataRef.current, pool.poolRef.current)}
+            onRestoreBackup={restoreBackup}
+            onNotify={toast.show}
             onResetAll={() => {
               pool.resetPool()
               study.resetAll()

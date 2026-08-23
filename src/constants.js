@@ -32,6 +32,18 @@ export const THEMES = {
   DARK: 'dark',
 }
 
+/**
+ * ログインの鍵を覚えておくキー（段階6a）。
+ * ここに入るのはサーバーが発行したトークンとメールアドレスだけで、問題は入らない。
+ */
+export const SYNC_KEY = 'quizmake.sync.v1'
+
+/**
+ * バックアップ API の場所。
+ * 開発中に別の場所へ向けたいときは、`.env.local` に VITE_API_BASE を書く。
+ */
+export const API_BASE = import.meta.env?.VITE_API_BASE || 'https://api.quiz-make.com'
+
 /** グループ一覧の並び順を覚えておくキー（端末ごとの好みなので localStorage）。 */
 export const GROUP_SORT_KEY = 'quizmake.groupSort.v1'
 

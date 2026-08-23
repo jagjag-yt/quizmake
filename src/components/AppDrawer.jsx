@@ -170,14 +170,17 @@ export default function AppDrawer({ open, view, onChangeView, onClose, trashCoun
 
       <span style={{ height: '1px', background: COLORS.border, margin: '10px 6px' }} />
 
+      {/* アカウント（預ける・取り戻す）は設定の中にある。入口だけここに置く */}
       <button
         type="button"
-        disabled
-        title="アカウント機能は準備中です"
-        style={{ ...itemStyle(false), color: COLORS.dashed, cursor: 'default' }}
+        title="設定の「預ける・取り戻す」を開きます"
+        onClick={() => pick(VIEWS.SETTINGS)}
+        style={itemStyle(false)}
       >
         アカウント
-        <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700 }}>準備中</span>
+        <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, color: COLORS.sub }}>
+          設定の中
+        </span>
       </button>
       <button
         type="button"

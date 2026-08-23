@@ -15,6 +15,10 @@
   "main": "src/index.js",
   "compatibility_date": "2026-08-18",
 
+  // 受け口の住所。アプリ（app.quiz-make.com）はここへ呼びに行く。
+  // custom_domain を付けると、デプロイ時に DNS レコードも自動で作られる。
+  "routes": [{ "pattern": "api.quiz-make.com", "custom_domain": true }],
+
   "vars": {
     // 送信元。Resend で認証したドメインのアドレスにする
     "MAIL_FROM": "quizmake <no-reply@quiz-make.com>"
