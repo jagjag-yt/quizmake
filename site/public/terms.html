@@ -153,5 +153,19 @@
         </nav>
       </div>
     </footer>
+    <!--
+      アクセス解析（Cloudflare Web Analytics）。Cookie を使わず、個人を追跡しない。
+      開発中（localhost）は読み込まない。登録したドメイン以外からは受け付けられず、
+      コンソールに CORS のエラーが出るだけになるため。
+    -->
+    <script>
+      if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+        var beacon = document.createElement('script')
+        beacon.defer = true
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js'
+        beacon.setAttribute('data-cf-beacon', '{"token": "ed5e735da2454739a56f170afc19c275"}')
+        document.head.appendChild(beacon)
+      }
+    </script>
   </body>
 </html>
