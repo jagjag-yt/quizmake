@@ -65,6 +65,7 @@ export default function GroupsView({
   onRemoveGroup,
   onMergeGroups,
   onStartQuiz,
+  onEditGroup,
   onExportGroup,
   onImportClick,
   onOpenTrash,
@@ -393,11 +394,18 @@ export default function GroupsView({
                 >
                   ▶ 演習
                 </button>
-                {/* 5つだと2列に収まらず1マス空くので、書き出すだけ横いっぱいに使う */}
+                <button
+                  type="button"
+                  aria-label={`${s.group.name} の問題を編集`}
+                  style={{ ...smallBtn(false), padding: '0 10px' }}
+                  onClick={() => onEditGroup(s.group.id)}
+                >
+                  ✎ 編集
+                </button>
                 <button
                   type="button"
                   aria-label={`${s.group.name} を書き出す`}
-                  style={{ ...smallBtn(false), padding: '0 10px', gridColumn: '1 / -1' }}
+                  style={{ ...smallBtn(false), padding: '0 10px' }}
                   disabled={!s.total}
                   onClick={() => setExporting({ id: s.group.id, name: s.group.name })}
                 >

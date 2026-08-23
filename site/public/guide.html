@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>使い方｜quizmake</title>
+    <meta
+      name="description"
+      content="quizmake の使い方。配られた問題集の読み込み、問題の作り方、虫食いの作り方、Excelの書き方まで。"
+    />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://quiz-make.com/guide.html" />
+    <meta property="og:title" content="使い方｜quizmake" />
+    <meta
+      property="og:description"
+      content="配られた問題集の読み込みから、自分で問題を作るところまで。"
+    />
+    <meta property="og:image" content="https://quiz-make.com/og.png" />
+    <meta property="og:site_name" content="quizmake" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://quiz-make.com/og.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#2563eb" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css?v=2" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="logo" href="/">
+          <span class="logo-mark" aria-hidden="true">Q</span>
+          quizmake
+        </a>
+        <nav class="site-nav">
+          <a class="btn" href="https://app.quiz-make.com">使ってみる</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="legal">
+      <div class="wrap">
+        <a class="back" href="/">← トップへ</a>
+        <h1>使い方</h1>
+        <p class="updated">
+          登録もインストールもいりません。ブラウザで
+          <a href="https://app.quiz-make.com">app.quiz-make.com</a> を開くだけで始められます。
+        </p>
+
+        <ul>
+          <li><a href="#import">配られた問題集を読み込む</a></li>
+          <li><a href="#solve">解く</a></li>
+          <li><a href="#make">自分で問題を作る</a></li>
+          <li><a href="#cloze">虫食いを作る</a></li>
+          <li><a href="#excel">Excelから読み込む</a></li>
+          <li><a href="#backup">バックアップと持ち運び</a></li>
+          <li><a href="#phone">スマホで使う</a></li>
+        </ul>
+
+        <h2 id="import">配られた問題集を読み込む</h2>
+        <p>
+          誰かから <code>.json</code> や <code>.xlsx</code>
+          のファイルを受け取ったときの手順です。
+        </p>
+        <ol>
+          <li>ファイルを端末に保存する（メールやチャットの添付を「保存」）</li>
+          <li>
+            <a href="https://app.quiz-make.com">app.quiz-make.com</a> を開き、左上の ≡ から
+            「問題作成」を選ぶ
+          </li>
+          <li>「⬆ 読み込む」を押して、保存したファイルを選ぶ</li>
+          <li>確認が出たら「追加する」を押す</li>
+        </ol>
+        <div class="note">
+          <p>
+            いま入っている問題は消えません。必ず「追加」されます。同じ名前のグループがある場合は、
+            別の名前で新しく作られます。
+          </p>
+        </div>
+        <p>
+          読み込んだら、左上の ≡ から「演習」へ。条件バーの「条件を変える」で、読み込んだグループを
+          選べば出題されます。
+        </p>
+
+        <h2 id="solve">解く</h2>
+        <ul>
+          <li>選択肢を押すだけで採点され、その場で解説が出ます。</li>
+          <li>選択肢の並びは毎回入れ替わります（位置で覚えるのを防ぐため）。</li>
+          <li>
+            虫食いは、青いマーカーを押すと中身が見えます。もう一度押すと隠れます。採点はしません。
+          </li>
+          <li>途中でやめたいときは、条件バーの「演習を終了」。そこまでの解答で採点されます。</li>
+        </ul>
+        <div class="note">
+          <p>
+            間違えた問題は、しばらくしてから「今日の復習」に出てきます。正解するほど、次に出るまでの
+            間隔が延びます。
+          </p>
+        </div>
+
+        <h2 id="make">自分で問題を作る</h2>
+        <ol>
+          <li>≡ から「問題作成」</li>
+          <li>「＋ 新しいグループを作成」か、既存のグループを選ぶ</li>
+          <li>「＋ 問題を追加」で、選択式か虫食いを選ぶ</li>
+          <li>問題文と選択肢を入力し、正解にする選択肢の「正解にする」を押す</li>
+        </ol>
+        <div class="note">
+          <p>
+            保存ボタンはありません。入力した内容は自動で保存されます。選択肢や正解が足りないときは、
+            画面の右下に「未完成」と出ます。
+          </p>
+        </div>
+
+        <h2 id="cloze">虫食いを作る</h2>
+        <p>教科書やノートの文をそのまま貼り付けて、覚えたい言葉を隠します。</p>
+        <ol>
+          <li>問題タイプで「虫食い」を選ぶ</li>
+          <li>文章を貼り付ける</li>
+          <li>隠したい言葉を選んで F1 を押す（もう一度押すと戻ります）</li>
+        </ol>
+        <p>次の方法でも隠せます。どれを使っても結果は同じです。</p>
+        <ul>
+          <li>
+            <code>[[ ]]</code> で囲む： <code>植物は葉の[[葉緑体]]で</code>
+            のように打つと、閉じ括弧を打った時点で括弧が消え、その言葉が隠れます。書きながら指定できます。
+          </li>
+          <li>
+            「同じ語をすべて隠す」：言葉を1つ選んで押すと、文章中の同じ言葉をまとめて隠します。
+          </li>
+        </ul>
+        <div class="note">
+          <p>
+            離れた複数の場所をまとめて選ぶことはできません（ブラウザの制約です）。複数を一度に指定
+            したいときは、上の2つの方法を使ってください。
+          </p>
+        </div>
+
+        <h2 id="excel">Excelから読み込む</h2>
+        <p>
+          1行につき1問、1ファイルにつき1グループとして取り込まれます。グループ名はファイル名になります。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>列</th>
+              <th>必須</th>
+              <th>内容</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>問題文</td><td>必須</td><td>問題の本文</td></tr>
+            <tr><td>選択肢a〜e</td><td>a・bは必須</td><td>空欄の列は自動で飛ばします（2〜5択）</td></tr>
+            <tr>
+              <td>正解</td>
+              <td>必須</td>
+              <td><code>a</code> や <code>1</code>、選択肢の文字列でも可。複数は「、」区切り</td>
+            </tr>
+            <tr><td>解説</td><td>任意</td><td>解答後に表示されます</td></tr>
+            <tr><td>基本事項</td><td>任意</td><td>箇条書き。セル内改行か「｜」で区切ります</td></tr>
+            <tr><td>下線キーワード</td><td>任意</td><td>問題文中で強調したい語。「、」区切り</td></tr>
+            <tr><td>画像URL</td><td>任意</td><td><code>http(s)</code> の画像</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <p>
+            虫食いはExcelでは扱えません。アプリの中で作ってください。虫食いを含めて配りたいときは、
+            下の「バックアップ」の形式を使います。
+          </p>
+        </div>
+
+        <h2 id="backup">バックアップと持ち運び</h2>
+        <p>
+          問題も学習記録も、あなたの端末の中だけに保存されます。外部には送られません。その代わり、
+          ブラウザのデータを消すと一緒に消えます。
+        </p>
+        <ul>
+          <li>
+            書き出す：設問一覧のグループの「⬇ 書き出す」、または問題作成の左下から。
+            <code>.json</code> を選ぶと問題と学習記録の両方が保存され、読み込めば元どおりになります
+            （虫食いも含みます）。
+          </li>
+          <li>
+            配る：書き出した <code>.json</code> を渡せば、相手はそれを読み込むだけで同じ問題集を
+            使えます。
+          </li>
+          <li>
+            間違えて消したとき：削除した問題とグループは「ごみ箱」に入ります（≡ から開けます）。
+            「元に戻す」で復活します。
+          </li>
+        </ul>
+        <div class="note">
+          <p>
+            iPhone・iPad の Safari には、7日間サイトを開かないと保存データを消す仕組みがあります。
+            ホーム画面に追加しておくと消えにくくなりますが、大事な問題集は書き出しておいてください。
+          </p>
+        </div>
+
+        <h2 id="phone">スマホで使う</h2>
+        <ul>
+          <li>解く・見る・記録の確認は、スマホでもそのまま使えます。</li>
+          <li>
+            問題作成だけは、画面の広い端末を推奨しています。幅が狭いと選択肢の入力欄が数文字分しか
+            取れないためです。案内画面から「それでもこの端末で作成する」で進むこともできます。
+          </li>
+          <li>ホーム画面に追加すると全画面で起動し、電波が無くても解けます。</li>
+        </ul>
+
+        <p style="margin-top: 40px">
+          <a class="btn btn-lg" href="https://app.quiz-make.com">quizmake を開く</a>
+        </p>
+        <p>
+          分からないことがあれば
+          <a href="mailto:support@quiz-make.com">support@quiz-make.com</a> までご連絡ください。
+        </p>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <span>&copy; 2026 quizmake</span>
+        <nav>
+          <a href="/">トップ</a>
+          <a href="/terms.html">利用規約</a>
+          <a href="/privacy.html">プライバシーポリシー</a>
+          <a href="https://app.quiz-make.com">アプリ</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
