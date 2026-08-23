@@ -41,7 +41,7 @@
     <main class="legal">
       <a class="back" href="/">← トップへ戻る</a>
       <h1>プライバシーポリシー</h1>
-      <p class="updated">制定日：2026年8月16日</p>
+      <p class="updated">制定日：2026年8月16日／最終改定日：2026年8月21日</p>
 
       <div class="note">
         <p>
@@ -90,9 +90,47 @@
       </p>
 
       <h2>2. Cookie について</h2>
-      <p>本サービスは Cookie を使用していません。アクセス解析ツールも導入していません。</p>
+      <p>
+        本サービスは Cookie を使用していません。第3項のアクセス解析も、Cookie
+        やブラウザの保存領域を使わずに行われます。
+      </p>
 
-      <h2>3. 自動的に記録される情報</h2>
+      <h2>3. アクセス解析</h2>
+      <p>
+        どれくらいの方に使われているかを把握するため、Cloudflare, Inc. が提供する
+        <strong>Cloudflare Web Analytics</strong> を利用しています（2026年8月21日から）。
+      </p>
+      <ul>
+        <li>Cookie や端末への保存を行わず、個人を識別・追跡しません。</li>
+        <li>
+          記録されるのは、閲覧されたページ、参照元（どのサイトから来たか）、おおまかな地域、
+          ブラウザや端末の種類、表示にかかった時間などです。
+        </li>
+        <li>
+          <strong>作成した問題の内容や学習記録は、解析の対象になりません。</strong>
+          これらは第1項のとおり、お使いの端末の中だけに保存されます。
+        </li>
+      </ul>
+      <ul>
+        <li>
+          <a
+            href="https://www.cloudflare.com/web-analytics/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Cloudflare Web Analytics について</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://www.cloudflare.com/privacypolicy/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Cloudflare プライバシーポリシー</a
+          >
+        </li>
+      </ul>
+
+      <h2>4. 自動的に記録される情報</h2>
       <p>
         本サービスは Cloudflare, Inc. のサーバーから配信しています。
         ウェブサイトの一般的な仕組みとして、接続時に IP アドレス、ブラウザの種類、
@@ -101,7 +139,7 @@
         運営者が個人を識別する目的で利用することはありません。
       </p>
 
-      <h2>4. 外部サービスへの送信</h2>
+      <h2>5. 外部サービスへの送信</h2>
       <p>
         本サービスは、文字を読みやすく表示するために Google LLC が提供する
         Google Fonts を読み込んでいます。この際、利用者の IP アドレスが同社へ送信されます。
@@ -115,13 +153,13 @@
         </li>
       </ul>
 
-      <h2>5. 第三者への提供</h2>
+      <h2>6. 第三者への提供</h2>
       <p>
-        運営者は、利用者の情報を第三者に提供しません。
-        そもそも、提供できる情報を保持していません。
+        運営者は、利用者の情報を第三者に提供しません。運営者自身が保持している情報もありません。
+        アクセス解析や配信のために Cloudflare, Inc. が取り扱う情報については、第3項・第4項をご覧ください。
       </p>
 
-      <h2>6. 今後の予定</h2>
+      <h2>7. 今後の予定</h2>
       <p>
         今後、次の機能を追加する予定があります。いずれも、導入する際には本ポリシーを改定し、
         本サイト上でお知らせします。<strong>お知らせなく取り扱いを変更することはありません。</strong>
@@ -134,13 +172,13 @@
         <li><strong>広告の掲載</strong>：広告配信事業者による情報の取得が生じます。</li>
       </ul>
 
-      <h2>7. 開示・訂正・削除のご希望</h2>
+      <h2>8. 開示・訂正・削除のご希望</h2>
       <p>
         現在、運営者は利用者の情報を保持していないため、開示できる情報はありません。
         端末内のデータは、利用者ご自身でいつでも削除できます（第1項参照）。
       </p>
 
-      <h2>8. お問い合わせ</h2>
+      <h2>9. お問い合わせ</h2>
       <p>
         本ポリシーに関するご質問は、
         <a href="mailto:support@quiz-make.com">support@quiz-make.com</a> までご連絡ください。
@@ -157,5 +195,19 @@
         </nav>
       </div>
     </footer>
+    <!--
+      アクセス解析（Cloudflare Web Analytics）。Cookie を使わず、個人を追跡しない。
+      開発中（localhost）は読み込まない。登録したドメイン以外からは受け付けられず、
+      コンソールに CORS のエラーが出るだけになるため。
+    -->
+    <script>
+      if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+        var beacon = document.createElement('script')
+        beacon.defer = true
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js'
+        beacon.setAttribute('data-cf-beacon', '{"token": "ed5e735da2454739a56f170afc19c275"}')
+        document.head.appendChild(beacon)
+      }
+    </script>
   </body>
 </html>
