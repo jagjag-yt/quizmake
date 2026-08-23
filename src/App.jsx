@@ -766,6 +766,13 @@ export default function App() {
             questions={questions}
             getRecord={study.getRecord}
             onOpenGroup={setOpenGroupId}
+            onEditGroup={(groupId) => {
+              // そのグループの1問目を開く。まだ無ければ入口の画面のまま作り始められる
+              const first = questions.find((q) => q.groupId === groupId)
+              setEditorGroupId(groupId)
+              setEditingId(first ? first.id : null)
+              setView(VIEWS.EDITOR)
+            }}
             onCreateGroup={(name) => {
               const id = pool.addGroup(name)
               toast.show({ tone: 'success', title: `グループ「${name}」を作成しました` })
