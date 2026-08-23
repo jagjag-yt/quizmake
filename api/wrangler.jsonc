@@ -28,8 +28,8 @@
     {
       "binding": "DB",
       "database_name": "quizmake",
-      // 実際の id は `wrangler d1 create quizmake` で作ったあとに差し替える
-      "database_id": "PLACEHOLDER_DATABASE_ID"
+      // 2026-08-24 に `wrangler d1 create quizmake` で作ったもの
+      "database_id": "42bc3945-97b7-4b37-b1be-59b01ab1181b"
     }
   ],
 
