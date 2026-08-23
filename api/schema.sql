@@ -8,9 +8,13 @@
 --   ・メールアドレスは、探すために必要なので平文で持つ。それ以外の個人情報は持たない。
 
 -- 利用者。メールアドレス1つにつき1行。
+--
+-- display_name は画面に出す名前。本人確認には使わない（探すのはメールアドレス）。
+-- 既存のデータベースに後から足す場合は migrations/0001_add_display_name.sql を流す。
 CREATE TABLE IF NOT EXISTS users (
   id           TEXT PRIMARY KEY,          -- u_xxxxx
   email        TEXT NOT NULL UNIQUE,      -- 小文字に正規化して保存する
+  display_name TEXT,                      -- 20文字まで。未設定なら NULL
   created_at   TEXT NOT NULL,             -- ISO8601
   last_seen_at TEXT NOT NULL
 );

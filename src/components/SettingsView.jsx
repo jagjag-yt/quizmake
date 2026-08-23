@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { COLORS, SPACING, TAP_MIN, THEMES } from '../constants'
 import { loadTheme, saveTheme } from '../utils/theme'
 import ConfirmDialog from './ConfirmDialog'
-import SyncPanel from './SyncPanel'
 import { ShortcutList } from './ShortcutHelp'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
@@ -29,13 +28,7 @@ const note = { margin: 0, fontSize: '12.5px', color: COLORS.sub, lineHeight: 1.8
  * 通知と規約は中身がまだ無いため、置き場所だけ先に用意して「準備中」と示す。
  * 何ができるようになる予定かが見えているほうが、問い合わせが減る。
  */
-export default function SettingsView({
-  onResetAll,
-  onBuildPayload,
-  onRestoreBackup,
-  onNotify,
-  appVersion = '1.0.0',
-}) {
+export default function SettingsView({ onResetAll, onOpenAccount, appVersion = '1.0.0' }) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const [confirming, setConfirming] = useState(false)
@@ -106,13 +99,32 @@ export default function SettingsView({
         </div>
       </section>
 
-      {/* 預ける・取り戻す */}
-      <SyncPanel
-        cardStyle={card(space.card)}
-        onBuildPayload={onBuildPayload}
-        onRestore={onRestoreBackup}
-        onNotify={onNotify}
-      />
+      {/* アカウント（本体は別画面。ここには入口だけ置く） */}
+      <section style={card(space.card)}>
+        <h3 style={heading}>アカウント</h3>
+        <p style={{ ...note, marginBottom: '12px' }}>
+          問題と学習記録を預けて、別の端末や、消してしまったときに取り戻せます。
+          アカウントは任意で、作らなくてもすべての機能を使えます。
+        </p>
+        <button
+          type="button"
+          onClick={onOpenAccount}
+          style={{
+            minHeight: `${TAP_MIN}px`,
+            padding: '0 20px',
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            color: COLORS.body,
+            fontSize: '13.5px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          アカウントを開く
+        </button>
+      </section>
 
       {/* 通知 */}
       <section style={card(space.card)}>
@@ -133,7 +145,7 @@ export default function SettingsView({
         </div>
         <p style={{ ...note, marginTop: '8px' }}>
           「今日の復習」がたまったときにお知らせする機能を準備しています。
-          お使いの端末に通知を届けるにはアカウントが必要なため、アカウント機能と一緒に提供します。
+          お使いの端末に通知を届けるにはアカウントが必要です。
         </p>
       </section>
 
@@ -142,7 +154,7 @@ export default function SettingsView({
         <h3 style={heading}>規約とプライバシー</h3>
         <p style={{ ...note, marginBottom: '12px' }}>
           入力した問題も学習記録も、お使いの端末の中に保存されます。
-          外部に送るのは、上の「預ける」を押したときだけです。
+          外部に送るのは、アカウントの「預ける」を押したときだけです。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {[

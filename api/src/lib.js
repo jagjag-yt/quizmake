@@ -64,6 +64,30 @@ export function looksLikeEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254
 }
 
+/** ユーザー名の上限（文字数）。長い名前は画面が崩れるだけで、得がない。 */
+export const NAME_MAX = 20
+
+/**
+ * ユーザー名を整える。
+ *
+ * 前後の空白を落とし、連続する空白を1つにまとめ、改行や制御文字は取り除く。
+ * 整えた結果が空なら null を返す（未設定として扱う）。
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function normalizeName(value) {
+  if (typeof value !== 'string') return null
+  // 制御文字（改行やタブを含む）は空白にしてから、連続する空白を1つにまとめる
+  const cleaned = value
+    .replace(/\p{Cc}/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  if (!cleaned) return null
+  // 絵文字などを途中で切らないため、コードポイント単位で数える
+  return [...cleaned].slice(0, NAME_MAX).join('')
+}
+
 /**
  * 使いすぎを止める。
  *
