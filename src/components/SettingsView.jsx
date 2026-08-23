@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { COLORS, SPACING, TAP_MIN, THEMES } from '../constants'
 import { loadTheme, saveTheme } from '../utils/theme'
 import ConfirmDialog from './ConfirmDialog'
+import SyncPanel from './SyncPanel'
 import { ShortcutList } from './ShortcutHelp'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
@@ -28,7 +29,13 @@ const note = { margin: 0, fontSize: '12.5px', color: COLORS.sub, lineHeight: 1.8
  * 通知と規約は中身がまだ無いため、置き場所だけ先に用意して「準備中」と示す。
  * 何ができるようになる予定かが見えているほうが、問い合わせが減る。
  */
-export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
+export default function SettingsView({
+  onResetAll,
+  onBuildPayload,
+  onRestoreBackup,
+  onNotify,
+  appVersion = '1.0.0',
+}) {
   const compact = useCompactLayout()
   const space = compact ? SPACING.compact : SPACING.wide
   const [confirming, setConfirming] = useState(false)
@@ -99,6 +106,14 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
         </div>
       </section>
 
+      {/* 預ける・取り戻す */}
+      <SyncPanel
+        cardStyle={card(space.card)}
+        onBuildPayload={onBuildPayload}
+        onRestore={onRestoreBackup}
+        onNotify={onNotify}
+      />
+
       {/* 通知 */}
       <section style={card(space.card)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -126,7 +141,8 @@ export default function SettingsView({ onResetAll, appVersion = '1.0.0' }) {
       <section style={card(space.card)}>
         <h3 style={heading}>規約とプライバシー</h3>
         <p style={{ ...note, marginBottom: '12px' }}>
-          現在は、入力した問題も学習記録もお使いの端末の中だけに保存され、外部には送信していません。
+          入力した問題も学習記録も、お使いの端末の中に保存されます。
+          外部に送るのは、上の「預ける」を押したときだけです。
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {[
