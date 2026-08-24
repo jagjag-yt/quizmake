@@ -55,7 +55,7 @@ async function login(email) {
   const code = send.data?.devCode
   if (!code) return { error: `番号を受け取れない status=${send.status}` }
   const verify = await api('/otp/verify', { method: 'POST', body: { email, code } })
-  return { token: verify.data?.token, code }
+  return { token: verify.data?.token, code, name: verify.data?.name ?? null }
 }
 
 const sample = {
@@ -105,6 +105,29 @@ check('違う番号は通らない', wrong.status === 400, `status=${wrong.statu
 
 const badEmail = await api('/otp/send', { method: 'POST', body: { email: 'こわれた' } })
 check('形式が違うアドレスは拒否される', badEmail.status === 400)
+
+console.log('\n1-2. アカウントの名前')
+const meBefore = await api('/me', { token })
+check('作りたてに名前は入っていない', meBefore.data?.name === null, String(meBefore.data?.name))
+check('メールアドレスは引ける', meBefore.data?.email === EMAIL, String(meBefore.data?.email))
+
+const emptyName = await api('/me', { method: 'POST', token, body: { name: '   ' } })
+check('空白だけの名前は拒否される', emptyName.status === 400, `status=${emptyName.status}`)
+
+const setName = await api('/me', { method: 'POST', token, body: { name: '  ゆうき  ' } })
+check('名前を決められる', setName.data?.name === 'ゆうき', String(setName.data?.name))
+
+const meAfter = await api('/me', { token })
+check('名前が残っている', meAfter.data?.name === 'ゆうき', String(meAfter.data?.name))
+
+const longName = await api('/me', { method: 'POST', token, body: { name: 'あ'.repeat(21) } })
+check('長すぎる名前は拒否される', longName.status === 400, `status=${longName.status}`)
+
+const meStill = await api('/me', { token })
+check('拒否されても前の名前は消えない', meStill.data?.name === 'ゆうき', String(meStill.data?.name))
+
+const relogin = await login(EMAIL)
+check('ログインし直すと名前が返る', relogin.name === 'ゆうき', String(relogin.name))
 
 console.log('\n2. 鍵が無いと触れない')
 check('鍵なしは拒否される', (await api('/backups')).status === 401)

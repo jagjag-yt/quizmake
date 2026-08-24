@@ -31,6 +31,7 @@ import DataTransfer, { TransferInput } from './components/DataTransfer'
 import AppDrawer from './components/AppDrawer'
 import OfflineNotice from './components/OfflineNotice'
 import SettingsView from './components/SettingsView'
+import AccountView from './components/AccountView'
 import TrashView from './components/TrashView'
 import ConfirmDialog from './components/ConfirmDialog'
 import ShortcutHelp from './components/ShortcutHelp'
@@ -951,11 +952,15 @@ export default function App() {
               setView(VIEWS.QUESTIONS)
             }}
           />
-        ) : view === VIEWS.SETTINGS ? (
-          <SettingsView
+        ) : view === VIEWS.ACCOUNT ? (
+          <AccountView
             onBuildPayload={() => buildExport(study.dataRef.current, pool.poolRef.current)}
             onRestoreBackup={restoreBackup}
             onNotify={toast.show}
+          />
+        ) : view === VIEWS.SETTINGS ? (
+          <SettingsView
+            onOpenAccount={() => setView(VIEWS.ACCOUNT)}
             onResetAll={() => {
               pool.resetPool()
               study.resetAll()

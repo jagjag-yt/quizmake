@@ -1,4 +1,5 @@
 import {
+  NAME_MAX,
   allowRate,
   deviceLabel,
   fail,
@@ -8,6 +9,7 @@ import {
   newId,
   newOtpCode,
   normalizeEmail,
+  normalizeName,
   nowIso,
   safeEqual,
 } from './lib.js'
@@ -44,13 +46,16 @@ const otpBurstSeconds = (env) => Number(env.OTP_BURST_SECONDS ?? 60)
 /**
  * 開発中に、送ったはずの6桁を応答に含めるか。
  *
- * 通し試験でメールを読めないため、**localhost から呼ばれたときに限り**返す。
- * 本番のドメインでは、この設定を入れても返さない（取り違えても漏れない）。
+ * 通し試験でメールを読めないため、**ローカルの dev から呼ばれたときに限り**返す。
+ * 本番では、この設定を入れても返さない（取り違えても漏れない）。
  */
 function shouldEchoOtp(request, env) {
-  if (env.DEV_ECHO_OTP !== '1') return false
-  const host = new URL(request.url).hostname
-  return host === 'localhost' || host === '127.0.0.1'
+  if (String(env.DEV_ECHO_OTP) !== '1') return false
+  // Cloudflare のネットワークを通った要求には必ず cf-connecting-ip が付く。
+  // ローカルの wrangler dev では付かないので、これが無いときだけ返す。
+  // （以前はホスト名で見ていたが、wrangler.jsonc に routes を入れてから
+  //   dev でもホストが api.quiz-make.com になり、判定できなくなった）
+  return !request.headers.get('cf-connecting-ip')
 }
 
 /** 6桁の数字の有効期限（分）。 */
@@ -95,7 +100,8 @@ async function authenticate(request, env) {
 
   const tokenHash = await hashSecret(token, env.SECRET_PEPPER)
   const device = await env.DB.prepare(
-    'SELECT id, user_id, label FROM devices WHERE token_hash = ?',
+    'SELECT d.id, d.user_id, d.label, u.email, u.display_name, u.created_at AS user_created_at ' +
+      'FROM devices d JOIN users u ON u.id = d.user_id WHERE d.token_hash = ?',
   )
     .bind(tokenHash)
     .first()
@@ -230,7 +236,9 @@ async function handleOtpVerify(request, env) {
     .run()
 
   // 利用者を用意する（初回はここで作られる）
-  let user = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
+  let user = await env.DB.prepare('SELECT id, display_name FROM users WHERE email = ?')
+    .bind(email)
+    .first()
   if (!user) {
     const id = newId('u')
     await env.DB.prepare(
@@ -238,7 +246,7 @@ async function handleOtpVerify(request, env) {
     )
       .bind(id, email, nowIso(), nowIso())
       .run()
-    user = { id }
+    user = { id, display_name: null }
   } else {
     await env.DB.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?')
       .bind(nowIso(), user.id)
@@ -268,7 +276,15 @@ async function handleOtpVerify(request, env) {
     .bind(newId('d'), user.id, tokenHash, label, nowIso(), nowIso())
     .run()
 
-  return json({ ok: true, token, email, deviceLabel: label, removedDevices: removed.length })
+  return json({
+    ok: true,
+    token,
+    email,
+    // 名前がまだ無い＝この画面で決めてもらう（アプリ側はここを見て入力を出す）
+    name: user.display_name ?? null,
+    deviceLabel: label,
+    removedDevices: removed.length,
+  })
 }
 
 /** 預ける。同じ日に何度押しても、その日の1件を上書きする。 */
@@ -370,6 +386,37 @@ async function handleBackupGet(url, env, device) {
   return json({ ok: true, day: row.day, payload })
 }
 
+/** アカウントの中身（名前・メール・いつ作ったか）。 */
+function handleMeGet(device) {
+  return json({
+    ok: true,
+    email: device.email,
+    name: device.display_name ?? null,
+    createdAt: device.user_created_at,
+    deviceLabel: device.label,
+  })
+}
+
+/**
+ * 名前を決める・変える。
+ *
+ * 本人確認には使わない見た目だけの名前なので、重複は許す。
+ * 同姓同名を禁じても得がなく、断られる理由が利用者に伝わりにくい。
+ */
+async function handleMePost(request, env, device) {
+  const body = await readJson(request)
+  const name = normalizeName(body?.name)
+  if (!name) return fail(400, '名前を入力してください。')
+  if ([...String(body?.name ?? '')].length > NAME_MAX) {
+    return fail(400, `名前は${NAME_MAX}文字までにしてください。`)
+  }
+
+  await env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?')
+    .bind(name, device.user_id)
+    .run()
+  return json({ ok: true, name })
+}
+
 /** いまログインしている端末の一覧。 */
 async function handleDevices(env, device) {
   const rows = await env.DB.prepare(
@@ -432,6 +479,12 @@ export default {
       }
       if (url.pathname === '/backups' && request.method === 'GET') {
         return withCors(await handleBackupList(env, device))
+      }
+      if (url.pathname === '/me' && request.method === 'GET') {
+        return withCors(handleMeGet(device))
+      }
+      if (url.pathname === '/me' && request.method === 'POST') {
+        return withCors(await handleMePost(request, env, device))
       }
       if (url.pathname === '/devices' && request.method === 'GET') {
         return withCors(await handleDevices(env, device))

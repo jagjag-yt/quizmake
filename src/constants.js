@@ -149,6 +149,7 @@ export const VIEWS = {
   EDITOR: 'editor',
   DASHBOARD: 'dashboard',
   TRASH: 'trash',
+  ACCOUNT: 'account',
   SETTINGS: 'settings',
 }
 

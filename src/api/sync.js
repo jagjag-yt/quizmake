@@ -11,6 +11,13 @@ import { API_BASE, SYNC_KEY } from '../constants'
  * サーバー側の仕様は api/src/index.js を見ること。
  */
 
+/**
+ * ユーザー名の上限（文字数）。
+ * サーバー側（api/src/lib.js の NAME_MAX）と同じ値にしておく。
+ * 画面で先に止めるためのもので、本当の判定はサーバーが行う。
+ */
+export const NAME_MAX = 20
+
 /** 通信の待ち時間の上限（ミリ秒）。返らないまま止まって見えるのを防ぐ。 */
 const TIMEOUT_MS = 20000
 
@@ -24,6 +31,7 @@ export function loadSession() {
     return {
       token: parsed.token,
       email: typeof parsed.email === 'string' ? parsed.email : '',
+      name: typeof parsed.name === 'string' ? parsed.name : '',
       deviceLabel: typeof parsed.deviceLabel === 'string' ? parsed.deviceLabel : '',
     }
   } catch {
@@ -32,7 +40,7 @@ export function loadSession() {
 }
 
 /** 鍵を保存する。 */
-function saveSession(session) {
+export function saveSession(session) {
   try {
     localStorage.setItem(SYNC_KEY, JSON.stringify(session))
   } catch {
@@ -144,7 +152,11 @@ export async function sendCode(email) {
 
 /**
  * 6桁の数字を確かめ、この端末に鍵を保存する。
- * @returns {{email: string, deviceLabel: string, removedDevices: number}}
+ *
+ * 名前がまだ無い（初めて作るアカウント）ときは name が空になる。
+ * 呼び出し側はそれを見て、名前を決める画面を出す。
+ *
+ * @returns {{email: string, name: string, deviceLabel: string, removedDevices: number}}
  */
 export async function verifyCode(email, code) {
   const data = await call('/otp/verify', { method: 'POST', body: { email, code } })
@@ -152,14 +164,37 @@ export async function verifyCode(email, code) {
   const session = {
     token: data.token,
     email: data.email ?? email,
+    name: typeof data.name === 'string' ? data.name : '',
     deviceLabel: data.deviceLabel ?? '',
   }
   saveSession(session)
   return {
     email: session.email,
+    name: session.name,
     deviceLabel: session.deviceLabel,
     removedDevices: Number(data.removedDevices ?? 0),
   }
+}
+
+/** アカウントの中身（名前・メール・作成日）。 */
+export async function fetchAccount() {
+  const data = await callAuthed('/me')
+  return {
+    email: data.email ?? '',
+    name: typeof data.name === 'string' ? data.name : '',
+    createdAt: data.createdAt ?? null,
+  }
+}
+
+/**
+ * 名前を決める・変える。
+ * この端末に覚えている名前も同時に更新する（画面がすぐ追いつくように）。
+ */
+export async function saveName(name) {
+  const data = await callAuthed('/me', { method: 'POST', body: { name } })
+  const session = loadSession()
+  if (session) saveSession({ ...session, name: data.name ?? '' })
+  return data.name ?? ''
 }
 
 /**

@@ -170,17 +170,14 @@ export default function AppDrawer({ open, view, onChangeView, onClose, trashCoun
 
       <span style={{ height: '1px', background: COLORS.border, margin: '10px 6px' }} />
 
-      {/* アカウント（預ける・取り戻す）は設定の中にある。入口だけここに置く */}
+      {/* アカウント。預ける・取り戻すはこの中にある */}
       <button
         type="button"
-        title="設定の「預ける・取り戻す」を開きます"
-        onClick={() => pick(VIEWS.SETTINGS)}
-        style={itemStyle(false)}
+        aria-current={view === VIEWS.ACCOUNT ? 'page' : undefined}
+        onClick={() => pick(VIEWS.ACCOUNT)}
+        style={itemStyle(view === VIEWS.ACCOUNT)}
       >
         アカウント
-        <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, color: COLORS.sub }}>
-          設定の中
-        </span>
       </button>
       <button
         type="button"
