@@ -1,5 +1,6 @@
 # QUIZMAKE_CLOZE_MODE.SPEC v2 — agent-target: Claude Code
 # v2(2026-08-17): [[ ]]記法 / タグ廃止 / xlsx12列 / グループ別連番 / 詳細パネルの既定=答えを隠す を反映。
+# v2.6(2026-08-24): 段落の番号（1. / (1) / ①）/ 元に戻す・やり直す / スクロール固定 / 空白と空行の保持。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -77,6 +78,18 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
           textarea も contenteditable も rangeCount は 1 に潰れる。複数レンジは Firefox のみ）。
           「飛び地を選んで一気に隠す」は実装できないため、これで代える。もう一つの手段は [[ ]] 記法。
         [□ 隠すのを解除](enabled when selection intersects a hidden run)
+        divider + 番号 [1.] [(1)] [①] [なし](v2.6)
+          選んだ行の先頭に番号を振る。Word の「番号を振る」と同じ感覚で使う。
+          選択が無ければカーソルのある段落だけ。すでに付いている番号は種類を問わず外してから振り直す。
+          直前の段落が同じ種類の番号なら、その続きから数える。空の段落は飛ばす（数に入れない）。
+          丸数字は ①〜⑳ まで。21以降は「(21) 」に落とす（丸数字が存在しないため）。
+          **Enter で次の番号が続く**。番号だけの行で Enter を押すと番号を外し、そこで箇条書きを終える。
+          行を足したあとは、下に続く同じ種類の番号を振り直す。
+          IMPLEMENTATION: 文字列を作り直さず、段落の先頭 run だけを足し引きする
+            （numberParas / unnumberParas / renumberFollowing / splitParaWithNumber in data/cloze.js）。
+            テキストから組み直すと、隠す指定と文字色が別の位置へずれる。
+          判定は state ではなく入力欄の今の選択を直接読む（選んだ直後に押すと state はまだ古い）。
+        divider + [↶][↷](v2.6) 元に戻す/やり直す。Ctrl+Z / Ctrl+Y（Ctrl+Shift+Z も可）
         divider + 文字色: 6 swatches 22px circle r999, active = 0 0 0 2px #fff, 0 0 0 3px #2563eb
         disabled state (empty body): swatch/button bg #f1f5f9 fg #cbd5e1
       入力欄 b1 #2563eb r10 p16 min-h230
@@ -106,6 +119,26 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
                         例：植物は葉の[[葉緑体]]で —— 閉じた時点で括弧は消え、その語が隠す箇所になります。"
       reason: 選択してボタンを押す操作は書きながらだと手が止まる。貼り付け後の一括指定にも使える。
     footnote block (bg #f8fafc, b1 cardBorder, r14): "虫食い問題は採点しないため、正答率・定着度・今日の復習には含まれません。Excelにも書き出されません。"
+  UNDO/REDO(v2.6・非交渉):
+    ブラウザ標準の履歴は使わない。値を React 側で差し替えているうえ、
+    **「隠す」は文字が変わらないため標準の履歴に残らない**。
+    本文（paras）そのものをスタックに積み、入力・隠す・番号を同じ土俵で戻す。
+    続けて打った文字は 700ms 以内なら1つにまとめる（1文字ずつ戻すと何十回も押すことになる）。
+    保存を通ると run の入れ物が作り直されるため、履歴の比較は **中身で行う**（sameParas）。
+    `!==` で見ると自分の変更まで「外から変わった」と誤解し、1回押しても何も起きなくなる。
+    上限 100 手。問題を切り替えたら作り直す。
+
+  SCROLL(v2.6・非交渉):
+    高さの測り直し（height='auto'）とカーソルの置き直し（setSelectionRange）は、
+    **前後で scrollTop を保存して戻す**。どちらもページを勝手に上へ飛ばす。
+    前者は一瞬ページが短くなってブラウザがスクロール位置を切り詰めるため、
+    後者はカーソルを見せようとしてブラウザが動かすため。
+
+  TEXT(v2.6・非交渉):
+    run の文字は **trim しない**（前後の空白を落とさない）。落とすと「12. aaa」の aaa を隠したときに
+    直前の run が「12.」になり、空白が消えてカーソルもずれる。
+    空の段落も **捨てない**。捨てると Enter を2回押しても空行が作れない。
+
   SHORTCUT の挙動(v2.5):
     F1（⌘/Ctrl+H）は **トグル**。隠れている箇所を選んでいれば元に戻し、そうでなければ隠す。
     F1 はブラウザのヘルプに割り当てられているので、preventDefault を必ず呼ぶ。
