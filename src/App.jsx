@@ -449,6 +449,22 @@ export default function App() {
   )
 
   /**
+   * 問題を1つ開いて編集する。
+   *
+   * 表示中のグループも、その問題の所属に合わせる。合わせないと、左の一覧には
+   * 別グループの問題が並び、「＋ 追加」で足した問題も別グループに入ってしまう。
+   */
+  const openEditor = useCallback(
+    (id) => {
+      const target = pool.poolRef.current.questions.find((q) => q.id === id)
+      if (target) setEditorGroupId(target.groupId)
+      setEditingId(id)
+      setView(VIEWS.EDITOR)
+    },
+    [pool.poolRef],
+  )
+
+  /**
    * 預けたものを取り戻す（設定の「預ける・取り戻す」から）。
    *
    * ファイルの読み込みと同じ道を通す。**足すだけ**で、いまある問題は消さない。
@@ -851,8 +867,9 @@ export default function App() {
             }}
             groups={pool.groups}
             onEdit={(id) => {
-              setEditingId(id)
-              setView(VIEWS.EDITOR)
+              // 編集する問題のグループへ切り替える。ここを合わせないと、左の一覧と
+              // 「追加先」が別のグループのまま開き、足した問題が別の場所に入る
+              openEditor(id)
             }}
             onDuplicate={(ids) => {
               ids.forEach((id) => pool.duplicateQuestion(id))

@@ -1,5 +1,4 @@
 import { CLOZE_LIMITS, DEFAULT_TEXT_COLOR, TEXT_COLORS } from '../constants'
-import { toText } from '../utils/safe'
 
 /**
  * 虫食い問題の本文モデル。
@@ -19,6 +18,18 @@ const PALETTE = new Set(TEXT_COLORS.map((c) => c.value))
 /** パレット外の色は標準色に寄せる。 */
 export const safeColor = (value) =>
   PALETTE.has(String(value)) ? String(value) : DEFAULT_TEXT_COLOR
+
+/**
+ * run の文字を整える。
+ *
+ * **前後の空白を落とさない**こと。落とすと「12. aaa」の aaa を隠したときに
+ * 直前の run が「12. 」から「12.」になり、空白が消えてカーソルもずれる
+ * （2026-08-24 に報告された症状）。長さだけを制限する。
+ */
+const runText = (value, maxChars) => {
+  const s = value == null ? '' : String(value)
+  return maxChars && s.length > maxChars ? s.slice(0, maxChars) : s
+}
 
 /** run を1つ作る。 */
 export const makeRun = (text, { hide = false, color = DEFAULT_TEXT_COLOR } = {}) => ({
@@ -50,14 +61,15 @@ export function normalizeParas(raw) {
     .map((para) =>
       mergeRuns(
         (Array.isArray(para) ? para : []).map((run) =>
-          makeRun(toText(run?.text, CLOZE_LIMITS.BODY_CHARS), {
+          makeRun(runText(run?.text, CLOZE_LIMITS.BODY_CHARS), {
             hide: run?.hide,
             color: run?.color,
           }),
         ),
       ),
     )
-    .filter((para) => para.length > 0)
+  // 空の段落は捨てない。捨てると、Enter を2回押しても空行が作れず、
+  // 段落を空けて書けなくなる（番号を外して次の行から書き始めるときにも困る）
   return paras.length ? paras : [[]]
 }
 
@@ -86,6 +98,29 @@ export function withMarkerIndexes(paras) {
       return { ...run, markerIndex: index }
     }),
   )
+}
+
+/**
+ * 2つの本文が同じ中身か。
+ *
+ * 保存の途中で run の入れ物は作り直されるため、同じ内容でも `===` は成り立たない。
+ * 履歴（元に戻す）で「自分が書いた状態」と「保存後に戻ってきた状態」を
+ * 見分けるのに使う。
+ */
+export function sameParas(a, b) {
+  if (a === b) return true
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    const pa = a[i]
+    const pb = b[i]
+    if (pa.length !== pb.length) return false
+    for (let j = 0; j < pa.length; j += 1) {
+      if (pa[j].text !== pb[j].text) return false
+      if (pa[j].hide !== pb[j].hide) return false
+      if (pa[j].color !== pb[j].color) return false
+    }
+  }
+  return true
 }
 
 /** 一覧に出す見出し（見出し未入力なら本文の冒頭）。 */
@@ -280,4 +315,210 @@ export function rebuildFromText(prevParas, text) {
     pos += 1 // 段落区切り
   }
   return paras.length ? paras : [[]]
+}
+
+// ---------------------------------------------------------------------------
+// 段落の先頭に振る番号
+//
+// Word の「番号を振る」と同じ感覚で使えるようにする。段落ごとに先頭へ
+// 「1. 」「(1) 」「① 」を置き、Enter で次の番号が続く。
+// 文字列を作り直すのではなく、段落の先頭 run だけを足し引きする。
+// そうしないと、隠す指定や文字色がずれる。
+// ---------------------------------------------------------------------------
+
+/** 番号の種類。 */
+export const NUMBER_STYLES = {
+  DOT: 'dot', // 1. 2. 3.
+  PAREN: 'paren', // (1) (2) (3)
+  CIRCLED: 'circled', // ① ② ③
+}
+
+/** 丸数字は ① から ⑳ まで。21以降は用意されていないので「(21) 」に落とす。 */
+const CIRCLED_MAX = 20
+
+/**
+ * 番号の文字列を作る（末尾の空白まで含む）。
+ * @param {string} style NUMBER_STYLES のいずれか
+ * @param {number} n 1始まりの番号
+ */
+export function numberPrefix(style, n) {
+  const num = Math.max(1, Math.floor(n))
+  if (style === NUMBER_STYLES.PAREN) return `(${num}) `
+  if (style === NUMBER_STYLES.CIRCLED) {
+    if (num > CIRCLED_MAX) return `(${num}) `
+    return `${String.fromCharCode(0x2460 + num - 1)} `
+  }
+  return `${num}. `
+}
+
+/** 「1. 」「(1) 」「① 」で始まっていれば、その内訳を返す。 */
+export function matchNumberPrefix(text) {
+  const line = String(text ?? '')
+
+  const dot = /^(\d{1,3})\.[ 　]/.exec(line)
+  if (dot) return { style: NUMBER_STYLES.DOT, value: Number(dot[1]), length: dot[0].length }
+
+  const paren = /^\((\d{1,3})\)[ 　]/.exec(line)
+  if (paren) return { style: NUMBER_STYLES.PAREN, value: Number(paren[1]), length: paren[0].length }
+
+  const circled = /^([①-⑳])[ 　]?/.exec(line)
+  if (circled) {
+    return {
+      style: NUMBER_STYLES.CIRCLED,
+      value: circled[1].charCodeAt(0) - 0x2460 + 1,
+      length: circled[0].length,
+    }
+  }
+  return null
+}
+
+/** 段落の先頭から n 文字を落とす（run の属性は残す）。 */
+function dropLeading(para, n) {
+  if (n <= 0) return para
+  let left = n
+  const out = []
+  for (const run of para) {
+    if (left <= 0) {
+      out.push({ ...run })
+      continue
+    }
+    if (run.text.length <= left) {
+      left -= run.text.length
+      continue
+    }
+    out.push(makeRun(run.text.slice(left), run))
+    left = 0
+  }
+  return mergeRuns(out)
+}
+
+/** 段落の先頭に文字を足す（足した分は隠さない・標準色）。 */
+function prependText(para, text) {
+  if (!text) return para
+  return mergeRuns([makeRun(text), ...para.map((run) => ({ ...run }))])
+}
+
+/** 段落に番号が付いていれば外す。 */
+export function stripNumber(para) {
+  const hit = matchNumberPrefix(para.map((r) => r.text).join(''))
+  return hit ? dropLeading(para, hit.length) : para
+}
+
+/**
+ * 指定した段落の範囲に番号を振り直す。
+ *
+ * すでに付いている番号は種類を問わず外してから振り直す。二重に付かないようにするため。
+ * 直前の段落が同じ種類の番号で終わっていれば、その続きから数える（Word と同じ）。
+ *
+ * @param {Array} paras
+ * @param {number} from 先頭の段落番号（含む）
+ * @param {number} to   末尾の段落番号（含む）
+ * @param {string} style NUMBER_STYLES のいずれか
+ */
+export function numberParas(paras, from, to, style) {
+  const list = paras ?? []
+  const first = Math.max(0, from)
+  const last = Math.min(list.length - 1, to)
+  if (last < first) return list
+
+  // 直前の段落から続けられるなら続ける
+  const above = first > 0 ? matchNumberPrefix(list[first - 1].map((r) => r.text).join('')) : null
+  let n = above && above.style === style ? above.value + 1 : 1
+
+  const next = list.map((para, i) => {
+    if (i < first || i > last) return para
+    const bare = stripNumber(para)
+    // 空の段落には番号を振らない（間の空行まで数に入ると数え方が狂う）
+    if (!bare.length) return bare
+    const withNumber = prependText(bare, numberPrefix(style, n))
+    n += 1
+    return withNumber
+  })
+  return next
+}
+
+/** 指定した段落の範囲から番号を外す。 */
+export function unnumberParas(paras, from, to) {
+  const list = paras ?? []
+  return list.map((para, i) => (i >= from && i <= to ? stripNumber(para) : para))
+}
+
+/**
+ * 続く段落の番号を振り直す。
+ *
+ * 途中に段落を足したあと、下の番号がずれたままにならないようにする。
+ * 同じ種類の番号が続いているあいだだけ直す。番号の無い段落で止める。
+ */
+export function renumberFollowing(paras, fromIndex, style) {
+  const list = paras ?? []
+  const above = fromIndex > 0 ? matchNumberPrefix(list[fromIndex - 1].map((r) => r.text).join('')) : null
+  let n = above && above.style === style ? above.value + 1 : 1
+
+  const next = [...list]
+  for (let i = fromIndex; i < next.length; i += 1) {
+    const hit = matchNumberPrefix(next[i].map((r) => r.text).join(''))
+    if (!hit || hit.style !== style) break
+    next[i] = prependText(dropLeading(next[i], hit.length), numberPrefix(style, n))
+    n += 1
+  }
+  return next
+}
+
+/**
+ * 通し位置から、段落の番号と段落内の位置を求める。
+ * @returns {{index: number, offset: number}}
+ */
+export function locate(paras, pos) {
+  const list = paras ?? []
+  let left = Math.max(0, pos)
+  for (let i = 0; i < list.length; i += 1) {
+    const len = list[i].reduce((n, r) => n + r.text.length, 0)
+    if (left <= len) return { index: i, offset: left }
+    left -= len + 1 // 段落区切り
+  }
+  const lastIndex = Math.max(0, list.length - 1)
+  return { index: lastIndex, offset: (list[lastIndex] ?? []).reduce((n, r) => n + r.text.length, 0) }
+}
+
+/** 段落の先頭からの通し位置。 */
+export function paraStart(paras, index) {
+  const list = paras ?? []
+  let pos = 0
+  for (let i = 0; i < index && i < list.length; i += 1) {
+    pos += list[i].reduce((n, r) => n + r.text.length, 0) + 1
+  }
+  return pos
+}
+
+/**
+ * 段落を caret の位置で2つに割り、下の段落の先頭に番号を置く。
+ * Enter で次の番号を続けるために使う。
+ *
+ * @returns {{paras: Array, caret: number}} 割ったあとの本文と、置くべきカーソル位置
+ */
+export function splitParaWithNumber(paras, index, offset, prefix) {
+  const list = paras ?? []
+  const para = list[index] ?? []
+  const head = dropTrailing(para, offset)
+  const tail = dropLeading(para, offset)
+  const next = [...list.slice(0, index), head, prependText(tail, prefix), ...list.slice(index + 1)]
+  return { paras: next, caret: paraStart(next, index + 1) + prefix.length }
+}
+
+/** 段落の先頭から n 文字だけ残す。 */
+function dropTrailing(para, n) {
+  if (n <= 0) return []
+  let left = n
+  const out = []
+  for (const run of para) {
+    if (left <= 0) break
+    if (run.text.length <= left) {
+      out.push({ ...run })
+      left -= run.text.length
+      continue
+    }
+    out.push(makeRun(run.text.slice(0, left), run))
+    left = 0
+  }
+  return mergeRuns(out)
 }

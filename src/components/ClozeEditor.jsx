@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, inkColor } from '../constants'
 import {
+  NUMBER_STYLES,
   bodyLength,
   extractBracketRanges,
   hiddenCount,
   hideRange,
+  locate,
+  matchNumberPrefix,
+  numberParas,
+  numberPrefix,
+  paraStart,
   parasToText,
   rangeHasHidden,
   rebuildFromText,
+  renumberFollowing,
+  sameParas,
+  splitParaWithNumber,
   unhideRange,
+  unnumberParas,
   withMarkerIndexes,
 } from '../data/cloze'
 import { useCompactLayout } from '../hooks/useMediaQuery'
@@ -20,6 +30,22 @@ import { shouldInline } from '../utils/clozeRender'
  * 値はプレビュー（＝演習画面の見た目）に合わせている。
  */
 const BODY_LINE_HEIGHT = 2.05
+
+/** 元に戻せる回数。長い文章でも数MBに収まる範囲にする。 */
+const HISTORY_MAX = 100
+
+/**
+ * 続けて打った文字をひとまとめにする時間（ミリ秒）。
+ * 1文字ずつ戻すと、元に戻すのに何十回も押すことになる。
+ */
+const TYPING_MERGE_MS = 700
+
+/** 番号の種類の選択肢。表示はそのまま見本になっている。 */
+const NUMBER_CHOICES = [
+  { key: NUMBER_STYLES.DOT, label: '1.' },
+  { key: NUMBER_STYLES.PAREN, label: '(1)' },
+  { key: NUMBER_STYLES.CIRCLED, label: '①' },
+]
 const bodyFontSizeFor = (compact) => (compact ? '17px' : '18px')
 
 const card = (pad) => ({
@@ -210,7 +236,15 @@ export default function ClozeEditor({
   useEffect(() => {
     if (caretRef.current == null) return
     const el = areaRef.current
-    if (el) el.setSelectionRange(caretRef.current, caretRef.current)
+    if (el) {
+      // カーソルを置き直すと、ブラウザはその位置を見せようとしてページを動かす。
+      // ここは利用者が動かしたのではなく、隠す・戻すの後始末で置き直しているだけ
+      // なので、見えている位置は変えない（2026-08-24 に報告された「勝手に上へ飛ぶ」）
+      const scroller = document.scrollingElement ?? document.documentElement
+      const top = scroller.scrollTop
+      el.setSelectionRange(caretRef.current, caretRef.current)
+      if (scroller.scrollTop !== top) scroller.scrollTop = top
+    }
     caretRef.current = null
   })
 
@@ -227,10 +261,16 @@ export default function ClozeEditor({
     if (!el) return undefined
 
     const fit = () => {
+      // 高さを測るあいだ、この欄は一瞬つぶれる。ページ全体が短くなるため
+      // ブラウザがスクロール位置を切り詰め、文章を消したり隠したりするたびに
+      // 画面が上へ飛んでいた（2026-08-24 に報告）。測り終えたら元の位置に戻す。
+      const scroller = document.scrollingElement ?? document.documentElement
+      const top = scroller.scrollTop
       el.style.height = 'auto'
       // box-sizing: border-box なので、scrollHeight に入らない枠線の分を足す
       const border = el.offsetHeight - el.clientHeight
       el.style.height = `${el.scrollHeight + border}px`
+      if (scroller.scrollTop !== top) scroller.scrollTop = top
     }
 
     fit()
@@ -248,16 +288,110 @@ export default function ClozeEditor({
   }, [])
 
   /**
+   * 元に戻す・やり直すための履歴。
+   *
+   * textarea が持つブラウザ標準の履歴は、値を React 側で差し替えている以上あてにならず、
+   * 「隠す」のような文字を変えない操作は最初から入らない。本文（paras）そのものを
+   * 積んでおき、隠す・番号・入力を同じ土俵で戻せるようにする。
+   */
+  const historyRef = useRef({ id: null, stack: [], index: 0, at: 0, kind: null })
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false })
+
+  const syncHistoryState = useCallback(() => {
+    const h = historyRef.current
+    setHistoryState({ canUndo: h.index > 0, canRedo: h.index < h.stack.length - 1 })
+  }, [])
+
+  // 問題を切り替えたときは履歴を作り直す。外から本文が変わったとき（読み込み・
+  // 取り戻し）は、その状態を新しい一歩として積む
+  useEffect(() => {
+    const h = historyRef.current
+    if (h.id !== question.id) {
+      historyRef.current = {
+        id: question.id,
+        stack: [{ paras, caret: null }],
+        index: 0,
+        at: 0,
+        kind: null,
+      }
+      syncHistoryState()
+      return
+    }
+    // 中身で比べる。保存を通ると run の入れ物が作り直されるため、
+    // `!==` で見ると自分の変更まで「外から変わった」と誤解して履歴が二重になる
+    if (!sameParas(h.stack[h.index]?.paras, paras)) {
+      h.stack = [...h.stack.slice(0, h.index + 1), { paras, caret: null }].slice(-HISTORY_MAX)
+      h.index = h.stack.length - 1
+      h.kind = null
+      syncHistoryState()
+    }
+  }, [question.id, paras, syncHistoryState])
+
+  /**
+   * 本文を書き換え、履歴に積む。
+   *
+   * @param {Array} nextParas 新しい本文
+   * @param {{caret?: number|null, kind?: string}} [options]
+   *   caret を渡すと、その位置にカーソルを置き直す。
+   *   kind が 'type'（続けての入力）のときは、直前の一歩とまとめる。
+   */
+  const commit = useCallback(
+    (nextParas, { caret = null, kind = 'edit' } = {}) => {
+      const h = historyRef.current
+      const now = performance.now()
+      const merge = kind === 'type' && h.kind === 'type' && now - h.at < TYPING_MERGE_MS
+
+      if (merge) {
+        h.stack = [...h.stack.slice(0, h.index), { paras: nextParas, caret }]
+        h.index = h.stack.length - 1
+      } else {
+        h.stack = [...h.stack.slice(0, h.index + 1), { paras: nextParas, caret }].slice(-HISTORY_MAX)
+        h.index = h.stack.length - 1
+      }
+      h.at = now
+      h.kind = kind
+      syncHistoryState()
+
+      onUpdate(question.id, { paras: nextParas })
+      if (caret != null) {
+        caretRef.current = caret
+        setSelection({ start: caret, end: caret })
+      }
+    },
+    [onUpdate, question.id, syncHistoryState],
+  )
+
+  /** 履歴を1つ動かす（-1 で元に戻す、+1 でやり直す）。 */
+  const step = useCallback(
+    (delta) => {
+      const h = historyRef.current
+      const nextIndex = h.index + delta
+      if (nextIndex < 0 || nextIndex >= h.stack.length) return
+      h.index = nextIndex
+      h.kind = null
+      syncHistoryState()
+
+      const snapshot = h.stack[nextIndex]
+      onUpdate(question.id, { paras: snapshot.paras })
+      const caret = snapshot.caret ?? bodyLength(snapshot.paras)
+      caretRef.current = caret
+      setSelection({ start: caret, end: caret })
+    },
+    [onUpdate, question.id, syncHistoryState],
+  )
+
+  const undo = useCallback(() => step(-1), [step])
+  const redo = useCallback(() => step(1), [step])
+
+  /**
    * 指定した範囲に反映したあと、選択を解いて末尾にカーソルを置く。
    * 選択が残っていると、続けて押したときに同じ場所へ何度も効いてしまう。
    */
   const applyAndDeselect = useCallback(
     (nextParas) => {
-      onUpdate(question.id, { paras: nextParas })
-      caretRef.current = selection.end
-      setSelection({ start: selection.end, end: selection.end })
+      commit(nextParas, { caret: selection.end, kind: 'mark' })
     },
-    [onUpdate, question.id, selection.end],
+    [commit, selection.end],
   )
 
   const applyHide = useCallback(() => {
@@ -290,16 +424,117 @@ export default function ClozeEditor({
     applyAndDeselect(next)
   }, [hasSelection, text, selection, paras, applyAndDeselect])
 
-  // 隠す/戻すのショートカット。F1（要望）と Ctrl/⌘+H（SPEC）の両方を受ける。
+  /** 段落の文字数。 */
+  const paraLength = (para) => para.reduce((n, r) => n + r.text.length, 0)
+
+  /**
+   * 番号を振る対象の段落。
+   * 選んでいればその範囲、選んでいなければカーソルのある段落だけ（Word と同じ）。
+   *
+   * 選択は state ではなく入力欄から直に読む。state は onSelect が走るまで
+   * 古いままで、選んだ直後にボタンを押すと1行目だけに振られてしまう。
+   */
+  const targetParas = useCallback(() => {
+    const el = areaRef.current
+    const start = el ? el.selectionStart : selection.start
+    const end = el ? el.selectionEnd : selection.end
+    const from = locate(paras, Math.min(start, end)).index
+    const to = locate(paras, Math.max(start, end)).index
+    return { from, to }
+  }, [paras, selection])
+
+  /** 選んだ段落に番号を振る。 */
+  const applyNumbering = useCallback(
+    (style) => {
+      const { from, to } = targetParas()
+      const next = numberParas(paras, from, to, style)
+      // 振ったいちばん下の行末にカーソルを置く。続けて書き足せる位置
+      const caret = paraStart(next, to) + paraLength(next[to] ?? [])
+      commit(next, { caret, kind: 'number' })
+    },
+    [paras, targetParas, commit],
+  )
+
+  /** 選んだ段落の番号を外す。 */
+  const clearNumbering = useCallback(() => {
+    const { from, to } = targetParas()
+    const next = unnumberParas(paras, from, to)
+    const caret = paraStart(next, to) + paraLength(next[to] ?? [])
+    commit(next, { caret, kind: 'number' })
+  }, [paras, targetParas, commit])
+
+  /** いま選んでいる範囲に番号が付いているか（「番号を外す」の活性判定）。 */
+  const hasNumbering = useMemo(() => {
+    const from = locate(paras, selection.start).index
+    const to = locate(paras, Math.max(selection.start, selection.end)).index
+    for (let i = from; i <= to && i < paras.length; i += 1) {
+      if (matchNumberPrefix(paras[i].map((r) => r.text).join(''))) return true
+    }
+    return false
+  }, [paras, selection])
+
+  /**
+   * Enter で次の番号を続ける（Word と同じ振る舞い）。
+   *
+   * 番号だけの行で Enter を押したときは、番号を外して箇条書きを終える。
+   * 続きの行がある場合は、下の番号も振り直す。
+   */
+  const continueNumbering = useCallback(
+    (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+      const el = areaRef.current
+      if (!el || el.selectionStart !== el.selectionEnd) return
+
+      const { index, offset } = locate(paras, el.selectionStart)
+      const paraText = (paras[index] ?? []).map((r) => r.text).join('')
+      const hit = matchNumberPrefix(paraText)
+      if (!hit) return
+
+      e.preventDefault()
+
+      // 番号しかない行＝もう書くことがない、とみなして番号を外す
+      if (paraText.length <= hit.length) {
+        const next = unnumberParas(paras, index, index)
+        commit(next, { caret: paraStart(next, index), kind: 'number' })
+        return
+      }
+
+      const split = splitParaWithNumber(paras, index, offset, numberPrefix(hit.style, hit.value + 1))
+      const next = renumberFollowing(split.paras, index + 1, hit.style)
+      const added = matchNumberPrefix((next[index + 1] ?? []).map((r) => r.text).join(''))
+      commit(next, { caret: paraStart(next, index + 1) + (added?.length ?? 0), kind: 'number' })
+    },
+    [paras, commit],
+  )
+
+  // 入力欄の中だけで効くキー操作。
+  //   F1 / Ctrl+H … 隠す・戻す（F1は要望、Ctrl+H は SPEC）
+  //   Ctrl+Z / Ctrl+Y（Ctrl+Shift+Z）… 元に戻す・やり直す
+  // 元に戻すはブラウザ標準の履歴を使わない。値を React 側で差し替えているうえ、
+  // 「隠す」は文字が変わらないため標準の履歴には残らない。
   useEffect(() => {
     const onKey = (e) => {
-      const hit =
-        (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey) ||
-        ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H'))
-      if (!hit) return
       const el = areaRef.current
       // 入力欄の中にいるときだけ効かせる（他画面のキー操作を邪魔しない）
       if (document.activeElement !== el) return
+      const mod = e.ctrlKey || e.metaKey
+
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        redo()
+        return
+      }
+
+      const hit =
+        (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey) ||
+        (mod && (e.key === 'h' || e.key === 'H'))
+      if (!hit) return
       e.preventDefault()
       // state ではなく入力欄の今の選択を読む。state は同じ処理の中では古いままのため
       const start = el.selectionStart
@@ -308,14 +543,12 @@ export default function ClozeEditor({
       const next = rangeHasHidden(paras, start, end)
         ? unhideRange(paras, start, end)
         : hideRange(paras, start, end)
-      onUpdate(question.id, { paras: next })
       // 隠したらその場の選択は解く。残っていると続けて押したとき同じ場所に効く
-      caretRef.current = end
-      setSelection({ start: end, end })
+      commit(next, { caret: end, kind: 'mark' })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paras, onUpdate, question.id])
+  }, [paras, commit, undo, redo])
 
   const toolbarButton = (enabled, primary) => ({
     minHeight: '36px',
@@ -409,6 +642,59 @@ export default function ClozeEditor({
           >
             {compact ? '同じ語' : '同じ語をすべて隠す'}
           </button>
+          {/* 番号（Word の「番号を振る」と同じ感覚で使う） */}
+          <span
+            aria-hidden="true"
+            style={{ width: '1px', alignSelf: 'stretch', background: COLORS.border }}
+          />
+          <span style={{ fontSize: '11.5px', fontWeight: 700, color: COLORS.sub }}>番号</span>
+          {NUMBER_CHOICES.map((choice) => (
+            <button
+              key={choice.key}
+              type="button"
+              onClick={() => applyNumbering(choice.key)}
+              title={`選んだ行の先頭に ${choice.label} の番号を振る（Enterで続きます）`}
+              style={{ ...toolbarButton(true, false), minWidth: '44px' }}
+            >
+              {choice.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={clearNumbering}
+            disabled={!hasNumbering}
+            title="選んだ行の番号を外す"
+            style={toolbarButton(hasNumbering, false)}
+          >
+            なし
+          </button>
+
+          {/* 元に戻す・やり直す */}
+          <span
+            aria-hidden="true"
+            style={{ width: '1px', alignSelf: 'stretch', background: COLORS.border }}
+          />
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!historyState.canUndo}
+            title="元に戻す（Ctrl+Z）"
+            aria-label="元に戻す"
+            style={toolbarButton(historyState.canUndo, false)}
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!historyState.canRedo}
+            title="やり直す（Ctrl+Y）"
+            aria-label="やり直す"
+            style={toolbarButton(historyState.canRedo, false)}
+          >
+            ↷
+          </button>
+
           <span style={{ marginLeft: 'auto', fontSize: '11px', color: COLORS.muted }}>
             {compact ? '［［ ］］でも隠せます' : 'F1 で隠す'}
           </span>
@@ -431,13 +717,15 @@ export default function ClozeEditor({
               for (const range of ranges) {
                 nextParas = hideRange(nextParas, range.start, range.end)
               }
-              onUpdate(question.id, { paras: nextParas })
-              if (ranges.length) {
-                // 括弧を消した分だけカーソルがずれるので、変換後の位置へ戻す
-                caretRef.current = caret
-              }
+              // 括弧を消した分だけカーソルがずれるので、変換後の位置へ戻す。
+              // 括弧が無いときは触らない（打っている場所を動かさない）
+              commit(nextParas, {
+                caret: ranges.length ? caret : null,
+                kind: ranges.length ? 'mark' : 'type',
+              })
             }}
             onSelect={syncSelection}
+            onKeyDown={continueNumbering}
             onKeyUp={syncSelection}
             onMouseUp={syncSelection}
             placeholder="覚えたい文章を貼り付けるか、入力してください。"
