@@ -26,6 +26,16 @@ import {
  *   ・秘密（6桁の数字・トークン）はハッシュだけを保存する。
  */
 
+/**
+ * 配信されている版。
+ *
+ * `/health` に載せて、外から「どれが動いているか」を確かめられるようにする。
+ * これが無かったため、デプロイし忘れに気づけず、アプリだけが新しくなって
+ * 「見つかりません」が返る状態になった（2026-08-24）。
+ * 受け口を足したり応答を変えたりしたら、この文字列も更新すること。
+ */
+const API_VERSION = '2026-08-24-account'
+
 /** 預かる上限。1件あたり。問題5000問でも数MBに収まる想定。 */
 const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024
 
@@ -458,7 +468,9 @@ export default {
     }
 
     try {
-      if (url.pathname === '/health') return withCors(json({ ok: true }))
+      if (url.pathname === '/health') {
+        return withCors(json({ ok: true, version: API_VERSION }))
+      }
 
       if (url.pathname === '/otp/send' && request.method === 'POST') {
         return withCors(await handleOtpSend(request, env))

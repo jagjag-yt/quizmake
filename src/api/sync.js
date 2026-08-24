@@ -123,6 +123,14 @@ async function call(path, { method = 'GET', body, token, query } = {}) {
         signedOut: true,
       })
     }
+    // 404 は「サーバー側にその受け口が無い」。アプリだけ新しくなっているときに出る。
+    // 素の「見つかりません。」では利用者に何をすればよいか伝わらない
+    if (res.status === 404 && !path.startsWith('/backup')) {
+      throw new SyncError(
+        'サーバーがこの操作にまだ対応していません。少し待ってから、画面を再読み込みしてお試しください。',
+        { status: 404 },
+      )
+    }
     throw new SyncError(
       typeof data?.message === 'string' && data.message
         ? data.message
