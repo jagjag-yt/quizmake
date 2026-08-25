@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LIMITS } from '../constants'
 import {
-  buildExport,
   emptyData,
   emptyRecord,
   loadData,
@@ -160,11 +159,6 @@ export function useStudyData() {
     setData((prev) => (merge ? mergeData(prev, incoming) : incoming))
   }, [])
 
-  const exportJson = useCallback(
-    (pool) => JSON.stringify(buildExport(dataRef.current, pool), null, 2),
-    [],
-  )
-
   const actions = useMemo(
     () => ({
       recordAnswer,
@@ -174,7 +168,6 @@ export function useStudyData() {
       resetStats,
       resetAll,
       importData,
-      exportJson,
       moveRecord,
     }),
     [
@@ -185,7 +178,6 @@ export function useStudyData() {
       resetStats,
       resetAll,
       importData,
-      exportJson,
       moveRecord,
     ],
   )

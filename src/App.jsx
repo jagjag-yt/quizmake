@@ -46,6 +46,10 @@ import TypePickerDialog from './components/TypePickerDialog'
 import ToastHost from './components/Toast'
 import { useToast } from './hooks/useToast'
 
+/** マーカーの状態が無い問題のための空の入れ物（毎回作ると再描画が増える）。 */
+const EMPTY_OPENED = new Set()
+const EMPTY_VERDICTS = new Map()
+
 /** グループの絞り込み条件に合致するか。 */
 function matchesFilters(q, groupId) {
   if (groupId && q.groupId !== groupId) return false
@@ -154,7 +158,15 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [draft, setDraft] = useState([]) // 「2つ選べ」で選択中の選択肢
   // 虫食いで開いているマーカーの番号（問題を移ると閉じ直す）
-  const [openedIds, setOpenedIds] = useState(() => new Set())
+  /**
+   * 虫食いのマーカーの状態を、**問題ごと**に持つ。
+   *
+   * 開いた場所と自己採点（正答／誤答）は、次の問題へ進んでも消さない。
+   * 戻ってきたときに開き直す手間をなくすため。演習を始め直したときだけ空にする。
+   * 学習記録には入れない（虫食いは採点対象外・SPEC R4）。
+   */
+  const [markerOpened, setMarkerOpened] = useState(() => new Map()) // 問題id → Set<番号>
+  const [markerVerdicts, setMarkerVerdicts] = useState(() => new Map()) // 問題id → Map<番号, 判定>
   const [typePickerOpen, setTypePickerOpen] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [finishedAt, setFinishedAt] = useState(null)
@@ -162,6 +174,8 @@ export default function App() {
   const records = study.data.records
   const total = session.questions.length
   const baseQuestion = session.questions[currentIndex] ?? null
+  const openedIds = markerOpened.get(baseQuestion?.id) ?? EMPTY_OPENED
+  const verdicts = markerVerdicts.get(baseQuestion?.id) ?? EMPTY_VERDICTS
   const displayQuestion =
     baseQuestion && !isCloze(baseQuestion)
       ? reorderQuestion(baseQuestion, session.orders[currentIndex])
@@ -182,6 +196,8 @@ export default function App() {
       setAnswers({})
       setCurrentIndex(0)
       setDraft([])
+      setMarkerOpened(new Map())
+      setMarkerVerdicts(new Map())
       setFinishedAt(null)
       setNowTs(Date.now())
       setView(VIEWS.QUIZ)
@@ -336,22 +352,20 @@ export default function App() {
     [displayQuestion, answered, submitAnswer],
   )
 
+  // 問題を移っても、開いた場所と自己採点はそのまま残す（戻ったときに続きから見られる）
   const goTo = useCallback((idx) => {
     setCurrentIndex(idx)
     setDraft([])
-    setOpenedIds(new Set())
   }, [])
 
   const goPrev = useCallback(() => {
     setCurrentIndex((i) => Math.max(0, i - 1))
     setDraft([])
-    setOpenedIds(new Set())
   }, [])
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(total - 1, i + 1))
     setDraft([])
-    setOpenedIds(new Set())
   }, [total])
 
   /** リトライ：この問題の回答を取り消し、選択肢を並べ直す。 */
@@ -372,22 +386,108 @@ export default function App() {
   }, [answered, session.examMode, currentIndex])
 
   /** 虫食いのマーカーを1つ開閉する。 */
-  const toggleMarker = useCallback((n) => {
-    setOpenedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(n)) next.delete(n)
-      else next.add(n)
-      return next
-    })
-  }, [])
+  /** いま見ている問題のマーカーの状態を書き換える。 */
+  const updateMarkers = useCallback(
+    (id, { opened, verdicts: nextVerdicts } = {}) => {
+      if (!id) return
+      if (opened) {
+        setMarkerOpened((prev) => {
+          const next = new Map(prev)
+          next.set(id, opened)
+          return next
+        })
+      }
+      if (nextVerdicts) {
+        setMarkerVerdicts((prev) => {
+          const next = new Map(prev)
+          next.set(id, nextVerdicts)
+          return next
+        })
+      }
+    },
+    [],
+  )
+
+  /**
+   * マーカーの左クリック。**閉じる → 開く → 正答 → 閉じる** の順に回る。
+   *
+   * 「開いたあとにもう一度押すと隠れる」という元の操作は、正答を挟んで残している。
+   * 押し間違えても押し続ければ元の状態に戻れる並びにした。
+   */
+  const toggleMarker = useCallback(
+    (n) => {
+      const id = baseQuestion?.id
+      if (!id) return
+      if (!openedIds.has(n)) {
+        updateMarkers(id, { opened: new Set(openedIds).add(n) }) // 閉 → 開
+        return
+      }
+      if (verdicts.get(n) === 'correct') {
+        // 正答 → 閉じる（判定も消す）
+        const opened = new Set(openedIds)
+        opened.delete(n)
+        const nextVerdicts = new Map(verdicts)
+        nextVerdicts.delete(n)
+        updateMarkers(id, { opened, verdicts: nextVerdicts })
+        return
+      }
+      // 開いただけ・誤答 → 正答
+      updateMarkers(id, { verdicts: new Map(verdicts).set(n, 'correct') })
+    },
+    [baseQuestion, openedIds, verdicts, updateMarkers],
+  )
+
+  /**
+   * マーカーの右クリック（タッチでは長押し、キーボードでは Shift+Enter）。誤答の付け外し。
+   * 閉じているマーカーでは開くだけにする（中身を見ずに誤答は付けられない）。
+   */
+  const markMarkerWrong = useCallback(
+    (n) => {
+      const id = baseQuestion?.id
+      if (!id) return
+      if (!openedIds.has(n)) {
+        updateMarkers(id, { opened: new Set(openedIds).add(n) })
+        return
+      }
+      const nextVerdicts = new Map(verdicts)
+      if (nextVerdicts.get(n) === 'wrong') nextVerdicts.delete(n) // もう一度押すと取り消し
+      else nextVerdicts.set(n, 'wrong')
+      updateMarkers(id, { verdicts: nextVerdicts })
+    },
+    [baseQuestion, openedIds, verdicts, updateMarkers],
+  )
+
+  /**
+   * 誤答だけやり直す。
+   * ✕を付けた箇所だけを閉じ直し、判定も消す。正答にした箇所はそのまま残す。
+   */
+  const retryWrongMarkers = useCallback(() => {
+    const id = baseQuestion?.id
+    if (!id) return
+    const wrong = [...verdicts.entries()].filter(([, v]) => v === 'wrong').map(([n]) => n)
+    if (!wrong.length) return
+    const opened = new Set(openedIds)
+    const nextVerdicts = new Map(verdicts)
+    for (const n of wrong) {
+      opened.delete(n)
+      nextVerdicts.delete(n)
+    }
+    updateMarkers(id, { opened, verdicts: nextVerdicts })
+  }, [baseQuestion, openedIds, verdicts, updateMarkers])
 
   const openAllMarkers = useCallback(() => {
     if (!baseQuestion || !isCloze(baseQuestion)) return
     const n = hiddenCount(baseQuestion.paras)
-    setOpenedIds(new Set(Array.from({ length: n }, (_, i) => i + 1)))
-  }, [baseQuestion])
+    updateMarkers(baseQuestion.id, {
+      opened: new Set(Array.from({ length: n }, (_, i) => i + 1)),
+    })
+  }, [baseQuestion, updateMarkers])
 
-  const closeAllMarkers = useCallback(() => setOpenedIds(new Set()), [])
+  /** すべて隠し直す。この問題の判定も消える。 */
+  const closeAllMarkers = useCallback(() => {
+    if (!baseQuestion) return
+    updateMarkers(baseQuestion.id, { opened: new Set(), verdicts: new Map() })
+  }, [baseQuestion, updateMarkers])
 
   /**
    * 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。
@@ -529,11 +629,41 @@ export default function App() {
   )
 
   /** 結果画面から「間違えた問題を復習」。 */
+  /**
+   * もう一度やる問題（演習全体）。
+   *   ・選択式: 間違えた問題
+   *   ・虫食い: 自己採点で✕を1つでも付けた問題
+   * 虫食いは採点しないので、この✕だけが「間違えた」の手がかりになる。
+   */
+  const reviewList = useMemo(
+    () =>
+      session.questions.filter((q, i) => {
+        if (answers[i] && !answers[i].correct) return true
+        const marks = markerVerdicts.get(q.id)
+        return !!marks && [...marks.values()].some((v) => v === 'wrong')
+      }),
+    [session.questions, answers, markerVerdicts],
+  )
+
   const reviewWrong = useCallback(() => {
-    const wrong = session.questions.filter((_, i) => answers[i] && !answers[i].correct)
-    if (!wrong.length) return
-    startSession({ ...opts, examMode: false }, { explicitList: wrong })
-  }, [session.questions, answers, opts, startSession])
+    if (!reviewList.length) return
+    startSession({ ...opts, examMode: false }, { explicitList: reviewList })
+  }, [reviewList, opts, startSession])
+
+  /** 演習全体の自己採点の内訳（虫食いのみ）。 */
+  const selfMarks = useMemo(() => {
+    let correct = 0
+    let wrong = 0
+    for (const q of session.questions) {
+      const marks = markerVerdicts.get(q.id)
+      if (!marks) continue
+      for (const v of marks.values()) {
+        if (v === 'correct') correct += 1
+        else if (v === 'wrong') wrong += 1
+      }
+    }
+    return { correct, wrong }
+  }, [session.questions, markerVerdicts])
 
   const resetAll = useCallback(() => setResetOpen(true), [])
 
@@ -652,6 +782,18 @@ export default function App() {
     }),
     [questions, records, study.data.totals, study.data.daily, pool.groups],
   )
+
+  /**
+   * 問題が変わったら、画面の先頭から見せる。
+   *
+   * 前の問題で下までスクロールしていると、次の問題も途中から表示され、
+   * 毎回自分で上へ戻すことになる（長い虫食いで特に起きる）。
+   */
+  useEffect(() => {
+    if (view !== VIEWS.QUIZ) return
+    const scroller = document.scrollingElement ?? document.documentElement
+    scroller.scrollTop = 0
+  }, [view, currentIndex, session.startedAt])
 
   // --- キーボードショートカット（演習画面のみ） ---
   const shortcutHandlers = useMemo(
@@ -925,8 +1067,10 @@ export default function App() {
             onImportClick={openFilePicker}
             transferSlot={
               <DataTransfer
-                getStudyJson={() => study.exportJson(pool.poolRef.current)}
+                groups={pool.groups}
+                countsByGroup={pool.countsByGroup}
                 onExportExcel={() => setExportOpen(true)}
+                onExportGroup={(groupId) => exportGroup(groupId, 'json')}
                 onImportClick={openFilePicker}
                 onNotify={toast.show}
               />
@@ -1005,6 +1149,8 @@ export default function App() {
             questions={session.questions}
             answers={answerList}
             elapsedSec={elapsedSec}
+            reviewCount={reviewList.length}
+            selfMarks={selfMarks}
             onReviewWrong={reviewWrong}
             onRestart={() => startSession(opts)}
             onOpenDashboard={() => setView(VIEWS.DASHBOARD)}
@@ -1029,7 +1175,10 @@ export default function App() {
             isLast={currentIndex === total - 1}
             onFinish={finish}
             openedIds={openedIds}
+            verdicts={verdicts}
             onToggleMarker={toggleMarker}
+            onMarkWrong={markMarkerWrong}
+            onRetryWrong={retryWrongMarkers}
             onOpenAll={openAllMarkers}
             onCloseAll={closeAllMarkers}
           />
@@ -1110,6 +1259,7 @@ export default function App() {
         <ExportModal
           questions={questions}
           groups={pool.groups}
+          defaultGroupId={activeEditorGroupId}
           onClose={() => setExportOpen(false)}
           onExport={runExport}
         />

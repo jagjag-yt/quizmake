@@ -59,7 +59,10 @@ export default function ClozeQuizView({
   isLast,
   onFinish,
   openedIds,
+  verdicts,
   onToggleMarker,
+  onMarkWrong,
+  onRetryWrong,
   onOpenAll,
   onCloseAll,
 }) {
@@ -70,6 +73,17 @@ export default function ClozeQuizView({
   const hiddenTotal = hiddenCount(question.paras)
   const opened = openedIds.size
   const allOpen = hiddenTotal > 0 && opened >= hiddenTotal
+
+  // 自己採点の内訳。採点しない問題なので記録には残らず、この画面の中だけの数
+  const marks = useMemo(() => {
+    let correct = 0
+    let wrong = 0
+    for (const verdict of verdicts.values()) {
+      if (verdict === 'correct') correct += 1
+      else if (verdict === 'wrong') wrong += 1
+    }
+    return { correct, wrong }
+  }, [verdicts])
 
   useEffect(() => {
     setNoteDraft(record?.note ?? '')
@@ -97,9 +111,36 @@ export default function ClozeQuizView({
           }}
         >
           {groupName && <span style={pill(COLORS.chipTrack, COLORS.body)}>{groupName}</span>}
+          {marks.correct > 0 && (
+            <span style={pill(COLORS.greenLight, COLORS.greenDark)}>正答 {marks.correct}</span>
+          )}
+          {marks.wrong > 0 && (
+            <span style={pill(COLORS.redLight, COLORS.redDark)}>誤答 {marks.wrong}</span>
+          )}
           <span style={{ marginLeft: 'auto', fontSize: '12.5px', color: COLORS.sub }}>
             {hiddenTotal}か所中 {opened}か所 表示中
           </span>
+          {marks.wrong > 0 && (
+            <button
+              type="button"
+              onClick={onRetryWrong}
+              title="誤答にした箇所だけを隠し直します。正答にした箇所はそのままです"
+              style={{
+                minHeight: `${TAP_MIN}px`,
+                padding: '0 16px',
+                borderRadius: '10px',
+                border: `1px solid ${COLORS.red}`,
+                background: COLORS.card,
+                color: COLORS.red,
+                fontSize: '12.5px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              誤答だけやり直す（{marks.wrong}）
+            </button>
+          )}
           <button
             type="button"
             onClick={() => (allOpen ? onCloseAll() : onOpenAll())}
@@ -173,10 +214,27 @@ export default function ClozeQuizView({
           <ClozeBody
             paras={question.paras}
             openedIds={openedIds}
+            verdicts={verdicts}
             onToggle={onToggleMarker}
+            onMarkWrong={onMarkWrong}
             fontSize={compact ? '17px' : '18px'}
             tablet={compact}
           />
+
+          <p
+            style={{
+              margin: '16px 0 0',
+              fontSize: '11.5px',
+              color: COLORS.muted,
+              lineHeight: 1.8,
+            }}
+          >
+            押すと開きます。開いたあと、もう一度押すと
+            <span style={{ color: COLORS.greenDark, fontWeight: 700 }}>正答（緑）</span>、
+            {compact ? '長押しで' : '右クリックで'}
+            <span style={{ color: COLORS.redDark, fontWeight: 700 }}>誤答（赤）</span>
+            になります。正答をもう一度押すと隠れます。
+          </p>
 
           {noteOpen && (
             <div style={{ marginTop: '22px' }}>
@@ -230,10 +288,19 @@ export default function ClozeQuizView({
           </button>
           {!compact && (
             <span style={{ fontSize: '12px', color: COLORS.muted }}>
-              クリックで開閉／もう一度押すと隠れます
+              左クリックで正答／右クリックで誤答
             </span>
           )}
           <span style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {marks.wrong > 0 && (
+              <button
+                type="button"
+                onClick={onRetryWrong}
+                style={{ ...navButton(false), borderColor: COLORS.red, color: COLORS.red }}
+              >
+                ↻ 誤答だけやり直す（{marks.wrong}）
+              </button>
+            )}
             <button type="button" onClick={onCloseAll} style={navButton(false)}>
               ↻ 隠し直す
             </button>

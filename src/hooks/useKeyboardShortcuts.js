@@ -14,6 +14,8 @@ function isTypingTarget(target) {
  *
  * - a〜e / 1〜5 : 選択肢を選ぶ
  * - Enter       : 解答する（複数選択時）／次の問題へ
+ *                 ただし虫食いのマーカーに焦点があるときは、そのマーカーをめくる
+ *                 （Shift+Enter で誤答）
  * - ← →        : 前の問題 / 次の問題
  * - r           : リトライ
  * - s           : ブックマーク（b は選択肢bと重なるため s を使う）
@@ -47,6 +49,10 @@ export function useKeyboardShortcuts(handlers, enabled = true) {
       const h = ref.current
       const key = e.key
       const lower = key.toLowerCase()
+
+      // 虫食いのマーカーに焦点があるときの Enter は、その場でめくるための操作。
+      // ここで横取りすると Tab で選んだ意味が無くなるので、ボタン自身に渡す
+      if (key === 'Enter' && e.target?.closest?.('[data-marker="true"]')) return
 
       // 選択肢: a〜e または 1〜5
       const letterIdx = ['a', 'b', 'c', 'd', 'e'].indexOf(lower)
