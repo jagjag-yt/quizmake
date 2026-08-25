@@ -1,0 +1,6 @@
+# quizmake のホームページ。すべてのページを公開している。
+# 広告審査のクローラ（Mediapartners-Google）も含め、明示的に許可する。
+User-agent: *
+Allow: /
+
+Sitemap: https://quiz-make.com/sitemap.xml
