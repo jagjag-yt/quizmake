@@ -27,25 +27,34 @@ function Stat({ label, value }) {
  * Excel 書き出し前の確認ダイアログ。
  * 対象範囲の選択と、不備のある問題の警告を出してから書き出す。
  */
-export default function ExportModal({ questions, groups = [], onClose, onExport }) {
-  const [scope, setScope] = useState('all')
+export default function ExportModal({
+  questions,
+  groups = [],
+  defaultGroupId = null,
+  onClose,
+  onExport,
+}) {
+  // 書き出しは**グループ1つずつ**。Excel は「1ファイル＝1グループ」で読み込むため、
+  // 複数グループを1枚にまとめると、読み込み直したときに全部が1グループに潰れる。
+  const [groupId, setGroupId] = useState(
+    () => defaultGroupId ?? groups[0]?.id ?? null,
+  )
+  const [onlyAuthored, setOnlyAuthored] = useState(false)
   const dialogRef = useRef(null)
 
   // 虫食いは Excel に書き出さない（SPEC R4）
   const exportable = useMemo(() => questions.filter(isGraded), [questions])
   const excludedCount = questions.length - exportable.length
-  const authored = useMemo(
-    () => exportable.filter((q) => q.origin === ORIGIN.AUTHORED),
-    [exportable],
+  const inGroup = useMemo(
+    () => exportable.filter((q) => q.groupId === groupId),
+    [exportable, groupId],
   )
-  const target =
-    scope === 'authored'
-      ? authored
-      : scope.startsWith('group:')
-        ? exportable.filter((q) => q.groupId === scope.slice(6))
-        : exportable
-  const scopeGroupName =
-    scope.startsWith('group:') ? groups.find((g) => g.id === scope.slice(6))?.name : ''
+  const authored = useMemo(
+    () => inGroup.filter((q) => q.origin === ORIGIN.AUTHORED),
+    [inGroup],
+  )
+  const target = onlyAuthored ? authored : inGroup
+  const scopeGroupName = groups.find((g) => g.id === groupId)?.name ?? ''
 
   const invalid = useMemo(
     () =>
@@ -138,20 +147,20 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
           }}
         >
           {[
-            { key: 'all', text: `全問（${exportable.length}）` },
-            { key: 'authored', text: `作成分のみ（${authored.length}）` },
+            { key: false, text: `このグループ全部（${inGroup.length}）` },
+            { key: true, text: `作成分のみ（${authored.length}）` },
           ].map((t) => (
             <button
-              key={t.key}
+              key={String(t.key)}
               type="button"
-              onClick={() => setScope(t.key)}
+              onClick={() => setOnlyAuthored(t.key)}
               style={{
                 minHeight: '36px',
                 padding: '0 16px',
                 borderRadius: '999px',
                 border: 'none',
-                background: scope === t.key ? COLORS.blue : 'transparent',
-                color: scope === t.key ? '#ffffff' : COLORS.sub,
+                background: onlyAuthored === t.key ? COLORS.blue : 'transparent',
+                color: onlyAuthored === t.key ? '#ffffff' : COLORS.sub,
                 fontSize: '12.5px',
                 fontWeight: 700,
                 fontFamily: 'inherit',
@@ -166,11 +175,11 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
         {groups.length > 0 && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.sub }}>
-              グループで絞る
+              書き出すグループ
             </span>
             <select
-              value={scope.startsWith('group:') ? scope : ''}
-              onChange={(e) => setScope(e.target.value || 'all')}
+              value={groupId ?? ''}
+              onChange={(e) => setGroupId(e.target.value)}
               style={{
                 minHeight: '36px',
                 padding: '0 10px',
@@ -183,9 +192,8 @@ export default function ExportModal({ questions, groups = [], onClose, onExport 
                 cursor: 'pointer',
               }}
             >
-              <option value="">絞らない</option>
               {groups.map((g) => (
-                <option key={g.id} value={`group:${g.id}`}>
+                <option key={g.id} value={g.id}>
                   {g.name}
                 </option>
               ))}

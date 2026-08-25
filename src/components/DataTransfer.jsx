@@ -3,7 +3,6 @@ import ConfirmDialog from './ConfirmDialog'
 import { COLORS, LIMITS, TAP_MIN } from '../constants'
 import { parseImport } from '../storage/store'
 import { parseWorkbook } from '../utils/parseExcel'
-import { dateKey } from '../utils/safe'
 
 /**
  * 問題と学習データの受け渡し。
@@ -143,31 +142,69 @@ export function TransferInput({
 /**
  * 「書き出す」「読み込む」のボタン。
  * 書き出しは押してから形式（Excel / バックアップ）を選ぶ。
+ *
+ * バックアップは**グループごとに1ファイル**にする。全部を1つにまとめると、
+ * 「日本史だけ渡したい」ができず、受け取った側も要らない科目まで抱え込む。
+ * まとめて書き出したいときは、グループの数だけファイルを作る。
+ *
+ * @param {{
+ *   groups: Array<{id: string, name: string}>,
+ *   countsByGroup: Map<string, number>,
+ *   onExportExcel: () => void,
+ *   onExportGroup: (groupId: string) => Promise<void>|void,
+ *   onImportClick: () => void,
+ *   onNotify: (toast: object) => void,
+ * }} props
  */
-export default function DataTransfer({ getStudyJson, onExportExcel, onImportClick, onNotify }) {
+export default function DataTransfer({
+  groups = [],
+  countsByGroup = new Map(),
+  onExportExcel,
+  onExportGroup,
+  onImportClick,
+  onNotify,
+}) {
   const [formatOpen, setFormatOpen] = useState(false)
+  // 'format'（形式を選ぶ）→ 'group'（グループを選ぶ）
+  const [stage, setStage] = useState('format')
+  const [busy, setBusy] = useState(false)
   const panelRef = useRef(null)
 
-  const exportBackup = () => {
+  const close = () => {
     setFormatOpen(false)
+    setStage('format')
+  }
+
+  /** グループを1つ書き出す。 */
+  const exportOne = async (groupId) => {
+    close()
+    await onExportGroup(groupId)
+  }
+
+  /**
+   * 全グループを書き出す。ファイルはグループごとに分かれる。
+   * 連続してダウンロードするとブラウザが確認を出すことがあるので、少し間を空ける。
+   */
+  const exportAll = async () => {
+    const target = groups.filter((g) => (countsByGroup.get(g.id) ?? 0) > 0)
+    if (!target.length) {
+      onNotify({ tone: 'error', title: '書き出せる問題がありません' })
+      return
+    }
+    setBusy(true)
     try {
-      const blob = new Blob([getStudyJson()], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${dateKey()}_quizmake-backup.json`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      // オブジェクトURLは使い終わったら解放する
-      setTimeout(() => URL.revokeObjectURL(url), 0)
+      for (const group of target) {
+        await onExportGroup(group.id)
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
       onNotify({
         tone: 'success',
-        title: 'バックアップを書き出しました',
-        description: 'ダウンロードフォルダに保存されました',
+        title: `${target.length}グループを書き出しました`,
+        description: 'グループごとに1つのファイルになっています',
       })
-    } catch {
-      onNotify({ tone: 'error', title: '書き出しに失敗しました' })
+    } finally {
+      setBusy(false)
+      close()
     }
   }
 
@@ -176,7 +213,10 @@ export default function DataTransfer({ getStudyJson, onExportExcel, onImportClic
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
         <button
           type="button"
-          onClick={() => setFormatOpen((v) => !v)}
+          onClick={() => {
+            setStage('format')
+            setFormatOpen((v) => !v)
+          }}
           aria-expanded={formatOpen}
           style={{
             ...buttonBase,
@@ -191,7 +231,7 @@ export default function DataTransfer({ getStudyJson, onExportExcel, onImportClic
         <button
           type="button"
           onClick={() => {
-            setFormatOpen(false)
+            close()
             onImportClick()
           }}
           style={{
@@ -218,32 +258,103 @@ export default function DataTransfer({ getStudyJson, onExportExcel, onImportClic
             background: COLORS.bg,
           }}
         >
-          <span style={{ fontSize: '11.5px', fontWeight: 700, color: COLORS.sub }}>
-            書き出す形式を選んでください
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setFormatOpen(false)
-              onExportExcel()
-            }}
-            style={optionButton}
-          >
-            <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
-              Excel（.xlsx）
-            </span>
-            <span style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}>
-              問題を表計算ソフトで編集できる形式で。虫食いは含まれません
-            </span>
-          </button>
-          <button type="button" onClick={exportBackup} style={optionButton}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
-              バックアップ（.json）
-            </span>
-            <span style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}>
-              問題と学習記録をまとめて保存。読み込むと元に戻せます
-            </span>
-          </button>
+          {stage === 'format' ? (
+            <>
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: COLORS.sub }}>
+                書き出す形式を選んでください
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  close()
+                  onExportExcel()
+                }}
+                style={optionButton}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
+                  Excel（.xlsx）
+                </span>
+                <span
+                  style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}
+                >
+                  問題を表計算ソフトで編集できる形式で。虫食いは含まれません
+                </span>
+              </button>
+              <button type="button" onClick={() => setStage('group')} style={optionButton}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
+                  バックアップ（.json）
+                </span>
+                <span
+                  style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}
+                >
+                  問題と学習記録を保存。読み込むと元に戻せます。グループごとに1ファイル
+                </span>
+              </button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: COLORS.sub }}>
+                どのグループを書き出しますか？
+              </span>
+              {groups.length === 0 && (
+                <span style={{ fontSize: '11.5px', color: COLORS.muted, lineHeight: 1.6 }}>
+                  まだグループがありません。
+                </span>
+              )}
+              {groups.map((group) => {
+                const count = countsByGroup.get(group.id) ?? 0
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    disabled={busy || count === 0}
+                    onClick={() => exportOne(group.id)}
+                    style={{
+                      ...optionButton,
+                      opacity: count === 0 ? 0.5 : 1,
+                      cursor: count === 0 ? 'default' : 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
+                      {group.name}
+                    </span>
+                    <span style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub }}>
+                      {count}問
+                    </span>
+                  </button>
+                )
+              })}
+              {groups.length > 1 && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={exportAll}
+                  style={optionButton}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>
+                    {busy ? '書き出しています…' : 'すべてのグループ'}
+                  </span>
+                  <span
+                    style={{ fontSize: '11.5px', fontWeight: 400, color: COLORS.sub, lineHeight: 1.6 }}
+                  >
+                    ファイルはグループごとに分かれます（{groups.length}個）
+                  </span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setStage('format')}
+                style={{
+                  ...buttonBase,
+                  border: `1px solid ${COLORS.border}`,
+                  background: COLORS.card,
+                  color: COLORS.body,
+                }}
+              >
+                ← 形式を選び直す
+              </button>
+            </>
+          )}
         </div>
       )}
 

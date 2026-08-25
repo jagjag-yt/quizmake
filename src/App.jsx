@@ -925,8 +925,10 @@ export default function App() {
             onImportClick={openFilePicker}
             transferSlot={
               <DataTransfer
-                getStudyJson={() => study.exportJson(pool.poolRef.current)}
+                groups={pool.groups}
+                countsByGroup={pool.countsByGroup}
                 onExportExcel={() => setExportOpen(true)}
+                onExportGroup={(groupId) => exportGroup(groupId, 'json')}
                 onImportClick={openFilePicker}
                 onNotify={toast.show}
               />
@@ -1110,6 +1112,7 @@ export default function App() {
         <ExportModal
           questions={questions}
           groups={pool.groups}
+          defaultGroupId={activeEditorGroupId}
           onClose={() => setExportOpen(false)}
           onExport={runExport}
         />
