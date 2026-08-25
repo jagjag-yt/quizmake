@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { COLORS, inkColor } from '../constants'
 import { withMarkerIndexes } from '../data/cloze'
 import { shouldInline } from '../utils/clozeRender'
@@ -39,20 +40,109 @@ function NumberBadge({ index, opened }) {
 }
 
 /**
+ * 判定の印（○ / ✕）。
+ *
+ * 背景の色だけだと、淡い塗り（#f0fdf4 / #fef2f2）では見分けが付きにくい。
+ * 記号を添えて、色に頼らなくても分かるようにする。
+ */
+function VerdictBadge({ verdict }) {
+  if (!verdict) return null
+  const correct = verdict === 'correct'
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-block',
+        position: 'relative',
+        top: '-4px',
+        marginRight: '4px',
+        fontSize: '12px',
+        fontWeight: 700,
+        lineHeight: '12px',
+        verticalAlign: 'baseline',
+        color: correct ? COLORS.greenDark : COLORS.redDark,
+      }}
+    >
+      {correct ? '○' : '✕'}
+    </span>
+  )
+}
+
+/** 長押しを右クリックの代わりとみなす時間（ミリ秒）。 */
+const LONG_PRESS_MS = 550
+
+/** 判定ごとの見た目。開いていて未判定なら青、正答は緑、誤答は赤。 */
+function judgedStyle(verdict) {
+  if (verdict === 'correct') {
+    return { background: COLORS.greenLight, line: COLORS.green }
+  }
+  if (verdict === 'wrong') {
+    return { background: COLORS.redLight, line: COLORS.red }
+  }
+  return { background: COLORS.blueLight, line: COLORS.bluePale }
+}
+
+/** 読み上げ用の状態名。 */
+function stateLabel(opened, verdict) {
+  if (!opened) return '表示する'
+  if (verdict === 'correct') return '正答。押すと隠す'
+  if (verdict === 'wrong') return '誤答。押すと正答にする'
+  return '正答にする'
+}
+
+/**
  * 1つのマーカー。クリック／Enter／Space で開閉する。
+ *
+ * 開いたあとは **左クリックで正答（緑）／右クリックで誤答（赤）**。
+ * 左クリックは 閉じる→開く→正答→閉じる の順に回る。右クリックは誤答の付け外し。
+ * タッチ端末には右クリックが無いので、長押しを同じ扱いにする。
  *
  * マーカーの高さは字形に合わせるため44pxには届かない。
  * 代わりに行間2.05で上下の余白を確保し、隣接マーカーの間には最低8pxを空けている
  * （SPEC a11y の明示された例外）。
  */
-export function Marker({ run, opened, onToggle, tablet = false }) {
+export function Marker({ run, opened, verdict = null, onToggle, onMarkWrong, tablet = false }) {
   const inline = shouldInline(run.text)
+  const look = judgedStyle(verdict)
+  // 長押しの計測。押している最中に指が動いたら取り消す（スクロールと区別する）
+  const pressRef = useRef({ timer: null, fired: false })
+
+  const startPress = () => {
+    clearTimeout(pressRef.current.timer)
+    pressRef.current.fired = false
+    pressRef.current.timer = setTimeout(() => {
+      pressRef.current.fired = true
+      onMarkWrong?.()
+    }, LONG_PRESS_MS)
+  }
+  const cancelPress = () => clearTimeout(pressRef.current.timer)
+
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={(e) => {
+        // 長押しで誤答にした直後のクリックは無視する（続けて正答にしない）
+        if (pressRef.current.fired) {
+          pressRef.current.fired = false
+          e.preventDefault()
+          return
+        }
+        onToggle?.()
+      }}
+      onContextMenu={(e) => {
+        // ブラウザのメニューは出さない。右クリックは誤答の付け外しに使う
+        e.preventDefault()
+        onMarkWrong?.()
+      }}
+      onPointerDown={(e) => {
+        if (e.pointerType === 'touch') startPress()
+      }}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onPointerLeave={cancelPress}
+      onPointerMove={cancelPress}
       aria-pressed={opened}
-      aria-label={`空所${run.markerIndex} を${opened ? '隠す' : '表示'}`}
+      aria-label={`空所${run.markerIndex} を${stateLabel(opened, verdict)}`}
       style={{
         display: inline ? 'inline' : 'inline-block',
         boxDecorationBreak: 'clone',
@@ -68,9 +158,9 @@ export function Marker({ run, opened, onToggle, tablet = false }) {
         lineHeight: 1.35,
         cursor: 'pointer',
         transition: 'all 0.15s ease',
-        background: opened ? COLORS.blueLight : COLORS.blue,
+        background: opened ? look.background : COLORS.blue,
         color: opened ? inkColor(run.color) : 'transparent',
-        boxShadow: opened ? `inset 0 -2px 0 ${COLORS.bluePale}` : 'none',
+        boxShadow: opened ? `inset 0 -2px 0 ${look.line}` : 'none',
         WebkitTapHighlightColor: 'transparent',
       }}
       onFocus={(e) => {
@@ -82,6 +172,7 @@ export function Marker({ run, opened, onToggle, tablet = false }) {
       }}
     >
       <NumberBadge index={run.markerIndex} opened={opened} />
+      <VerdictBadge verdict={opened ? verdict : null} />
       {run.text}
     </button>
   )
@@ -97,7 +188,9 @@ export function Marker({ run, opened, onToggle, tablet = false }) {
 export default function ClozeBody({
   paras,
   openedIds,
+  verdicts = new Map(),
   onToggle,
+  onMarkWrong,
   fontSize = '18px',
   tablet = false,
   interactive = true,
@@ -144,8 +237,10 @@ export default function ClozeBody({
                 key={ri}
                 run={run}
                 opened={opened}
+                verdict={verdicts.get(run.markerIndex) ?? null}
                 tablet={tablet}
                 onToggle={() => onToggle?.(run.markerIndex)}
+                onMarkWrong={() => onMarkWrong?.(run.markerIndex)}
               />
             )
           })}

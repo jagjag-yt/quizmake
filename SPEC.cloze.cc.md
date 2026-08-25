@@ -1,6 +1,7 @@
 # QUIZMAKE_CLOZE_MODE.SPEC v2 — agent-target: Claude Code
 # v2(2026-08-17): [[ ]]記法 / タグ廃止 / xlsx12列 / グループ別連番 / 詳細パネルの既定=答えを隠す を反映。
 # v2.6(2026-08-24): 段落の番号（1. / (1) / ①）/ 元に戻す・やり直す / スクロール固定 / 空白と空行の保持。
+# v2.7(2026-08-25): 演習の自己採点（左クリック=正答/右クリック=誤答・誤答だけやり直す）。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -178,8 +179,22 @@ C. CLOZE QUIZ SCREEN (演習)
     虫食い pill + right [★](44) [自分メモ](44)   // tags は廃止(v2)
     title 24b
     body 18/2.05, markers clickable (see MARKER RENDER)
-    footer: [← 前の問題] + hint "クリックで開閉／もう一度押すと隠れます" + [↻ 隠し直す][次の問題 →](primary)
-  ↻ 隠し直す = retry equivalent (closes all). no ○×, no 解答する, no 正解/不正解 anywhere.
+    footer: [← 前の問題] + hint "左クリックで正答／右クリックで誤答" + [↻ 誤答だけやり直す(M)][↻ 隠し直す][次の問題 →](primary)
+  ↻ 隠し直す = retry equivalent (closes all + 判定も消す)。
+
+  SELF-MARKING(v2.7・利用者の指示で追加):
+    **開いたあとに自分で ○/✕ を付ける**。採点はしない方針のままで、記録にも残さない。
+    左クリック: 閉じる → 開く → 正答(緑) → 閉じる（判定も消える）
+    右クリック（タッチは長押し550ms）: 誤答(赤) の付け外し。閉じているマーカーでは開くだけ。
+    見た目: 正答 bg #f0fdf4 / inset 0 -2px #16a34a、誤答 bg #fef2f2 / inset 0 -2px #dc2626。
+      **色だけに頼らない**。番号バッジの後ろに ○ / ✕ を出す（淡い塗りでは色差が伝わらないため）。
+    条件バーに「正答 N」「誤答 M」の pill と [誤答だけやり直す（M）]。
+    [誤答だけやり直す] = ✕ の箇所だけ閉じ直し、判定を消す。○ はそのまま残す。
+    保持はその問題を見ている間だけ。次の問題・前の問題・隠し直すで消える。
+    RATIONALE: 虫食いは採点できない（自由記述のため）が、どこを間違えたかを本人が
+      印として残せると「間違えた箇所だけもう一度」ができる。記録に残さないのは
+      正答率・定着度・今日の復習の意味を変えないため（R4 は維持）。
+    ※ v2 までの「no ○×」は、この指示で置き換えられた。ただし**自動採点はしない**点は不変。
   on 次の問題: all markers reset to closed; write viewedAt.
   tablet: same 1 column, card p22, ← / ↻ / 次の問題 all h44, ≡ collapses メモ.
 

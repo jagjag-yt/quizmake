@@ -155,6 +155,9 @@ export default function App() {
   const [draft, setDraft] = useState([]) // 「2つ選べ」で選択中の選択肢
   // 虫食いで開いているマーカーの番号（問題を移ると閉じ直す）
   const [openedIds, setOpenedIds] = useState(() => new Set())
+  // 虫食いの自己採点（マーカー番号 → 'correct' | 'wrong'）。
+  // 採点しない問題なので学習記録には残さず、その問題を見ている間だけ持つ
+  const [verdicts, setVerdicts] = useState(() => new Map())
   const [typePickerOpen, setTypePickerOpen] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [finishedAt, setFinishedAt] = useState(null)
@@ -340,18 +343,21 @@ export default function App() {
     setCurrentIndex(idx)
     setDraft([])
     setOpenedIds(new Set())
+    setVerdicts(new Map())
   }, [])
 
   const goPrev = useCallback(() => {
     setCurrentIndex((i) => Math.max(0, i - 1))
     setDraft([])
     setOpenedIds(new Set())
+    setVerdicts(new Map())
   }, [])
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(total - 1, i + 1))
     setDraft([])
     setOpenedIds(new Set())
+    setVerdicts(new Map())
   }, [total])
 
   /** リトライ：この問題の回答を取り消し、選択肢を並べ直す。 */
@@ -372,14 +378,76 @@ export default function App() {
   }, [answered, session.examMode, currentIndex])
 
   /** 虫食いのマーカーを1つ開閉する。 */
-  const toggleMarker = useCallback((n) => {
+  /**
+   * マーカーの左クリック。**閉じる → 開く → 正答 → 閉じる** の順に回る。
+   *
+   * 「開いたあとにもう一度押すと隠れる」という元の操作は、正答を挟んで残している。
+   * 押し間違えても押し続ければ元の状態に戻れる並びにした。
+   */
+  const toggleMarker = useCallback(
+    (n) => {
+      if (!openedIds.has(n)) {
+        setOpenedIds((prev) => new Set(prev).add(n)) // 閉 → 開
+        return
+      }
+      if (verdicts.get(n) === 'correct') {
+        // 正答 → 閉じる（判定も消す）
+        setOpenedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(n)
+          return next
+        })
+        setVerdicts((prev) => {
+          const next = new Map(prev)
+          next.delete(n)
+          return next
+        })
+        return
+      }
+      // 開いただけ・誤答 → 正答
+      setVerdicts((prev) => new Map(prev).set(n, 'correct'))
+    },
+    [openedIds, verdicts],
+  )
+
+  /**
+   * マーカーの右クリック（タッチでは長押し）。誤答の付け外し。
+   * 閉じているマーカーでは、まず開くだけにする（見ずに誤答は付けられない）。
+   */
+  const markMarkerWrong = useCallback(
+    (n) => {
+      if (!openedIds.has(n)) {
+        setOpenedIds((prev) => new Set(prev).add(n))
+        return
+      }
+      setVerdicts((prev) => {
+        const next = new Map(prev)
+        if (next.get(n) === 'wrong') next.delete(n) // もう一度押すと取り消し
+        else next.set(n, 'wrong')
+        return next
+      })
+    },
+    [openedIds],
+  )
+
+  /**
+   * 誤答だけやり直す。
+   * ✕を付けた箇所だけを閉じ直し、判定も消す。正答にした箇所はそのまま残す。
+   */
+  const retryWrongMarkers = useCallback(() => {
+    const wrong = [...verdicts.entries()].filter(([, v]) => v === 'wrong').map(([n]) => n)
+    if (!wrong.length) return
     setOpenedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(n)) next.delete(n)
-      else next.add(n)
+      for (const n of wrong) next.delete(n)
       return next
     })
-  }, [])
+    setVerdicts((prev) => {
+      const next = new Map(prev)
+      for (const n of wrong) next.delete(n)
+      return next
+    })
+  }, [verdicts])
 
   const openAllMarkers = useCallback(() => {
     if (!baseQuestion || !isCloze(baseQuestion)) return
@@ -387,7 +455,10 @@ export default function App() {
     setOpenedIds(new Set(Array.from({ length: n }, (_, i) => i + 1)))
   }, [baseQuestion])
 
-  const closeAllMarkers = useCallback(() => setOpenedIds(new Set()), [])
+  const closeAllMarkers = useCallback(() => {
+    setOpenedIds(new Set())
+    setVerdicts(new Map())
+  }, [])
 
   /**
    * 「問題〇」への番号ジャンプ（枝番「12-2」も文字列として照合する）。
@@ -1031,7 +1102,10 @@ export default function App() {
             isLast={currentIndex === total - 1}
             onFinish={finish}
             openedIds={openedIds}
+            verdicts={verdicts}
             onToggleMarker={toggleMarker}
+            onMarkWrong={markMarkerWrong}
+            onRetryWrong={retryWrongMarkers}
             onOpenAll={openAllMarkers}
             onCloseAll={closeAllMarkers}
           />
