@@ -168,6 +168,8 @@ export default function App() {
   const [markerOpened, setMarkerOpened] = useState(() => new Map()) // 問題id → Set<番号>
   const [markerVerdicts, setMarkerVerdicts] = useState(() => new Map()) // 問題id → Map<番号, 判定>
   const [typePickerOpen, setTypePickerOpen] = useState(false)
+  // 「結果を見る」の直前に出す確認
+  const [finishConfirm, setFinishConfirm] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [finishedAt, setFinishedAt] = useState(null)
 
@@ -285,6 +287,15 @@ export default function App() {
     setFinishedAt((prev) => prev ?? Date.now())
     setView(VIEWS.SUMMARY)
   }, [])
+
+  /**
+   * 「結果を見る」の前に一度確かめる。
+   *
+   * 結果画面へ移ると、開いた場所や自己採点はそこで区切りになる。
+   * 最後の問題で押し間違えて先へ進んでしまうと、見直しに戻る手間が大きい。
+   * 時間切れ（本番モード）だけは、確認を挟まずそのまま終わる。
+   */
+  const requestFinish = useCallback(() => setFinishConfirm(true), [])
 
   // 本番モードの残り時間（1秒ごとに更新）
   useEffect(() => {
@@ -650,6 +661,20 @@ export default function App() {
     startSession({ ...opts, examMode: false }, { explicitList: reviewList })
   }, [reviewList, opts, startSession])
 
+  /** 確認ダイアログに出す「やり残し」の数。 */
+  const pending = useMemo(() => {
+    let unanswered = 0
+    let unjudged = 0
+    session.questions.forEach((q, i) => {
+      if (isCloze(q)) {
+        if (!markerVerdicts.get(q.id)?.size) unjudged += 1
+      } else if (!answers[i]) {
+        unanswered += 1
+      }
+    })
+    return { unanswered, unjudged }
+  }, [session.questions, answers, markerVerdicts])
+
   /** 演習全体の自己採点の内訳（虫食いのみ）。 */
   const selfMarks = useMemo(() => {
     let correct = 0
@@ -807,7 +832,7 @@ export default function App() {
       onEnter: () => {
         if (!displayQuestion) return
         if (isCloze(displayQuestion)) {
-          if (currentIndex >= total - 1) finish()
+          if (currentIndex >= total - 1) requestFinish()
           else goNext()
           return
         }
@@ -815,11 +840,11 @@ export default function App() {
         if (!answered && need > 1 && draft.length === need) {
           submitAnswer(draft)
         } else if (answered) {
-          if (currentIndex >= total - 1) finish()
+          if (currentIndex >= total - 1) requestFinish()
           else goNext()
         }
       },
-      onNext: () => (currentIndex >= total - 1 ? finish() : goNext()),
+      onNext: () => (currentIndex >= total - 1 ? requestFinish() : goNext()),
       onPrev: goPrev,
       onRetry: retry,
       onBookmark: () => key && study.toggleBookmark(key),
@@ -836,12 +861,13 @@ export default function App() {
       goNext,
       goPrev,
       retry,
-      finish,
+      requestFinish,
       key,
       study,
     ],
   )
-  useKeyboardShortcuts(shortcutHandlers, view === VIEWS.QUIZ)
+  // 確認ダイアログを出している間は、演習のキー操作を止める（Enter が二重に効く）
+  useKeyboardShortcuts(shortcutHandlers, view === VIEWS.QUIZ && !finishConfirm)
 
   const answerList = session.questions.map((_, i) => answers[i] ?? null)
   const elapsedSec = ((finishedAt ?? Date.now()) - session.startedAt) / 1000
@@ -931,7 +957,7 @@ export default function App() {
           onChangeExamMode={(examMode) => updateOpts({ examMode })}
           examMinutes={opts.examMinutes}
           onChangeExamMinutes={(examMinutes) => updateOpts({ examMinutes })}
-          onFinish={view === VIEWS.QUIZ ? finish : undefined}
+          onFinish={view === VIEWS.QUIZ ? requestFinish : undefined}
         />
       )}
 
@@ -1173,7 +1199,7 @@ export default function App() {
             onNext={goNext}
             isFirst={currentIndex === 0}
             isLast={currentIndex === total - 1}
-            onFinish={finish}
+            onFinish={requestFinish}
             openedIds={openedIds}
             verdicts={verdicts}
             onToggleMarker={toggleMarker}
@@ -1234,7 +1260,7 @@ export default function App() {
           onPrev={goPrev}
           onRetry={retry}
           onNext={goNext}
-          onFinish={finish}
+          onFinish={requestFinish}
         />
       )}
 
@@ -1262,6 +1288,40 @@ export default function App() {
           defaultGroupId={activeEditorGroupId}
           onClose={() => setExportOpen(false)}
           onExport={runExport}
+        />
+      )}
+
+      {finishConfirm && (
+        <ConfirmDialog
+          title="演習を終わって、結果を見ますか？"
+          message={
+            <>
+              結果画面へ移ると、この演習はここで終わります。開いた虫食いや自己採点（○✕）も、
+              ここまでの分が結果に反映されます。
+              {(pending.unanswered > 0 || pending.unjudged > 0) && (
+                <>
+                  <br />
+                  <br />
+                  <strong>やり残しがあります。</strong>
+                  {pending.unanswered > 0 && `まだ解いていない問題が ${pending.unanswered}問`}
+                  {pending.unanswered > 0 && pending.unjudged > 0 && '、'}
+                  {pending.unjudged > 0 && `○✕を付けていない虫食いが ${pending.unjudged}問`}
+                  あります。
+                </>
+              )}
+              <br />
+              <br />
+              「まだ続ける」を選ぶと、いまの問題に戻って見直せます。
+            </>
+          }
+          confirmLabel="結果を見る"
+          cancelLabel="まだ続ける"
+          danger={false}
+          onCancel={() => setFinishConfirm(false)}
+          onConfirm={() => {
+            setFinishConfirm(false)
+            finish()
+          }}
         />
       )}
 
