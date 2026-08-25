@@ -49,6 +49,8 @@ const actionButton = (primary) => ({
  *   questions: import('../data/questions').Question[],
  *   answers: Array<null | { correct: boolean, selectedLetters: string, correctLetters: string }>,
  *   elapsedSec: number,
+ *   reviewCount: number,   // もう一度やる問題の数（選択式の誤答＋虫食いの自己採点✕）
+ *   selfMarks: { correct: number, wrong: number },  // 虫食いの自己採点の合計
  *   onReviewWrong: () => void,
  *   onRestart: () => void,
  *   onOpenDashboard: () => void,
@@ -59,6 +61,8 @@ export default function SessionSummary({
   questions,
   answers,
   elapsedSec,
+  reviewCount = 0,
+  selfMarks = { correct: 0, wrong: 0 },
   onReviewWrong,
   onRestart,
   onOpenDashboard,
@@ -111,10 +115,32 @@ export default function SessionSummary({
           <Stat label="所要時間" value={formatDuration(elapsedSec)} sub={`${questions.length}問`} />
         </div>
 
+        {(selfMarks.correct > 0 || selfMarks.wrong > 0) && (
+          <p
+            style={{
+              margin: '18px 0 0',
+              fontSize: '13px',
+              color: COLORS.sub,
+              lineHeight: 1.8,
+            }}
+          >
+            虫食いの自己採点：
+            <span style={{ color: COLORS.greenDark, fontWeight: 700 }}>
+              正答 {selfMarks.correct}
+            </span>
+            {' ／ '}
+            <span style={{ color: COLORS.redDark, fontWeight: 700 }}>
+              誤答 {selfMarks.wrong}
+            </span>
+            <br />
+            自己採点は記録に残しません（虫食いは採点対象外のため）。
+          </p>
+        )}
+
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '24px' }}>
-          {wrong > 0 && (
+          {reviewCount > 0 && (
             <button type="button" style={actionButton(true)} onClick={onReviewWrong}>
-              間違えた問題を復習する（{wrong}問）
+              間違えた問題をもう一度（{reviewCount}問）
             </button>
           )}
           <button type="button" style={actionButton(false)} onClick={onRestart}>

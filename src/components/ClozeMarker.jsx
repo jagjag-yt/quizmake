@@ -120,6 +120,16 @@ export function Marker({ run, opened, verdict = null, onToggle, onMarkWrong, tab
   return (
     <button
       type="button"
+      data-marker="true"
+      onKeyDown={(e) => {
+        // Tab で選んだマーカーを、その場でめくれるようにする。
+        // Enter はボタンの既定動作でも click になるが、ここで明示的に受ける。
+        // 既定動作に任せると、環境によっては何も起きないことがあるため。
+        if (e.key !== 'Enter') return
+        e.preventDefault()
+        if (e.shiftKey) onMarkWrong?.()
+        else onToggle?.()
+      }}
       onClick={(e) => {
         // 長押しで誤答にした直後のクリックは無視する（続けて正答にしない）
         if (pressRef.current.fired) {

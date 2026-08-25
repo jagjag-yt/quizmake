@@ -2,6 +2,7 @@
 # v2(2026-08-17): [[ ]]記法 / タグ廃止 / xlsx12列 / グループ別連番 / 詳細パネルの既定=答えを隠す を反映。
 # v2.6(2026-08-24): 段落の番号（1. / (1) / ①）/ 元に戻す・やり直す / スクロール固定 / 空白と空行の保持。
 # v2.7(2026-08-25): 演習の自己採点（左クリック=正答/右クリック=誤答・誤答だけやり直す）。
+# v2.8(2026-08-25): 判定と開閉を演習中ずっと保持 / 結果画面から誤答問題だけ再演習 / Tab+Enter / 問題送りで先頭表示。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -182,6 +183,18 @@ C. CLOZE QUIZ SCREEN (演習)
     footer: [← 前の問題] + hint "左クリックで正答／右クリックで誤答" + [↻ 誤答だけやり直す(M)][↻ 隠し直す][次の問題 →](primary)
   ↻ 隠し直す = retry equivalent (closes all + 判定も消す)。
 
+  KEYBOARD(v2.8):
+    マーカーは button なので **Tab で次のマーカーへ**移れる。焦点があるとき:
+      Enter … めくる（開く→正答→閉じる）／ Shift+Enter … 誤答
+    演習画面の Enter（次の問題へ）は、**マーカーに焦点があるときだけ譲る**
+    （useKeyboardShortcuts が `[data-marker="true"]` を見て素通しする）。
+    Enter は Marker 側で preventDefault して自分で処理する。ボタンの既定動作に
+    任せると、環境によっては何も起きないことがあるため。
+
+  SCROLL(v2.8):
+    問題が変わったら **画面の先頭へ戻す**（view/currentIndex/startedAt を見て scrollTop=0）。
+    前の問題で下までスクロールしていると、次の問題も途中から表示されてしまう。
+
   SELF-MARKING(v2.7・利用者の指示で追加):
     **開いたあとに自分で ○/✕ を付ける**。採点はしない方針のままで、記録にも残さない。
     左クリック: 閉じる → 開く → 正答(緑) → 閉じる（判定も消える）
@@ -190,13 +203,20 @@ C. CLOZE QUIZ SCREEN (演習)
       **色だけに頼らない**。番号バッジの後ろに ○ / ✕ を出す（淡い塗りでは色差が伝わらないため）。
     条件バーに「正答 N」「誤答 M」の pill と [誤答だけやり直す（M）]。
     [誤答だけやり直す] = ✕ の箇所だけ閉じ直し、判定を消す。○ はそのまま残す。
-    保持はその問題を見ている間だけ。次の問題・前の問題・隠し直すで消える。
+    保持は **演習の間ずっと・問題ごと**（v2.8）。次の問題へ進んでも、戻れば開いた場所と
+      ○/✕ がそのまま残る。消えるのは「隠し直す」を押したときと、演習を始め直したとき。
+      RATIONALE: 戻るたびに開き直すのは手間。学習記録に残さない点は変えない。
     RATIONALE: 虫食いは採点できない（自由記述のため）が、どこを間違えたかを本人が
       印として残せると「間違えた箇所だけもう一度」ができる。記録に残さないのは
       正答率・定着度・今日の復習の意味を変えないため（R4 は維持）。
     ※ v2 までの「no ○×」は、この指示で置き換えられた。ただし**自動採点はしない**点は不変。
   on 次の問題: all markers reset to closed; write viewedAt.
   tablet: same 1 column, card p22, ← / ↻ / 次の問題 all h44, ≡ collapses メモ.
+
+  SUMMARY(v2.8): 結果画面に「虫食いの自己採点：正答 N ／ 誤答 M」と
+    「記録に残しません」の一文を出す。[間違えた問題をもう一度（N問）] は
+    **選択式の誤答 ＋ 虫食いで✕が1つ以上ある問題**を対象にする。
+    虫食いは採点しないので、この✕だけが「間違えた」の手がかりになる。
 
 D. DIFFS TO EXISTING SCREENS (minimal)
   D1 設問一覧 table: insert 種別 column (76px) after 番号. pill text = 選択式 | 虫食い (never color-only).
