@@ -207,6 +207,7 @@ export function normalizeQuestion(raw, index = 0) {
     choices,
     correctIndexes,
     correctIndex: correctIndexes[0] ?? 0,
+    tables: normalizeTables(raw.tables),
     explanation: toText(raw.explanation, LIMITS.TEXT_CHARS),
     // 基本事項も選択肢と同じ理由で空欄を残す
     keyPoints: Array.isArray(raw.keyPoints)
@@ -214,6 +215,127 @@ export function normalizeQuestion(raw, index = 0) {
       : [],
     imageUrl: sanitizeImageUrl(raw.imageUrl),
   }
+}
+
+// ---------------------------------------------------------------------------
+// 問題文の中の表
+//
+// 問題文は「テキスト＋下線の位置」から毎回組み立て直している（buildSegmentsFromMarks）。
+// そのため表を segments に混ぜると、文字を1字打っただけで消える。
+// 表は別の入れ物（tables）に持ち、**本文には目印だけを置く**。
+//   本文: 「次の表を見て答えよ。[[表1]] このとき…」
+// 目印が動けば表も動き、目印を消せば本文から外れる。位置合わせの計算が要らない。
+// ---------------------------------------------------------------------------
+
+/** 表1つの上限。大きすぎる表は画面にもExcelにも収まらない。 */
+export const TABLE_LIMITS = { ROWS: 30, COLS: 10, CELL_CHARS: 200 }
+
+/** 本文に置く目印。1始まりの番号で表を指す。 */
+export const TABLE_TOKEN = /\[\[表(\d{1,2})\]\]/g
+
+/** 番号から目印の文字列を作る。 */
+export const tableToken = (n) => `[[表${n}]]`
+
+/** 表の1つを整える。 */
+function normalizeTable(raw) {
+  const rows = Array.isArray(raw?.rows) ? raw.rows : []
+  const cleaned = rows
+    .slice(0, TABLE_LIMITS.ROWS)
+    .map((row) =>
+      (Array.isArray(row) ? row : [])
+        .slice(0, TABLE_LIMITS.COLS)
+        .map((cell) => toText(cell, TABLE_LIMITS.CELL_CHARS)),
+    )
+  // 行ごとに列数がばらつくと表が崩れるので、いちばん長い行に合わせて空欄で埋める
+  const width = cleaned.reduce((n, row) => Math.max(n, row.length), 0)
+  return {
+    header: raw?.header !== false, // 既定は1行目を見出しにする
+    rows: cleaned.map((row) => [...row, ...Array(Math.max(0, width - row.length)).fill('')]),
+  }
+}
+
+/** 表の一覧を整える。 */
+export function normalizeTables(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw.slice(0, 9).map(normalizeTable).filter((t) => t.rows.length > 0)
+}
+
+/** 空の表（3列×3行。1行目は見出し）。 */
+export function emptyTable() {
+  return { header: true, rows: [['', '', ''], ['', '', ''], ['', '', '']] }
+}
+
+/**
+ * Excel などから貼り付けた文字列を表にする。
+ * 行は改行、列はタブで区切られている（表計算ソフトの標準）。
+ */
+export function tableFromPaste(text) {
+  // 改行・タブは文字コードで指定する（この文字を直接書くと編集の途中で壊れやすい）
+  const CR = String.fromCharCode(13)
+  const NEWLINE = String.fromCharCode(10)
+  const TAB = String.fromCharCode(9)
+
+  const lines = String(text ?? '')
+    .split(CR)
+    .join('')
+    .split(NEWLINE)
+    .filter((line) => line.length > 0)
+  if (!lines.length) return null
+  return normalizeTable({ header: true, rows: lines.map((line) => line.split(TAB)) })
+}
+
+/**
+ * 本文を「文章」と「表」の並びに分ける（表示のため）。
+ *
+ * @param {Array} segments 下線付きの問題文
+ * @param {Array} tables   表の一覧
+ * @returns {Array<{type:'text', segments:Array}|{type:'table', table:object, index:number}>}
+ */
+export function splitBodyByTables(segments, tables) {
+  const list = Array.isArray(tables) ? tables : []
+  if (!list.length) return [{ type: 'text', segments: segments ?? [] }]
+
+  const blocks = []
+  let buffer = []
+  const flush = () => {
+    if (buffer.length) blocks.push({ type: 'text', segments: buffer })
+    buffer = []
+  }
+
+  for (const seg of segments ?? []) {
+    const text = seg.text ?? ''
+    let last = 0
+    // 目印は同じ段落の途中にも入りうるので、1つの segment を切り分けながら進む
+    for (const hit of text.matchAll(TABLE_TOKEN)) {
+      const before = text.slice(last, hit.index)
+      if (before) buffer.push({ ...seg, text: before })
+      const index = Number(hit[1]) - 1
+      const table = list[index]
+      if (table) {
+        flush()
+        blocks.push({ type: 'table', table, index })
+      }
+      last = hit.index + hit[0].length
+    }
+    const rest = text.slice(last)
+    if (rest) buffer.push({ ...seg, text: rest })
+  }
+  flush()
+  return blocks.length ? blocks : [{ type: 'text', segments: [] }]
+}
+
+/** 本文から目印を取り除く（Excel へ書き出すときなど、表を落とす場面で使う）。 */
+export const stripTableTokens = (text) => String(text ?? '').replace(TABLE_TOKEN, '')
+
+/** その問題が表を持っているか（本文に目印が置かれているものだけ数える）。 */
+export function usedTableCount(q) {
+  if (!q || q.type === QUESTION_TYPES.CLOZE) return 0
+  const text = segmentsToText(q.segments)
+  let count = 0
+  for (const hit of text.matchAll(TABLE_TOKEN)) {
+    if ((q.tables ?? [])[Number(hit[1]) - 1]) count += 1
+  }
+  return count
 }
 
 /**

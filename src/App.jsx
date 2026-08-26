@@ -9,7 +9,14 @@ import {
   SPACING,
   VIEWS,
 } from './constants'
-import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
+import {
+  compactQuestion,
+  isCloze,
+  isGraded,
+  questionKey,
+  stripTableTokens,
+  usedTableCount,
+} from './data/questions'
 import { hiddenCount, openTogetherMap } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
@@ -643,11 +650,20 @@ export default function App() {
     async (list, groupName) => {
       setExportOpen(false)
       try {
-        const { fileName, count } = await exportQuestionsToXlsx(list, { groupName })
+        // Excel の12列に表は入らない。本文の目印だけを外して書き出し、そのことを伝える
+        const withTables = list.filter((q) => usedTableCount(q) > 0).length
+        const cleaned = list.map((q) =>
+          usedTableCount(q) > 0
+            ? { ...q, segments: q.segments.map((seg) => ({ ...seg, text: stripTableTokens(seg.text) })) }
+            : q,
+        )
+        const { fileName, count } = await exportQuestionsToXlsx(cleaned, { groupName })
         toast.show({
-          tone: 'success',
+          tone: withTables ? 'info' : 'success',
           title: `${fileName} を書き出しました`,
-          description: 'ダウンロードフォルダに保存されました',
+          description: withTables
+            ? `表のある${withTables}問は、表を除いて書き出しました（アプリの中には残ります）`
+            : 'ダウンロードフォルダに保存されました',
         })
         return count
       } catch {
@@ -749,7 +765,20 @@ export default function App() {
 
       try {
         if (format === 'xlsx') {
-          const target = list.filter((q) => !isCloze(q)).map(compactQuestion)
+          const target = list
+            .filter((q) => !isCloze(q))
+            .map(compactQuestion)
+            .map((q) =>
+              usedTableCount(q) > 0
+                ? {
+                    ...q,
+                    segments: q.segments.map((seg) => ({
+                      ...seg,
+                      text: stripTableTokens(seg.text),
+                    })),
+                  }
+                : q,
+            )
           if (!target.length) {
             toast.show({
               tone: 'error',
@@ -762,10 +791,21 @@ export default function App() {
           toast.show({
             tone: 'success',
             title: `${fileName} を書き出しました`,
-            description:
-              target.length < list.length
-                ? `虫食い ${list.length - target.length}問 は含まれていません`
-                : 'ダウンロードフォルダに保存されました',
+            description: [
+              target.length < list.length ? `虫食い ${list.length - target.length}問` : null,
+              list.filter((q) => usedTableCount(q) > 0).length
+                ? `表 ${list.filter((q) => usedTableCount(q) > 0).length}問ぶん`
+                : null,
+            ].filter(Boolean).length
+              ? `${[
+                  target.length < list.length ? `虫食い ${list.length - target.length}問` : null,
+                  list.filter((q) => usedTableCount(q) > 0).length
+                    ? `表 ${list.filter((q) => usedTableCount(q) > 0).length}問ぶん`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ／ ')} は含まれていません`
+              : 'ダウンロードフォルダに保存されました',
           })
           return
         }
