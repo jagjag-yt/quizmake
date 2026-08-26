@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   COLORS,
   GROUP_NAME_MAX,
@@ -98,21 +98,82 @@ function adjustMarks(oldText, newText, marks) {
     .filter((m) => m.end > m.start)
 }
 
-/** ドラッグで並べ替えできる行のラッパー。 */
+/**
+ * 中身の高さに合わせて伸びる入力欄。
+ *
+ * 手で高さを変える（resize）のをやめ、**文字の量に合わせて自動で伸ばす**。
+ * 読み込んだ直後にも測るので、Excel から入れた長い問題文も最初から全部見える
+ * （2026-08-26 に「読み込んだときに反映されない」と報告された）。
+ */
+function AutoTextarea({ value, minRows = 3, style, textareaRef = null, ...rest }) {
+  const ref = useRef(null)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+
+    const fit = () => {
+      // 測るあいだ欄がつぶれるので、ページのスクロール位置を戻す
+      const scroller = document.scrollingElement ?? document.documentElement
+      const top = scroller.scrollTop
+      el.style.height = 'auto'
+      const border = el.offsetHeight - el.clientHeight
+      el.style.height = `${el.scrollHeight + border}px`
+      if (scroller.scrollTop !== top) scroller.scrollTop = top
+    }
+
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [value])
+
+  return (
+    <textarea
+      // 呼び出し側もこの欄を触る（カーソル位置を読むなど）ので、両方に渡す
+      ref={(el) => {
+        ref.current = el
+        if (textareaRef) textareaRef.current = el
+      }}
+      value={value}
+      rows={minRows}
+      style={{ ...style, resize: 'none', overflow: 'hidden' }}
+      {...rest}
+    />
+  )
+}
+
+/**
+ * ドラッグで並べ替えできる行のラッパー。
+ *
+ * **つまみ（⠿）を押したときだけ**ドラッグを許す。行全体を draggable にすると、
+ * 入力欄の中で文字を選ぼうとした瞬間に並べ替えが始まり、選択できなくなる
+ * （2026-08-26 に基本事項で報告された）。
+ */
 function Sortable({ index, onMove, children, style }) {
+  const [armed, setArmed] = useState(false)
+
+  // つまみに付ける属性。呼び出し側は <span {...handleProps}>⠿</span> のように使う
+  const handleProps = {
+    onPointerDown: () => setArmed(true),
+    onPointerUp: () => setArmed(false),
+    onPointerCancel: () => setArmed(false),
+  }
+
   return (
     <div
-      draggable
+      draggable={armed}
       onDragStart={(e) => e.dataTransfer.setData('text/plain', String(index))}
+      onDragEnd={() => setArmed(false)}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
+        setArmed(false)
         const from = Number(e.dataTransfer.getData('text/plain'))
         if (Number.isInteger(from)) onMove(from, index)
       }}
       style={style}
     >
-      {children}
+      {typeof children === 'function' ? children(handleProps) : children}
     </div>
   )
 }
@@ -125,168 +186,71 @@ const handleStyle = {
   lineHeight: 1,
 }
 
-/** 問題文＋下線指定。選択範囲に対して下線を付け外しする。 */
+/**
+ * 問題文の入力欄。
+ *
+ * 下線を引く操作は 2026-08-26 に廃止した（利用者の指示）。入力に集中できるようにする。
+ * ただし **下線そのものは残す**。Excel の「下線キーワード」列から入ってきた問題は
+ * これまでどおり下線付きで出題され、書き出しでも失われない。
+ */
 function QuestionTextField({ text, marks, onChange, invalid, onInsertTable, canAddTable }) {
   const ref = useRef(null)
-  const [selection, setSelection] = useState({ start: 0, end: 0 })
-  const hasSelection = selection.end > selection.start
-
-  const syncSelection = () => {
-    const el = ref.current
-    if (el) setSelection({ start: el.selectionStart, end: el.selectionEnd })
-  }
-
-  const applyUnderline = () => {
-    if (!hasSelection) return
-    onChange(text, [...marks, { start: selection.start, end: selection.end }])
-  }
-
-  const clearUnderline = () => {
-    if (!hasSelection) return
-    const next = []
-    for (const m of marks) {
-      if (m.end <= selection.start || m.start >= selection.end) {
-        next.push(m)
-        continue
-      }
-      if (m.start < selection.start) next.push({ start: m.start, end: selection.start })
-      if (m.end > selection.end) next.push({ start: selection.end, end: m.end })
-    }
-    onChange(text, next)
-  }
-
-  const segments = buildSegmentsFromMarks(text, marks)
-  const underlineCount = segments.filter((s) => s.u).length
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '6px',
+          flexWrap: 'wrap',
+        }}
+      >
         <span style={label}>問題文</span>
         <span style={pill(COLORS.redLight, COLORS.red)}>必須</span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={applyUnderline}
-            disabled={!hasSelection}
-            title="選択したテキストに下線をつけます"
-            style={{
-              minHeight: '36px',
-              padding: '0 14px',
-              borderRadius: '10px',
-              border: `1px solid ${hasSelection ? COLORS.blue : COLORS.border}`,
-              background: hasSelection ? COLORS.blue : COLORS.blueLight,
-              color: hasSelection ? '#ffffff' : COLORS.bluePale,
-              fontSize: '12.5px',
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: hasSelection ? 'pointer' : 'default',
-            }}
-          >
-            U 下線をつける
-          </button>
-          <button
-            type="button"
-            onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
-            disabled={!canAddTable}
-            title="カーソルの位置に表を差し込みます"
-            style={{
-              minHeight: '36px',
-              padding: '0 12px',
-              borderRadius: '10px',
-              border: `1px solid ${canAddTable ? COLORS.border : COLORS.border}`,
-              background: COLORS.card,
-              color: canAddTable ? COLORS.body : COLORS.dashed,
-              fontSize: '12.5px',
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: canAddTable ? 'pointer' : 'default',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            ⊞ 表を入れる
-          </button>
-          <button
-            type="button"
-            onClick={clearUnderline}
-            disabled={!hasSelection}
-            style={{
-              minHeight: '36px',
-              padding: '0 12px',
-              borderRadius: '10px',
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: COLORS.sub,
-              fontSize: '12.5px',
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: hasSelection ? 'pointer' : 'default',
-              opacity: hasSelection ? 1 : 0.6,
-            }}
-          >
-            解除
-          </button>
-        </span>
+        <button
+          type="button"
+          onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
+          disabled={!canAddTable}
+          title="カーソルの位置に表を差し込みます"
+          style={{
+            marginLeft: 'auto',
+            minHeight: '36px',
+            padding: '0 12px',
+            borderRadius: '10px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            color: canAddTable ? COLORS.body : COLORS.dashed,
+            fontSize: '12.5px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: canAddTable ? 'pointer' : 'default',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ⊞ 表を入れる
+        </button>
       </div>
 
-      <textarea
-        ref={ref}
+      <AutoTextarea
+        textareaRef={ref}
         value={text}
         onChange={(e) => onChange(e.target.value, adjustMarks(text, e.target.value, marks))}
-        onSelect={syncSelection}
-        onKeyUp={syncSelection}
-        onMouseUp={syncSelection}
         placeholder="問題文を入力"
-        rows={5}
+        minRows={3}
         data-shortcut-ignore="true"
         style={{
           ...input,
-          resize: 'vertical',
+          minHeight: 'auto',
+          padding: '12px 14px',
+          fontSize: '15px',
           lineHeight: 1.9,
-          border: `1px solid ${invalid ? COLORS.red : COLORS.border}`,
-          background: invalid ? COLORS.redLight : COLORS.card,
+          borderColor: invalid ? COLORS.red : COLORS.border,
         }}
       />
+
       {invalid && errorText('問題文を入力してください')}
-
-      {/* 下線の反映結果 */}
-      {text && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '10px 12px',
-            borderRadius: '10px',
-            background: COLORS.bg,
-            border: `1px solid ${COLORS.cardBorder}`,
-            fontSize: '14px',
-            lineHeight: 1.9,
-            color: COLORS.text,
-          }}
-        >
-          {segments.map((seg, i) => (
-            <span
-              key={i}
-              style={
-                seg.u
-                  ? {
-                      background: COLORS.blueLight,
-                      borderBottom: `2px solid ${COLORS.blue}`,
-                      fontWeight: 700,
-                    }
-                  : undefined
-              }
-            >
-              {seg.text}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-        <span style={pill(COLORS.chipTrack, COLORS.body)}>下線 {underlineCount} か所</span>
-        <span style={{ fontSize: '11.5px', color: COLORS.muted, lineHeight: 1.6 }}>
-          テキストを選択すると「下線をつける」が有効になります。書き出し時は下線部が「下線キーワード」列になります。
-        </span>
-      </div>
     </div>
   )
 }
@@ -1321,12 +1285,31 @@ export default function EditorView({
         ＋ 問題を追加
       </button>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/*
+        件数はこのグループの中だけを数える。下の [選択式 n][虫食い n] と同じ範囲にしないと、
+        「48問」なのに一覧には10問しか出ない、という食い違いが起きる（2026-08-26 報告）。
+      */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: COLORS.text }}>作成した問題</span>
-        <span style={{ fontSize: '12px', color: COLORS.sub }}>{authored.length}問</span>
+        <span style={{ fontSize: '12px', color: COLORS.sub }}>{groupScoped.length}問</span>
+        {activeGroupId && (
+          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>
+            （{groups.find((g) => g.id === activeGroupId)?.name ?? ''}）
+          </span>
+        )}
       </div>
 
-      <div style={{ display: 'inline-flex', gap: '2px', padding: '3px', borderRadius: '999px', background: COLORS.chipTrack }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '2px',
+          padding: '3px',
+          borderRadius: '999px',
+          background: COLORS.chipTrack,
+          // 縮ませない。縮むと下の一覧に重なって文字が切れる
+          flex: '0 0 auto',
+        }}
+      >
         {[
           { key: 'all', text: 'すべて' },
           { key: QUESTION_TYPES.CHOICE, text: `選択式 ${choiceCount}` },
@@ -1354,7 +1337,22 @@ export default function EditorView({
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
+      {/*
+        一覧はこの中だけでスクロールさせる。上の帯（チップ）と重ならないよう、
+        自分の領域を持たせる（flex の縮みで押し潰されると、文字が帯の下に隠れる）
+      */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          maxHeight: '420px',
+          overflowY: 'auto',
+          minHeight: 0,
+          flex: '1 1 auto',
+          paddingTop: '2px',
+        }}
+      >
         {sidebarItems.map((q, i) => {
           const invalid = validateQuestion(q).length > 0
           const head = isCloze(q)
@@ -1377,6 +1375,8 @@ export default function EditorView({
                 cursor: 'pointer',
               }}
             >
+              {(handleProps) => (
+                <>
               <input
                 type="checkbox"
                 checked={checkedIds.includes(q.id)}
@@ -1389,7 +1389,7 @@ export default function EditorView({
                 aria-label={`${head} を選択`}
                 style={{ width: '17px', height: '17px', accentColor: COLORS.blue, cursor: 'pointer', flexShrink: 0 }}
               />
-              <span style={handleStyle} aria-hidden="true">⠿</span>
+                <span style={handleStyle} aria-hidden="true" {...handleProps}>⠿</span>
               <button
                 type="button"
                 onClick={() => {
@@ -1422,6 +1422,8 @@ export default function EditorView({
               {invalid && (
                 <span title="入力に不備があります" style={{ color: COLORS.red, fontWeight: 700, fontSize: '13px' }}>!</span>
               )}
+              </>
+            )}
             </Sortable>
           )
         })}
@@ -1655,7 +1657,9 @@ export default function EditorView({
                   background: isCorrect ? COLORS.greenLight : COLORS.card,
                 }}
               >
-                <span style={handleStyle} aria-hidden="true">⠿</span>
+                {(handleProps) => (
+                  <>
+                  <span style={handleStyle} aria-hidden="true" {...handleProps}>⠿</span>
                 <span
                   style={{
                     display: 'flex',
@@ -1708,6 +1712,8 @@ export default function EditorView({
                 >
                   ✕
                 </button>
+                </>
+              )}
               </Sortable>
             )
           })}
@@ -1734,12 +1740,19 @@ export default function EditorView({
 
       <div>
         <div style={label}>解説</div>
-        <textarea
+        <AutoTextarea
           value={question.explanation}
           onChange={(e) => onUpdate(question.id, { explanation: e.target.value })}
-          rows={4}
+          minRows={3}
           data-shortcut-ignore="true"
-          style={{ ...input, marginTop: '6px', resize: 'vertical', fontSize: '14.5px', lineHeight: 1.9 }}
+          style={{
+            ...input,
+            marginTop: '6px',
+            minHeight: 'auto',
+            padding: '12px 14px',
+            fontSize: '14.5px',
+            lineHeight: 1.9,
+          }}
         />
       </div>
 
@@ -1754,14 +1767,26 @@ export default function EditorView({
               key={i}
               index={i}
               onMove={moveKeyPoint}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', minHeight: '44px', padding: '4px 10px', borderRadius: '12px', border: `1px solid ${COLORS.border}` }}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minHeight: '44px', padding: '6px 10px', borderRadius: '12px', border: `1px solid ${COLORS.border}` }}
             >
-              <span style={handleStyle} aria-hidden="true">⠿</span>
-              <input
+              {(handleProps) => (
+                <>
+                <span style={{ ...handleStyle, paddingTop: '10px' }} aria-hidden="true" {...handleProps}>⠿</span>
+              <AutoTextarea
                 value={kp}
                 onChange={(e) => setKeyPoint(i, e.target.value)}
+                minRows={1}
                 data-shortcut-ignore="true"
-                style={{ ...input, minHeight: '36px', flex: 1, border: 'none', background: 'transparent', fontSize: '14px' }}
+                style={{
+                  ...input,
+                  minHeight: 'auto',
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '8px 6px',
+                  fontSize: '14px',
+                  lineHeight: 1.8,
+                }}
               />
               <button
                 type="button"
@@ -1771,6 +1796,8 @@ export default function EditorView({
               >
                 ✕
               </button>
+              </>
+            )}
             </Sortable>
           ))}
         </div>

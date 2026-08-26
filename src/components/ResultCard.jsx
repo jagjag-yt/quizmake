@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, SPACING } from '../constants'
+import MathText from './MathText'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
 /** 「解説」「基本事項」で共通の見出しスタイル。 */
@@ -223,7 +224,7 @@ export default function ResultCard({
                 whiteSpace: 'pre-wrap',
               }}
             >
-              {question.explanation}
+              <MathText text={question.explanation} />
             </p>
           </div>
         )}

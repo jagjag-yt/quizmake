@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
 import { clozeHeadline, hiddenCount, splitNumberPrefix, withMarkerIndexes } from '../data/cloze'
 import QuestionTable from './QuestionTable'
+import MathText from './MathText'
 import { compactQuestion, isCloze, splitBodyByTables } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -301,7 +302,7 @@ export default function QuestionDetail({
                     : undefined
                 }
               >
-                {seg.text}
+                <MathText text={seg.text} />
               </span>
             ))}
           </p>
@@ -429,7 +430,7 @@ export default function QuestionDetail({
               whiteSpace: 'pre-wrap',
             }}
           >
-            {question.explanation}
+            <MathText text={question.explanation} />
           </p>
         </div>
       )}

@@ -148,6 +148,18 @@ export function newQuestionId() {
  * @param {number} index 0始まりの並び順（問題番号が無いときの採番に使う）
  * @returns {Question}
  */
+/**
+ * 利用者が打ち込む文字を整える。**前後の空白を落とさない**。
+ *
+ * toText は trim するため、文の先頭でスペースや改行を打つとその場で消え、
+ * 「入力できない」ように見えていた（2026-08-26 報告）。長さだけ制限する。
+ * 空白だけかどうかの判定（未入力の検出）は、使う側で trim して行う。
+ */
+function editableText(value, maxChars) {
+  const s = value == null ? '' : String(value)
+  return maxChars && s.length > maxChars ? s.slice(0, maxChars) : s
+}
+
 export function normalizeQuestion(raw, index = 0) {
   // 問題番号は通常は数値だが、取り込み時の衝突回避で「12-2」形式の文字列にもなる
   const rawNum = raw.questionNumber
@@ -178,12 +190,12 @@ export function normalizeQuestion(raw, index = 0) {
   // 未入力の選択肢はここでは捨てない。捨ててしまうと編集中に「＋ 選択肢を追加」で
   // 足した空欄がその場で消えてしまうため。出題・書き出しの直前に compactQuestion で落とす。
   const choices = Array.isArray(raw.choices)
-    ? raw.choices.map((c) => toText(c, LIMITS.TEXT_CHARS)).slice(0, 5)
+    ? raw.choices.map((c) => editableText(c, LIMITS.TEXT_CHARS)).slice(0, 5)
     : []
 
   const segments = Array.isArray(raw.segments) && raw.segments.length
     ? raw.segments.map((s) => ({
-        text: toText(s?.text, LIMITS.TEXT_CHARS),
+        text: editableText(s?.text, LIMITS.TEXT_CHARS),
         u: s?.u === true,
       }))
     : [{ text: toText(raw.question, LIMITS.TEXT_CHARS), u: false }]
@@ -208,10 +220,10 @@ export function normalizeQuestion(raw, index = 0) {
     correctIndexes,
     correctIndex: correctIndexes[0] ?? 0,
     tables: normalizeTables(raw.tables),
-    explanation: toText(raw.explanation, LIMITS.TEXT_CHARS),
+    explanation: editableText(raw.explanation, LIMITS.TEXT_CHARS),
     // 基本事項も選択肢と同じ理由で空欄を残す
     keyPoints: Array.isArray(raw.keyPoints)
-      ? raw.keyPoints.map((k) => toText(k, LIMITS.TEXT_CHARS)).slice(0, 20)
+      ? raw.keyPoints.map((k) => editableText(k, LIMITS.TEXT_CHARS)).slice(0, 20)
       : [],
     imageUrl: sanitizeImageUrl(raw.imageUrl),
   }
