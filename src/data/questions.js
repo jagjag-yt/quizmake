@@ -256,7 +256,8 @@ function normalizeTable(raw) {
     .map((row) =>
       (Array.isArray(row) ? row : [])
         .slice(0, TABLE_LIMITS.COLS)
-        .map((cell) => toText(cell, TABLE_LIMITS.CELL_CHARS)),
+        // trim すると、1マスの中で改行を打った瞬間に消える（本文と同じ理由）
+        .map((cell) => editableText(cell, TABLE_LIMITS.CELL_CHARS)),
     )
   // 行ごとに列数がばらつくと表が崩れるので、いちばん長い行に合わせて空欄で埋める
   const width = cleaned.reduce((n, row) => Math.max(n, row.length), 0)

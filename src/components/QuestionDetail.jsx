@@ -289,7 +289,16 @@ export default function QuestionDetail({
         block.type === 'table' ? (
           <QuestionTable key={bi} table={block.table} />
         ) : (
-          <p key={bi} style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
+          <p
+            key={bi}
+            style={{
+              margin: 0,
+              fontSize: '18px',
+              lineHeight: 1.9,
+              color: COLORS.text,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
             {block.segments.map((seg, i) => (
               <MathText key={i} text={seg.text} />
             ))}
@@ -396,7 +405,7 @@ export default function QuestionDetail({
                   fontWeight: isCorrect ? 700 : 400,
                 }}
               >
-                {text}
+                <MathText text={text} />
               </span>
               {isCorrect && (
                 <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.green }}>正解</span>

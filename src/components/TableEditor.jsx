@@ -1,9 +1,12 @@
 import { useRef, useState } from 'react'
 import { COLORS, TAP_MIN } from '../constants'
 import { TABLE_LIMITS, tableFromPaste } from '../data/questions'
+import AutoTextarea from './AutoTextarea'
 
 /**
- * 問題文に入れる表の編集。
+ * 問題文・解説・基本事項に入れる表の編集。
+ *
+ * カードは**目印を置いた欄のすぐ下**に出る（EditorView が振り分ける）。
  *
  * 入れ方は2通り。
  *   ・Excel などから範囲をコピーして貼り付ける（行はそのまま、列はタブで分かれる）
@@ -27,7 +30,15 @@ const smallButton = {
   whiteSpace: 'nowrap',
 }
 
+/**
+ * 1マスの入力欄。
+ *
+ * **改行を打てるように textarea にしてある**（利用者の要望・2026-08-26）。
+ * input のままだと Enter が効かず、1マスを2行に分けられなかった。
+ * 高さは中身に合わせて伸ばす（AutoTextarea）。
+ */
 const cellInput = {
+  display: 'block',
   width: '100%',
   minWidth: '90px',
   minHeight: '34px',
@@ -36,6 +47,7 @@ const cellInput = {
   background: 'transparent',
   color: COLORS.text,
   fontSize: '13px',
+  lineHeight: 1.6,
   fontFamily: 'inherit',
   outline: 'none',
   boxSizing: 'border-box',
@@ -108,7 +120,7 @@ export default function TableEditor({ table, label, placed, onChange, onRemove, 
         </span>
         {!placed && (
           <button type="button" onClick={onInsertToken} style={{ ...smallButton, borderColor: COLORS.amber, color: COLORS.amberDark }}>
-            本文に入れる
+            問題文に入れる
           </button>
         )}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -123,8 +135,8 @@ export default function TableEditor({ table, label, placed, onChange, onRemove, 
 
       {!placed && (
         <p style={{ margin: 0, fontSize: '11.5px', color: COLORS.amberDark, lineHeight: 1.7 }}>
-          この表は本文に置かれていません（{label}の目印が問題文にありません）。
-          「本文に入れる」を押すと、問題文の末尾に目印を足します。
+          この表はどこにも置かれていません（{label}の目印が問題文・解説・基本事項のどれにもありません）。
+          「問題文に入れる」を押すと、問題文の末尾に目印を足します。
         </p>
       )}
 
@@ -183,8 +195,9 @@ export default function TableEditor({ table, label, placed, onChange, onRemove, 
                       background: table.header && r === 0 ? COLORS.bg : COLORS.card,
                     }}
                   >
-                    <input
+                    <AutoTextarea
                       value={cell}
+                      minRows={1}
                       onChange={(e) => setCell(r, c, e.target.value.slice(0, TABLE_LIMITS.CELL_CHARS))}
                       data-shortcut-ignore="true"
                       aria-label={`${r + 1}行${c + 1}列`}

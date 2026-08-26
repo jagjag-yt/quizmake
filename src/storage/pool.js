@@ -305,34 +305,6 @@ export function nextQuestionNumber(questions, groupId) {
   return questions.filter((q) => q.groupId === groupId).length + 1
 }
 
-/**
- * 配列のうち条件に合う要素だけを並べ替える。
- * 条件に合わない要素（他グループ・読込分）の位置は動かさない。
- */
-export function reorderSubset(items, match, fromIndex, toIndex) {
-  const slots = []
-  items.forEach((item, i) => {
-    if (match(item)) slots.push(i)
-  })
-  if (
-    fromIndex < 0 ||
-    toIndex < 0 ||
-    fromIndex >= slots.length ||
-    toIndex >= slots.length ||
-    fromIndex === toIndex
-  ) {
-    return items
-  }
-  const picked = slots.map((i) => items[i])
-  const [moved] = picked.splice(fromIndex, 1)
-  picked.splice(toIndex, 0, moved)
-  const next = [...items]
-  slots.forEach((slot, i) => {
-    next[slot] = picked[i]
-  })
-  return next
-}
-
 /** 同じ名前のグループがあれば連番を付けて重複を避ける。 */
 export function uniqueGroupName(name, groups) {
   const base = toText(name, GROUP_NAME_MAX) || DEFAULT_GROUP_NAME

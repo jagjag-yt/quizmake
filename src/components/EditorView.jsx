@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   COLORS,
   GROUP_NAME_MAX,
   LETTERS,
-  ORIGIN,
   QUESTION_TYPES,
   SPACING,
   TAP_MIN,
@@ -21,6 +20,7 @@ import {
 import { clozeHeadline, hiddenCount } from '../data/cloze'
 import { isCloze } from '../data/questions'
 import { useCompactLayout, usePhoneLayout, usePreviewTight } from '../hooks/useMediaQuery'
+import AutoTextarea from './AutoTextarea'
 import ClozeEditor from './ClozeEditor'
 import QuestionTable from './QuestionTable'
 import MathText from './MathText'
@@ -77,55 +77,14 @@ const errorText = (msg) => (
 )
 
 /**
- * 中身の高さに合わせて伸びる入力欄。
- *
- * 手で高さを変える（resize）のをやめ、**文字の量に合わせて自動で伸ばす**。
- * 読み込んだ直後にも測るので、Excel から入れた長い問題文も最初から全部見える
- * （2026-08-26 に「読み込んだときに反映されない」と報告された）。
- */
-function AutoTextarea({ value, minRows = 3, style, textareaRef = null, ...rest }) {
-  const ref = useRef(null)
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return undefined
-
-    const fit = () => {
-      // 測るあいだ欄がつぶれるので、ページのスクロール位置を戻す
-      const scroller = document.scrollingElement ?? document.documentElement
-      const top = scroller.scrollTop
-      el.style.height = 'auto'
-      const border = el.offsetHeight - el.clientHeight
-      el.style.height = `${el.scrollHeight + border}px`
-      if (scroller.scrollTop !== top) scroller.scrollTop = top
-    }
-
-    fit()
-    window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
-  }, [value])
-
-  return (
-    <textarea
-      // 呼び出し側もこの欄を触る（カーソル位置を読むなど）ので、両方に渡す
-      ref={(el) => {
-        ref.current = el
-        if (textareaRef) textareaRef.current = el
-      }}
-      value={value}
-      rows={minRows}
-      style={{ ...style, resize: 'none', overflow: 'hidden' }}
-      {...rest}
-    />
-  )
-}
-
-/**
- * ドラッグで並べ替えできる行のラッパー。
+ * ドラッグで並べ替えできる行のラッパー。**選択肢の並べ替えだけ**に使う。
  *
  * **つまみ（⠿）を押したときだけ**ドラッグを許す。行全体を draggable にすると、
  * 入力欄の中で文字を選ぼうとした瞬間に並べ替えが始まり、選択できなくなる
  * （2026-08-26 に基本事項で報告された）。
+ *
+ * 左カラム（作成した問題）の並べ替えは 2026-08-26 に廃止した（利用者の指示）。
+ * 一覧の順序は問題番号（グループごとの連番）で決まる。
  */
 function Sortable({ index, onMove, children, style }) {
   const [armed, setArmed] = useState(false)
@@ -181,7 +140,7 @@ const tableButton = (enabled) => ({
 })
 
 /** 解説・基本事項の入力欄。問題文と同じく、カーソルの位置に表を差し込める。 */
-function LongTextField({ title, hint, value, onChange, onInsertTable, canAddTable }) {
+function LongTextField({ title, value, onChange, onInsertTable, canAddTable }) {
   const ref = useRef(null)
 
   return (
@@ -196,7 +155,6 @@ function LongTextField({ title, hint, value, onChange, onInsertTable, canAddTabl
         }}
       >
         <span style={label}>{title}</span>
-        {hint && <span style={{ fontSize: '11.5px', color: COLORS.muted }}>{hint}</span>}
         <button
           type="button"
           onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
@@ -311,7 +269,13 @@ function Preview({ question, groupName, mode, position, total, pad }) {
             ) : (
               <p
                 key={bi}
-                style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}
+                style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  lineHeight: 1.9,
+                  color: COLORS.text,
+                  whiteSpace: 'pre-wrap',
+                }}
               >
                 {block.segments.map((seg, i) => (
                   <MathText key={i} text={seg.text} />
@@ -369,7 +333,13 @@ function Preview({ question, groupName, mode, position, total, pad }) {
               >
                 {LETTERS[i]}
               </span>
-              <span>{text || <span style={{ color: COLORS.muted }}>（未入力）</span>}</span>
+              <span>
+                {text ? (
+                  <MathText text={text} />
+                ) : (
+                  <span style={{ color: COLORS.muted }}>（未入力）</span>
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -392,29 +362,15 @@ function Preview({ question, groupName, mode, position, total, pad }) {
               />
             </div>
           )}
-          {question.keyPoints.length > 0 && (
+          {/* 基本事項は解説と同じ見た目にする（演習画面と1:1で揃える） */}
+          {question.keyPoints.some((kp) => kp.trim()) && (
             <div>
               <h3 style={heading}>基本事項</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {question.keyPoints
-                  .filter((kp) => kp.trim())
-                  .map((kp, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '14px',
-                        background: COLORS.blueLight,
-                      }}
-                    >
-                      <RichText
-                        text={kp}
-                        tables={question.tables}
-                        style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}
-                      />
-                    </div>
-                  ))}
-              </div>
+              <RichText
+                text={question.keyPoints.filter((kp) => kp.trim()).join(NEWLINE)}
+                tables={question.tables}
+                style={{ margin: 0, fontSize: '14.5px', lineHeight: 1.9, color: COLORS.body, whiteSpace: 'pre-wrap' }}
+              />
             </div>
           )}
         </div>
@@ -811,7 +767,6 @@ export default function EditorView({
   onUpdate: onUpdateProp,
   onRemove,
   onDuplicate,
-  onReorderAuthored,
   onMoveToGroup,
   onGoQuiz,
   onImportClick,
@@ -848,11 +803,13 @@ export default function EditorView({
   const [choicePasteNote, setChoicePasteNote] = useState('')
   const [movingTo, setMovingTo] = useState(false)
   const [deletingChecked, setDeletingChecked] = useState(false)
-  // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
+  /*
+    「変更を破棄」は 2026-08-26 に廃止した（利用者の指示）。編集を始めた時点の
+    スナップショットも、それを戻すダイアログも持たない。保存は 600ms の自動保存だけ。
+    dirty は**不備の知らせを出す合図**としてだけ残す。触ってもいない作りかけの問題に
+    いきなり赤いバーを出さないため（まとめて作ったときに全部が赤くなってしまう）。
+  */
   const [dirty, setDirty] = useState(false)
-  // 「変更を破棄」で戻す先。編集を始めた時点の内容を控えておく
-  const snapshotRef = useRef(null)
-  const [discarding, setDiscarding] = useState(false)
 
   const onUpdate = useCallback(
     (id, patch) => {
@@ -867,16 +824,11 @@ export default function EditorView({
     [questions, selectedId],
   )
 
-  // スナップショットを撮るためだけに最新の一覧を持つ（依存に questions を入れると毎回撮り直してしまう）
-  const questionsRef = useRef(questions)
-  questionsRef.current = questions
-
-  // 別の問題に移ったら「変更あり」を持ち越さない。あわせて戻す先を控え直す
+  // 別の問題に移ったら「変更あり」を持ち越さない
   useEffect(() => {
     setDirty(false)
     setTouched({})
     setChoicePasteNote('')
-    snapshotRef.current = questionsRef.current.find((q) => q.id === selectedId) ?? null
   }, [selectedId])
 
   const text = question && !isCloze(question) ? segmentsToText(question.segments) : ''
@@ -979,6 +931,23 @@ export default function EditorView({
     },
     [question, tables, text, onUpdate],
   )
+
+  /**
+   * 表を「目印が置かれている欄」ごとに振り分ける。
+   * 表カードはその欄の入力欄のすぐ下に出す（利用者の要望・2026-08-26）。
+   * どこにも置かれていない表は問題文の下にまとめる（入れ直す導線がそこにあるため）。
+   */
+  const tablesByField = { [FIELDS.BODY]: [], [FIELDS.EXPLANATION]: [], [FIELDS.KEY_POINTS]: [] }
+  if (question) {
+    const owner = new Map()
+    for (const field of [FIELDS.BODY, FIELDS.EXPLANATION, FIELDS.KEY_POINTS]) {
+      for (const hit of fieldText(field).matchAll(TABLE_TOKEN)) {
+        const index = Number(hit[1]) - 1
+        if (!owner.has(index)) owner.set(index, field)
+      }
+    }
+    tables.forEach((_, i) => tablesByField[owner.get(i) ?? FIELDS.BODY].push(i))
+  }
 
   /** どこにも置かれていない表の目印を、本文の末尾に入れ直す。 */
   const placeTable = useCallback(
@@ -1199,108 +1168,31 @@ export default function EditorView({
     />
   )
 
-  // 「変更を破棄」で戻す先が、まだ何も書かれていない問題か
-  // （作った直後に破棄したのに空の問題が残ると、一覧に不備つきの行が増えてしまう）
-  const snapshotIsBlank = (snap) => {
-    if (!snap) return false
-    if (isCloze(snap)) {
-      return !(snap.paras ?? [])
-        .flat()
-        .map((r) => r.text ?? '')
-        .join('')
-        .trim()
-    }
-    return (
-      !segmentsToText(snap.segments ?? []).trim() &&
-      !(snap.choices ?? []).some((c) => (c ?? '').trim())
-    )
-  }
-
-  const discardEdit = () => {
-    const snap = snapshotRef.current
-    setDiscarding(false)
-    setDirty(false)
-    setTouched({})
-    if (!snap) return
-    if (snapshotIsBlank(snap)) {
-      // 作った直後に破棄したときは、空の問題ごと取り消す
-      onRemove(snap.id)
-      onSelect(null)
-      return
-    }
-    onUpdateProp(snap.id, snap)
-  }
-
   const dialogs = (
     <>
-      {dirty && question && (
+      {/* 保存は自動なので、不備があるときは黙って残さずその場で伝える */}
+      {dirty && question && errors.length > 0 && (
         <div
+          role="alert"
           style={{
             position: 'fixed',
             right: '24px',
             bottom: `calc(24px + env(safe-area-inset-bottom, 0px))`,
             zIndex: 50,
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: '10px',
+            maxWidth: 'min(320px, 60vw)',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            background: COLORS.redLight,
+            border: `1px solid ${COLORS.red}`,
+            color: COLORS.redDark,
+            fontSize: '12.5px',
+            fontWeight: 700,
+            lineHeight: 1.7,
+            boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
           }}
         >
-          {/* 保存は自動なので、不備があるときは黙って残さずその場で伝える */}
-          {errors.length > 0 && (
-            <div
-              role="alert"
-              style={{
-                alignSelf: 'center',
-                maxWidth: 'min(320px, 60vw)',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                background: COLORS.redLight,
-                border: `1px solid ${COLORS.red}`,
-                color: COLORS.redDark,
-                fontSize: '12.5px',
-                fontWeight: 700,
-                lineHeight: 1.7,
-                boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-              }}
-            >
-              未完成：{errors.join(' / ')}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setDiscarding(true)}
-            style={{
-              minHeight: `${TAP_MIN}px`,
-              padding: '0 20px',
-              borderRadius: '999px',
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: COLORS.body,
-              fontSize: '14px',
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
-            }}
-          >
-            変更を破棄
-          </button>
-
+          未完成：{errors.join(' / ')}
         </div>
-      )}
-      {discarding && (
-        <ConfirmDialog
-          title="変更を破棄しますか？"
-          message={
-            snapshotIsBlank(snapshotRef.current)
-              ? 'この問題は作ったばかりで中身がまだありません。破棄すると、この問題ごと取り消します。'
-              : '編集を始めたときの内容に戻します。元に戻せません。'
-          }
-          confirmLabel="破棄する"
-          onCancel={() => setDiscarding(false)}
-          onConfirm={discardEdit}
-        />
       )}
       {deleting && question && (
         <ConfirmDialog
@@ -1529,10 +1421,8 @@ export default function EditorView({
             : segmentsToText(q.segments) || '（無題の問題）'
           const active = q.id === selectedId
           return (
-            <Sortable
+            <div
               key={q.id}
-              index={i}
-              onMove={(from, to) => poolFilter === ORIGIN.AUTHORED && onReorderAuthored(from, to)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1544,8 +1434,6 @@ export default function EditorView({
                 cursor: 'pointer',
               }}
             >
-              {(handleProps) => (
-                <>
               <input
                 type="checkbox"
                 checked={checkedIds.includes(q.id)}
@@ -1554,7 +1442,6 @@ export default function EditorView({
                 aria-label={`${head} を選択`}
                 style={{ width: '17px', height: '17px', accentColor: COLORS.blue, cursor: 'pointer', flexShrink: 0 }}
               />
-                <span style={handleStyle} aria-hidden="true" {...handleProps}>⠿</span>
               <span
                 style={{
                   minWidth: '20px',
@@ -1600,9 +1487,7 @@ export default function EditorView({
               {invalid && (
                 <span title="入力に不備があります" style={{ color: COLORS.red, fontWeight: 700, fontSize: '13px' }}>!</span>
               )}
-              </>
-            )}
-            </Sortable>
+            </div>
           )
         })}
       </div>
@@ -1724,6 +1609,28 @@ export default function EditorView({
     </div>
   )
 
+  /** ある欄に置かれている表のカードを、その入力欄のすぐ下に並べる。 */
+  const tableCards = (field) => {
+    const indices = tablesByField[field]
+    if (!indices.length) return null
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={label}>表</div>
+        {indices.map((i) => (
+          <TableEditor
+            key={i}
+            table={tables[i]}
+            label={`表${i + 1}`}
+            placed={placedTables.has(i + 1)}
+            onChange={(next) => updateTable(i, next)}
+            onRemove={() => removeTable(i)}
+            onInsertToken={() => placeTable(i)}
+          />
+        ))}
+      </div>
+    )
+  }
+
   // 前後の問題へ移る帯。選択式は基本事項の下、虫食いは専用エディタの下に置く
   const navNode = (
     <QuestionNav items={sidebarItems} currentId={selectedId} onSelect={onSelect} />
@@ -1784,22 +1691,7 @@ export default function EditorView({
         />
       </div>
 
-      {(tables.length > 0 || false) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={label}>表</div>
-          {tables.map((table, i) => (
-            <TableEditor
-              key={i}
-              table={table}
-              label={`表${i + 1}`}
-              placed={placedTables.has(i + 1)}
-              onChange={(next) => updateTable(i, next)}
-              onRemove={() => removeTable(i)}
-              onInsertToken={() => placeTable(i)}
-            />
-          ))}
-        </div>
-      )}
+      {tableCards(FIELDS.BODY)}
 
       <div>
         <div style={label}>画像URL（任意）</div>
@@ -1951,6 +1843,8 @@ export default function EditorView({
         canAddTable={tables.length < 9}
       />
 
+      {tableCards(FIELDS.EXPLANATION)}
+
       {/*
         箇条書きと並べ替えは 2026-08-26 に廃止した（利用者の指示）。
         保存の形（1項目＝1行の配列）は変えていない。Excel の「基本事項」列は
@@ -1958,12 +1852,13 @@ export default function EditorView({
       */}
       <LongTextField
         title="基本事項"
-        hint="解説と同じように、そのまま書けます（改行して並べても構いません）"
         value={keyPointsText}
         onChange={(value) => onUpdate(question.id, { keyPoints: value.split(NEWLINE) })}
         onInsertTable={(caret) => addTable(FIELDS.KEY_POINTS, caret)}
         canAddTable={tables.length < 9}
       />
+
+      {tableCards(FIELDS.KEY_POINTS)}
 
       {errors.length > 0 && (
         <div style={{ fontSize: '12px', color: COLORS.muted }}>
