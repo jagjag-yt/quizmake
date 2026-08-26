@@ -1,6 +1,6 @@
 import { EXPORT_COLUMNS, LETTERS } from '../constants'
 import { dateKey } from './safe'
-import { compactQuestion, segmentsToMarks, segmentsToText } from '../data/questions'
+import { compactQuestion, segmentsToText } from '../data/questions'
 
 /**
  * 問題データを Excel（.xlsx）へ書き出す。
@@ -12,54 +12,6 @@ import { compactQuestion, segmentsToMarks, segmentsToText } from '../data/questi
  * xlsx ライブラリは重いため、実行時に動的 import する。
  */
 
-/**
- * 「下線キーワード」列の値を作る。
- *
- * 同じ語句が問題文に複数あり、その一部だけに下線が引かれている場合は
- * 位置指定（`語句@2` = 2番目の出現）で書き出す。すべてに下線がある場合と
- * 1か所しかない場合は、手入力しやすい素の語句のまま書き出す。
- */
-export function buildUnderlineColumn(segments) {
-  const text = segmentsToText(segments)
-  const marks = segmentsToMarks(segments)
-
-  const occurrencesOf = (needle) => {
-    const list = []
-    let from = 0
-    for (;;) {
-      const i = text.indexOf(needle, from)
-      if (i === -1) break
-      list.push(i)
-      from = i + needle.length
-    }
-    return list
-  }
-
-  const out = []
-  const emittedWholeWord = new Set()
-
-  for (const mark of marks) {
-    const word = text.slice(mark.start, mark.end)
-    if (!word) continue
-    const positions = occurrencesOf(word)
-    const underlinedCount = marks.filter(
-      (m) => text.slice(m.start, m.end) === word,
-    ).length
-
-    // すべての出現箇所に下線が引かれているなら、素の語句1つで表せる
-    if (positions.length === underlinedCount) {
-      if (!emittedWholeWord.has(word)) {
-        out.push(word)
-        emittedWholeWord.add(word)
-      }
-      continue
-    }
-    const nth = positions.indexOf(mark.start) + 1
-    out.push(nth > 0 ? `${word}@${nth}` : word)
-  }
-  return out
-}
-
 /** 1問を書き出し用の1行（列名→値）へ変換する。 */
 export function questionToRow(question) {
   // 未入力の選択肢・基本事項は書き出さない
@@ -69,7 +21,8 @@ export function questionToRow(question) {
     問題番号: q.questionNumber ?? '',
     問題文: segmentsToText(q.segments),
     // 複数箇所ある場合は改行区切り（読み込み側は改行でも「、」でも分割できる）
-    下線キーワード: buildUnderlineColumn(q.segments).join('\n'),
+    // 下線は全廃したので常に空。列そのものは残す（既存のファイルと形をそろえるため）
+    下線キーワード: '',
     画像URL: q.imageUrl ?? '',
     正解: (q.correctIndexes ?? []).map((i) => LETTERS[i]).filter(Boolean).join(','),
     解説: q.explanation ?? '',

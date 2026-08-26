@@ -10,9 +10,8 @@ import {
   TYPE_LABELS,
 } from '../constants'
 import {
-  buildSegmentsFromMarks,
   emptyTable,
-  segmentsToMarks,
+  segmentsFromText,
   segmentsToText,
   splitBodyByTables,
   tableToken,
@@ -23,6 +22,7 @@ import { isCloze } from '../data/questions'
 import { useCompactLayout, usePhoneLayout, usePreviewTight } from '../hooks/useMediaQuery'
 import ClozeEditor from './ClozeEditor'
 import QuestionTable from './QuestionTable'
+import MathText from './MathText'
 import TableEditor from './TableEditor'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
@@ -66,37 +66,6 @@ const pill = (bg, color) => ({
 const errorText = (msg) => (
   <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: 700, color: COLORS.red }}>✕ {msg}</div>
 )
-
-/**
- * 文字列の編集にあわせて下線範囲をずらす。
- * 共通の前後を突き合わせ、変更された範囲の外にある下線は位置を保つ。
- */
-function adjustMarks(oldText, newText, marks) {
-  if (oldText === newText) return marks
-  let prefix = 0
-  const max = Math.min(oldText.length, newText.length)
-  while (prefix < max && oldText[prefix] === newText[prefix]) prefix += 1
-  let suffix = 0
-  while (
-    suffix < max - prefix &&
-    oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
-  ) {
-    suffix += 1
-  }
-  const removedStart = prefix
-  const removedEnd = oldText.length - suffix
-  const inserted = newText.length - suffix - prefix
-  const delta = inserted - (removedEnd - removedStart)
-
-  const shift = (pos) => {
-    if (pos <= removedStart) return pos
-    if (pos >= removedEnd) return pos + delta
-    return removedStart
-  }
-  return marks
-    .map((m) => ({ start: shift(m.start), end: shift(m.end) }))
-    .filter((m) => m.end > m.start)
-}
 
 /**
  * 中身の高さに合わせて伸びる入力欄。
@@ -193,7 +162,7 @@ const handleStyle = {
  * ただし **下線そのものは残す**。Excel の「下線キーワード」列から入ってきた問題は
  * これまでどおり下線付きで出題され、書き出しでも失われない。
  */
-function QuestionTextField({ text, marks, onChange, invalid, onInsertTable, canAddTable }) {
+function QuestionTextField({ text, onChange, invalid, onInsertTable, canAddTable }) {
   const ref = useRef(null)
 
   return (
@@ -236,7 +205,7 @@ function QuestionTextField({ text, marks, onChange, invalid, onInsertTable, canA
       <AutoTextarea
         textareaRef={ref}
         value={text}
-        onChange={(e) => onChange(e.target.value, adjustMarks(text, e.target.value, marks))}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="問題文を入力"
         minRows={3}
         data-shortcut-ignore="true"
@@ -287,12 +256,7 @@ function Preview({ question, groupName, mode, position, total, pad }) {
                 style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}
               >
                 {block.segments.map((seg, i) => (
-                  <span
-                    key={i}
-                    style={seg.u ? { borderBottom: `2px solid ${COLORS.blue}`, paddingBottom: '1px', fontWeight: 700 } : undefined}
-                  >
-                    {seg.text}
-                  </span>
+                  <MathText key={i} text={seg.text} />
                 ))}
               </p>
             ),
@@ -372,12 +336,24 @@ function Preview({ question, groupName, mode, position, total, pad }) {
             <div>
               <h3 style={heading}>基本事項</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {question.keyPoints.map((kp, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '10px', padding: '12px 14px', borderRadius: '14px', background: COLORS.blueLight }}>
-                    <span style={{ color: COLORS.blue, fontSize: '12px', lineHeight: 1.7 }}>●</span>
-                    <span style={{ fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}>{kp}</span>
-                  </div>
-                ))}
+                {question.keyPoints
+                  .filter((kp) => kp.trim())
+                  .map((kp, i) => (
+                    <p
+                      key={i}
+                      style={{
+                        margin: 0,
+                        padding: '12px 14px',
+                        borderRadius: '14px',
+                        background: COLORS.blueLight,
+                        fontSize: '14px',
+                        lineHeight: 1.7,
+                        color: COLORS.body,
+                      }}
+                    >
+                      <MathText text={kp} />
+                    </p>
+                  ))}
               </div>
             </div>
           )}
@@ -772,10 +748,6 @@ export default function EditorView({
   }, [selectedId])
 
   const text = question && !isCloze(question) ? segmentsToText(question.segments) : ''
-  const marks = useMemo(
-    () => (question && !isCloze(question) ? segmentsToMarks(question.segments) : []),
-    [question],
-  )
   const errors = question ? validateQuestion(question) : []
   const textInvalid = touched.text && !text.trim()
   const choiceInvalid =
@@ -822,16 +794,9 @@ export default function EditorView({
       const token = tableToken(nextTables.length)
       const at = caret == null ? text.length : caret
       const nextText = text.slice(0, at) + token + text.slice(at)
-      // 目印より後ろにある下線は、入れた分だけ後ろへずらす
-      const nextMarks = marks.map((m) =>
-        m.start >= at ? { start: m.start + token.length, end: m.end + token.length } : m,
-      )
-      onUpdate(question.id, {
-        tables: nextTables,
-        segments: buildSegmentsFromMarks(nextText, nextMarks),
-      })
+      onUpdate(question.id, { tables: nextTables, segments: segmentsFromText(nextText) })
     },
-    [question, tables, text, marks, onUpdate],
+    [question, tables, text, onUpdate],
   )
 
   /** 表の中身を差し替える。 */
@@ -856,12 +821,9 @@ export default function EditorView({
         if (n === index) return ''
         return n > index ? tableToken(n) : whole
       })
-      onUpdate(question.id, {
-        tables: nextTables,
-        segments: buildSegmentsFromMarks(nextText, marks),
-      })
+      onUpdate(question.id, { tables: nextTables, segments: segmentsFromText(nextText) })
     },
-    [question, tables, text, marks, onUpdate],
+    [question, tables, text, onUpdate],
   )
 
   /** 本文から外れている表の目印を、末尾に入れ直す。 */
@@ -869,15 +831,15 @@ export default function EditorView({
     (index) => {
       if (!question) return
       const nextText = `${text}${tableToken(index + 1)}`
-      onUpdate(question.id, { segments: buildSegmentsFromMarks(nextText, marks) })
+      onUpdate(question.id, { segments: segmentsFromText(nextText) })
     },
-    [question, text, marks, onUpdate],
+    [question, text, onUpdate],
   )
 
   const setText = useCallback(
-    (nextText, nextMarks) => {
+    (nextText) => {
       if (!question) return
-      onUpdate(question.id, { segments: buildSegmentsFromMarks(nextText, nextMarks) })
+      onUpdate(question.id, { segments: segmentsFromText(nextText) })
     },
     [question, onUpdate],
   )
@@ -923,20 +885,6 @@ export default function EditorView({
       })
       .sort((a, b) => a - b)
     onUpdate(question.id, { choices, correctIndexes })
-  }
-
-  const setKeyPoint = (index, value) => {
-    const keyPoints = [...question.keyPoints]
-    keyPoints[index] = value
-    onUpdate(question.id, { keyPoints })
-  }
-
-  const moveKeyPoint = (from, to) => {
-    if (from === to) return
-    const keyPoints = [...question.keyPoints]
-    const [item] = keyPoints.splice(from, 1)
-    keyPoints.splice(to, 0, item)
-    onUpdate(question.id, { keyPoints })
   }
 
   const groupScoped = activeGroupId
@@ -1583,7 +1531,6 @@ export default function EditorView({
       <div onBlur={() => setTouched((t) => ({ ...t, text: true }))}>
         <QuestionTextField
           text={text}
-          marks={marks}
           onChange={setText}
           invalid={textInvalid}
           onInsertTable={addTable}
@@ -1757,57 +1704,35 @@ export default function EditorView({
       </div>
 
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={label}>基本事項</span>
-          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>箇条書き・並べ替え可</span>
+          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>
+            解説と同じように、そのまま書けます（改行して並べても構いません）
+          </span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {question.keyPoints.map((kp, i) => (
-            <Sortable
-              key={i}
-              index={i}
-              onMove={moveKeyPoint}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minHeight: '44px', padding: '6px 10px', borderRadius: '12px', border: `1px solid ${COLORS.border}` }}
-            >
-              {(handleProps) => (
-                <>
-                <span style={{ ...handleStyle, paddingTop: '10px' }} aria-hidden="true" {...handleProps}>⠿</span>
-              <AutoTextarea
-                value={kp}
-                onChange={(e) => setKeyPoint(i, e.target.value)}
-                minRows={1}
-                data-shortcut-ignore="true"
-                style={{
-                  ...input,
-                  minHeight: 'auto',
-                  flex: 1,
-                  border: 'none',
-                  background: 'transparent',
-                  padding: '8px 6px',
-                  fontSize: '14px',
-                  lineHeight: 1.8,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => onUpdate(question.id, { keyPoints: question.keyPoints.filter((_, j) => j !== i) })}
-                aria-label="この項目を削除"
-                style={{ width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: 'transparent', color: COLORS.sub, fontFamily: 'inherit', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-              </>
-            )}
-            </Sortable>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => onUpdate(question.id, { keyPoints: [...question.keyPoints, ''] })}
-          style={{ marginTop: '8px', width: '100%', minHeight: '44px', borderRadius: '14px', border: `1px dashed ${COLORS.dashed}`, background: 'transparent', color: COLORS.sub, fontSize: '13px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
-        >
-          ＋ 項目を追加
-        </button>
+        {/*
+          箇条書きと並べ替えは 2026-08-26 に廃止した（利用者の指示）。
+          保存の形（1項目＝1行の配列）は変えていない。Excel の「基本事項」列は
+          これまでどおり改行区切りで往復する。
+        */}
+        <AutoTextarea
+          value={(question.keyPoints ?? []).join(String.fromCharCode(10))}
+          onChange={(e) =>
+            onUpdate(question.id, {
+              keyPoints: e.target.value.split(String.fromCharCode(10)),
+            })
+          }
+          minRows={3}
+          data-shortcut-ignore="true"
+          style={{
+            ...input,
+            marginTop: '6px',
+            minHeight: 'auto',
+            padding: '12px 14px',
+            fontSize: '14.5px',
+            lineHeight: 1.9,
+          }}
+        />
       </div>
 
       {errors.length > 0 && (

@@ -290,20 +290,7 @@ export default function QuestionDetail({
         ) : (
           <p key={bi} style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
             {block.segments.map((seg, i) => (
-              <span
-                key={i}
-                style={
-                  seg.u
-                    ? {
-                        borderBottom: `2px solid ${COLORS.blue}`,
-                        paddingBottom: '1px',
-                        fontWeight: 700,
-                      }
-                    : undefined
-                }
-              >
-                <MathText text={seg.text} />
-              </span>
+              <MathText key={i} text={seg.text} />
             ))}
           </p>
         ),
@@ -439,21 +426,24 @@ export default function QuestionDetail({
         <div>
           <h3 style={heading}>基本事項</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {question.keyPoints.map((kp, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  background: COLORS.blueLight,
-                }}
-              >
-                <span style={{ color: COLORS.blue, fontSize: '12px', lineHeight: 1.7 }}>●</span>
-                <span style={{ fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}>{kp}</span>
-              </div>
-            ))}
+            {question.keyPoints
+              .filter((kp) => kp.trim())
+              .map((kp, i) => (
+                <p
+                  key={i}
+                  style={{
+                    margin: 0,
+                    padding: '12px 14px',
+                    borderRadius: '14px',
+                    background: COLORS.blueLight,
+                    fontSize: '14px',
+                    lineHeight: 1.7,
+                    color: COLORS.body,
+                  }}
+                >
+                  <MathText text={kp} />
+                </p>
+              ))}
           </div>
         </div>
       )}

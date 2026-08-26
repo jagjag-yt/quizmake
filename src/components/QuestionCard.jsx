@@ -328,20 +328,7 @@ export default function QuestionCard({
               }}
             >
               {block.segments.map((seg, i) => (
-                <span
-                  key={i}
-                  style={
-                    seg.u
-                      ? {
-                          borderBottom: `2px solid ${COLORS.blue}`,
-                          paddingBottom: '1px',
-                          fontWeight: 700,
-                        }
-                      : undefined
-                  }
-                >
-                  <MathText text={seg.text} />
-                </span>
+                <MathText key={i} text={seg.text} />
               ))}
             </p>
           ),
