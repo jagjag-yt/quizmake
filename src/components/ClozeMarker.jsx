@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { COLORS, inkColor } from '../constants'
-import { withMarkerIndexes } from '../data/cloze'
+import { indentEmOf, withMarkerIndexes } from '../data/cloze'
 import { shouldInline } from '../utils/clozeRender'
 
 /**
@@ -208,8 +208,19 @@ export default function ClozeBody({
   const indexed = withMarkerIndexes(paras)
   return (
     <div style={{ fontSize, lineHeight: 2.05, color: COLORS.text }}>
-      {indexed.map((para, pi) => (
-        <p key={pi} style={{ margin: pi === 0 ? '0' : '1.1em 0 0 0' }}>
+      {indexed.map((para, pi) => {
+        // 番号付きの段落は、折り返した2行目以降を本文の開始位置に揃える
+        const indent = indentEmOf(para)
+        return (
+        <p
+          key={pi}
+          style={{
+            margin: pi === 0 ? '0' : '1.1em 0 0 0',
+            ...(indent
+              ? { paddingLeft: `${indent}em`, textIndent: `-${indent}em` }
+              : null),
+          }}
+        >
           {para.map((run, ri) => {
             if (!run.hide) {
               return (
@@ -257,7 +268,8 @@ export default function ClozeBody({
             )
           })}
         </p>
-      ))}
+        )
+      })}
     </div>
   )
 }

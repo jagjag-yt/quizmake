@@ -475,7 +475,48 @@ export function matchNumberPrefix(text) {
   return null
 }
 
-/** 段落の先頭から n 文字を落とす（run の属性は残す）。 */
+/**
+ * 文字の見た目の幅（em）。半角は 0.5em、全角は 1em とみなす。
+ * 正確な実測ではないが、番号の折り返し位置を揃えるにはこれで足りる。
+ */
+function widthEm(text) {
+  let em = 0
+  for (const ch of String(text ?? '')) em += ch.codePointAt(0) < 0x80 ? 0.5 : 1
+  return em
+}
+
+/**
+ * 段落の番号ぶんの字下げ幅（em）。番号が無ければ 0。
+ *
+ * 折り返した2行目以降を、番号の後ろ（本文の開始位置）に揃えるために使う。
+ * 「3. 原始卵黄嚢から…」が折り返したとき、続きが行頭ではなく本文の下に来る。
+ */
+export function indentEmOf(paraOrText) {
+  const text = Array.isArray(paraOrText)
+    ? paraOrText.map((r) => r.text).join('')
+    : String(paraOrText ?? '')
+  const hit = matchNumberPrefix(text)
+  return hit ? widthEm(text.slice(0, hit.length)) : 0
+}
+
+/**
+ * 文章全体で使う字下げ幅（em）。番号付きの段落のうち、いちばん広いものに合わせる。
+ *
+ * 編集画面は「透明な入力欄」と「見た目の層」を重ねているため、
+ * **段落ごとに変えられない**（入力欄は行ごとの字下げを持てない）。
+ * 全体で1つの値にし、両方の層に同じ値を当てて位置を保つ。
+ * 番号付きの段落が1つも無ければ 0 を返し、これまでと同じ見た目になる。
+ */
+export function documentIndentEm(paras) {
+  let max = 0
+  for (const para of paras ?? []) {
+    const em = indentEmOf(para)
+    if (em > max) max = em
+  }
+  return max
+}
+
+/** 段落の先頭から n 文字を落とす（run の属性は残す）。 *//** 段落の先頭から n 文字を落とす（run の属性は残す）。 */
 function dropLeading(para, n) {
   if (n <= 0) return para
   let left = n
