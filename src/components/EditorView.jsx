@@ -3,7 +3,6 @@ import {
   COLORS,
   GROUP_NAME_MAX,
   LETTERS,
-  ORIGIN,
   QUESTION_TYPES,
   SPACING,
   TAP_MIN,
@@ -121,11 +120,14 @@ function AutoTextarea({ value, minRows = 3, style, textareaRef = null, ...rest }
 }
 
 /**
- * ドラッグで並べ替えできる行のラッパー。
+ * ドラッグで並べ替えできる行のラッパー。**選択肢の並べ替えだけ**に使う。
  *
  * **つまみ（⠿）を押したときだけ**ドラッグを許す。行全体を draggable にすると、
  * 入力欄の中で文字を選ぼうとした瞬間に並べ替えが始まり、選択できなくなる
  * （2026-08-26 に基本事項で報告された）。
+ *
+ * 左カラム（作成した問題）の並べ替えは 2026-08-26 に廃止した（利用者の指示）。
+ * 一覧の順序は問題番号（グループごとの連番）で決まる。
  */
 function Sortable({ index, onMove, children, style }) {
   const [armed, setArmed] = useState(false)
@@ -181,7 +183,7 @@ const tableButton = (enabled) => ({
 })
 
 /** 解説・基本事項の入力欄。問題文と同じく、カーソルの位置に表を差し込める。 */
-function LongTextField({ title, hint, value, onChange, onInsertTable, canAddTable }) {
+function LongTextField({ title, value, onChange, onInsertTable, canAddTable }) {
   const ref = useRef(null)
 
   return (
@@ -196,7 +198,6 @@ function LongTextField({ title, hint, value, onChange, onInsertTable, canAddTabl
         }}
       >
         <span style={label}>{title}</span>
-        {hint && <span style={{ fontSize: '11.5px', color: COLORS.muted }}>{hint}</span>}
         <button
           type="button"
           onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
@@ -817,7 +818,6 @@ export default function EditorView({
   onUpdate: onUpdateProp,
   onRemove,
   onDuplicate,
-  onReorderAuthored,
   onMoveToGroup,
   onGoQuiz,
   onImportClick,
@@ -1535,10 +1535,8 @@ export default function EditorView({
             : segmentsToText(q.segments) || '（無題の問題）'
           const active = q.id === selectedId
           return (
-            <Sortable
+            <div
               key={q.id}
-              index={i}
-              onMove={(from, to) => poolFilter === ORIGIN.AUTHORED && onReorderAuthored(from, to)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1550,8 +1548,6 @@ export default function EditorView({
                 cursor: 'pointer',
               }}
             >
-              {(handleProps) => (
-                <>
               <input
                 type="checkbox"
                 checked={checkedIds.includes(q.id)}
@@ -1560,7 +1556,6 @@ export default function EditorView({
                 aria-label={`${head} を選択`}
                 style={{ width: '17px', height: '17px', accentColor: COLORS.blue, cursor: 'pointer', flexShrink: 0 }}
               />
-                <span style={handleStyle} aria-hidden="true" {...handleProps}>⠿</span>
               <span
                 style={{
                   minWidth: '20px',
@@ -1606,9 +1601,7 @@ export default function EditorView({
               {invalid && (
                 <span title="入力に不備があります" style={{ color: COLORS.red, fontWeight: 700, fontSize: '13px' }}>!</span>
               )}
-              </>
-            )}
-            </Sortable>
+            </div>
           )
         })}
       </div>
@@ -1964,7 +1957,6 @@ export default function EditorView({
       */}
       <LongTextField
         title="基本事項"
-        hint="解説と同じように、そのまま書けます（改行して並べても構いません）"
         value={keyPointsText}
         onChange={(value) => onUpdate(question.id, { keyPoints: value.split(NEWLINE) })}
         onInsertTable={(caret) => addTable(FIELDS.KEY_POINTS, caret)}

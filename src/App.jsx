@@ -1137,7 +1137,6 @@ export default function App() {
             onUpdate={pool.updateQuestion}
             onRemove={pool.removeQuestion}
             onDuplicate={pool.duplicateQuestion}
-            onReorderAuthored={pool.reorderAuthored}
             onMoveToGroup={(ids, groupId) => {
               const name = pool.groups.find((g) => g.id === groupId)?.name ?? ''
               pool.moveQuestionsToGroup(ids, groupId)

@@ -8,7 +8,6 @@ import {
   makeGroup,
   nextQuestionNumber,
   renumberByGroup,
-  reorderSubset,
   appendPool,
   savePool,
   seedPool,
@@ -360,22 +359,6 @@ export function useQuestionPool() {
   }, [setPool])
 
   /**
-   * 作成分の並べ替え（グループ内の表示順を入れ替える）。
-   * 配列の並び自体を動かし、番号は setPool の振り直しが追従する。
-   */
-  const reorderAuthored = useCallback((fromIndex, toIndex, groupId) => {
-    setPool((prev) => ({
-      ...prev,
-      questions: reorderSubset(
-        prev.questions,
-        (q) => q.origin === ORIGIN.AUTHORED && (!groupId || q.groupId === groupId),
-        fromIndex,
-        toIndex,
-      ),
-    }))
-  }, [setPool])
-
-  /**
    * 読み込んだ問題を取り込む。
    *
    * 既定は「1ファイル＝1グループ」で新しいグループを作る。
@@ -464,7 +447,6 @@ export function useQuestionPool() {
     updateQuestion,
     removeQuestion,
     duplicateQuestion,
-    reorderAuthored,
     importQuestions,
     importPool,
     trash,

@@ -223,7 +223,11 @@ SIDEBAR (v2)
     まとめて作ったら**1問目を開く**。2問以上のときはトーストで「基本事項の下の『次の問題 →』で続けて書けます」。
     pool.addQuestion(groupId, type, count) が採番して足す（LIMITS.QUESTIONS で打ち切る）。
   「作成した問題 N問」ラベル行 + segmented すべて/選択式/虫食い
-  items h>=52: checkbox, ⠿ drag handle, **番号**, head 1行 ellipsis, trailing "!" red if invalid. selected bg=blueLight.
+  items h>=52: checkbox, **番号**, head 1行 ellipsis, trailing "!" red if invalid. selected bg=blueLight.
+    並べ替え(v3.3 で廃止・利用者の指示): つまみ（⠿）とドラッグでの並べ替えを**消した**。
+      一覧の順序は問題番号（グループごとの連番）だけで決まる。
+      pool.reorderAuthored と storage/pool.js の reorderSubset も一緒に消した（他に使い道が無いため）。
+      復活させないこと。復活させるなら、番号の振り直し（renumberByGroup）との関係から作り直しになる。
     番号(v3.3) = q.questionNumber（グループごとの連番。エディタ上部の「問題番号 N（自動）」と同じ値）。
       幅20px・右寄せ・tabular-nums。選択中の行だけ blue。**通し番号を別に振らない**
       （種別で絞ると list index と実際の番号がずれ、どちらが正なのか分からなくなる）。
@@ -268,6 +272,8 @@ EDITOR fields (top->bottom)
       設問一覧の行は1行の省略表示のまま（nowrap + ellipsis）。ここで改行を活かすと行の高さが崩れる。
     serialize -> segments[]; merge adjacent same-u; strip empty.
   解説 / 基本事項(v3.3): 見出し行の右に [⊞ 表を入れる]（問題文と同じ形・EditorView.LongTextField）。
+    見出しの横に説明書きは置かない（v3.3・利用者の指示。基本事項の
+    「解説と同じように、そのまま書けます…」を消した)。
   基本事項(v3.2 で変更): **1つの入力欄**（解説と同じ・自動で伸びる）。
     箇条書きの記号（●）と並べ替え・個別の削除は**廃止**（利用者の指示）。
     保存の形は変えない（1項目＝1行の配列）。Excel の「基本事項」列は
@@ -280,9 +286,11 @@ EDITOR fields (top->bottom)
     書き方を誤ったところは赤字で元の文字を出す（画面は壊さない）。
     utils/mathText.js が切り分け、components/MathText.jsx が描く。
 
-  並べ替え(v3.1・非交渉): 行の並べ替えは **つまみ（⠿）を押している間だけ** draggable にする。
+  並べ替え(v3.1・非交渉 / v3.3 で対象は**選択肢のみ**): 行の並べ替えは
+    **つまみ（⠿）を押している間だけ** draggable にする。
     行全体を draggable にすると、入力欄の中で文字を選ぼうとした瞬間に並べ替えが始まり、
     選択できない（基本事項で報告）。Sortable は children を関数で受け、handleProps を渡す。
+    残っているのは選択肢だけ。基本事項(v3.2)・左カラムの問題一覧(v3.3) は並べ替えごと廃止した。
 
   サイドバーの件数(v3.1): 「作成した問題 N問」は**表示中のグループだけ**を数える。
     全体を数えると、下の [選択式 n][虫食い n] と食い違う（48問なのに一覧は10問、と報告）。
