@@ -233,7 +233,7 @@ export default function ResultCard({
         {question.keyPoints.length > 0 && (
           <div>
             <h3 style={sectionHeading}>基本事項</h3>
-            <ul
+            <div
               style={{
                 margin: 0,
                 paddingLeft: '20px',
@@ -242,15 +242,14 @@ export default function ResultCard({
                 gap: '8px',
               }}
             >
-              {question.keyPoints.map((kp, i) => (
-                <li
-                  key={i}
-                  style={{ fontSize: '14px', lineHeight: '1.7', color: COLORS.body }}
-                >
-                  {kp}
-                </li>
-              ))}
-            </ul>
+              {question.keyPoints
+                .filter((kp) => kp.trim())
+                .map((kp, i) => (
+                  <p key={i} style={{ margin: 0, fontSize: '14px', lineHeight: '1.7', color: COLORS.body }}>
+                    <MathText text={kp} />
+                  </p>
+                ))}
+            </div>
           </div>
         )}
 

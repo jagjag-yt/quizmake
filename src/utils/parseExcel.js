@@ -1,5 +1,5 @@
 import { LETTERS, LIMITS } from '../constants'
-import { buildSegmentsFromMarks, normalizeQuestion } from '../data/questions'
+import { normalizeQuestion, segmentsFromText } from '../data/questions'
 import { isPlainObject, sanitizeMap, toText } from './safe'
 
 /**
@@ -108,53 +108,6 @@ function splitLines(value) {
     .filter(Boolean)
 }
 
-/** 文字列 needle が現れる位置をすべて返す。 */
-function occurrences(text, needle) {
-  const found = []
-  if (!needle) return found
-  let from = 0
-  for (;;) {
-    const i = text.indexOf(needle, from)
-    if (i === -1) break
-    found.push(i)
-    from = i + needle.length
-  }
-  return found
-}
-
-/**
- * 問題文を下線キーワードの区切りで segments 配列へ分割する。
- *
- * キーワードの書き方は2通り:
- * - `ST上昇`    … 一致する箇所すべてに下線（手入力しやすい既定の書き方）
- * - `ST上昇@2`  … 2番目に現れる箇所だけに下線（位置指定）
- *
- * 位置指定は、アプリが書き出すときに「同じ語句が複数あり、その一部だけに
- * 下線が引かれている」場合にだけ自動で付く。読み込み → 書き出し → 読み込みで
- * 下線の位置が変わらないようにするための記法。
- */
-export function buildSegments(text, keywords) {
-  const kws = keywords.filter(Boolean)
-  if (!kws.length) return [{ text, u: false }]
-
-  const marks = []
-  for (const raw of kws) {
-    const m = /^(.*?)@(\d+)$/.exec(raw)
-    const word = m ? m[1] : raw
-    const nth = m ? Number(m[2]) : null
-    if (!word) continue
-
-    const positions = occurrences(text, word)
-    if (nth) {
-      const pos = positions[nth - 1]
-      if (pos != null) marks.push({ start: pos, end: pos + word.length })
-    } else {
-      for (const pos of positions) marks.push({ start: pos, end: pos + word.length })
-    }
-  }
-
-  return buildSegmentsFromMarks(text, marks)
-}
 
 /** 正解表記1つ（a〜e / 1〜5 / 選択肢テキスト）を choices 内インデックスへ解決する。 */
 function resolveOne(token, choices, rowNo) {
@@ -214,7 +167,9 @@ function rowToQuestion(rawRow, i) {
   return normalizeQuestion(
     {
       questionNumber: numRaw && Number.isFinite(Number(numRaw)) ? Number(numRaw) : i + 1,
-      segments: buildSegments(question, splitTokens(pick(row, FIELD_ALIASES.keywords))),
+      // 「下線キーワード」列は読み飛ばす。下線そのものを全廃したため（2026-08-26）。
+      // 列が入っているファイルもそのまま読めるように、列の定義だけは残してある
+      segments: segmentsFromText(question),
       choices,
       correctIndexes,
       explanation: pick(row, FIELD_ALIASES.explanation),

@@ -193,12 +193,12 @@ export function normalizeQuestion(raw, index = 0) {
     ? raw.choices.map((c) => editableText(c, LIMITS.TEXT_CHARS)).slice(0, 5)
     : []
 
-  const segments = Array.isArray(raw.segments) && raw.segments.length
-    ? raw.segments.map((s) => ({
-        text: editableText(s?.text, LIMITS.TEXT_CHARS),
-        u: s?.u === true,
-      }))
-    : [{ text: toText(raw.question, LIMITS.TEXT_CHARS), u: false }]
+  // 下線は 2026-08-26 に全廃した（利用者の指示）。古いデータに u が付いていても落とす。
+  // segments 自体は残す（本文と、表の目印を運ぶ入れ物）
+  const segments =
+    Array.isArray(raw.segments) && raw.segments.length
+      ? raw.segments.map((s) => ({ text: editableText(s?.text, LIMITS.TEXT_CHARS) }))
+      : [{ text: editableText(raw.question, LIMITS.TEXT_CHARS) }]
 
   // correctIndexes（配列）を正とし、旧形式の correctIndex も受け付ける
   const rawIndexes = Array.isArray(raw.correctIndexes)
@@ -232,7 +232,7 @@ export function normalizeQuestion(raw, index = 0) {
 // ---------------------------------------------------------------------------
 // 問題文の中の表
 //
-// 問題文は「テキスト＋下線の位置」から毎回組み立て直している（buildSegmentsFromMarks）。
+// 問題文は入力欄の文字から毎回組み立て直している（segmentsFromText）。
 // そのため表を segments に混ぜると、文字を1字打っただけで消える。
 // 表は別の入れ物（tables）に持ち、**本文には目印だけを置く**。
 //   本文: 「次の表を見て答えよ。[[表1]] このとき…」
@@ -429,74 +429,15 @@ export const clozeHiddenCount = (q) => (isCloze(q) ? hiddenCount(q.paras) : 0)
 export const isMultiAnswer = (q) => (q?.correctIndexes?.length ?? 0) > 1
 
 // ---------------------------------------------------------------------------
-// 下線（キーワード強調）の相互変換
+// 本文の取り出し
 //
-// エディタ側は「素のテキスト＋下線範囲」で保持し、保存・出題時は segments に
-// 変換する。範囲（位置）で持つことで、同じ語句が複数回出てくる問題文でも
-// 意図した箇所だけに下線を引ける（キーワード文字列の一致では誤爆する）。
+// 下線（キーワード強調）は 2026-08-26 に全廃した。位置で下線を持つ仕組み
+// （segmentsToMarks / buildSegmentsFromMarks / underlineKeywords）も一緒に外している。
 // ---------------------------------------------------------------------------
 
 /** segments を素のテキストへ。 */
 export const segmentsToText = (segments) =>
   (segments ?? []).map((s) => s.text).join('')
 
-/** segments から下線範囲（[{start,end}]）を取り出す。 */
-export function segmentsToMarks(segments) {
-  const marks = []
-  let pos = 0
-  for (const seg of segments ?? []) {
-    const len = seg.text.length
-    if (seg.u && len > 0) marks.push({ start: pos, end: pos + len })
-    pos += len
-  }
-  return marks
-}
-
-/** 重なり・隣接した範囲をまとめ、開始位置で整列する。 */
-export function normalizeMarks(marks, textLength) {
-  const cleaned = (marks ?? [])
-    .map((m) => ({
-      start: Math.max(0, Math.min(textLength, Math.floor(m.start))),
-      end: Math.max(0, Math.min(textLength, Math.floor(m.end))),
-    }))
-    .filter((m) => m.end > m.start)
-    .sort((a, b) => a.start - b.start)
-
-  const merged = []
-  for (const m of cleaned) {
-    const last = merged[merged.length - 1]
-    if (last && m.start <= last.end) last.end = Math.max(last.end, m.end)
-    else merged.push({ ...m })
-  }
-  return merged
-}
-
-/** 素のテキストと下線範囲から segments を組み立てる（隣接する同種は結合）。 */
-export function buildSegmentsFromMarks(text, marks) {
-  const src = String(text ?? '')
-  if (!src) return [{ text: '', u: false }]
-
-  const ranges = normalizeMarks(marks, src.length)
-  const segments = []
-  let pos = 0
-  for (const m of ranges) {
-    if (m.start > pos) segments.push({ text: src.slice(pos, m.start), u: false })
-    segments.push({ text: src.slice(m.start, m.end), u: true })
-    pos = m.end
-  }
-  if (pos < src.length) segments.push({ text: src.slice(pos), u: false })
-
-  // 空要素を捨て、隣接する同種を結合する
-  const out = []
-  for (const seg of segments) {
-    if (!seg.text) continue
-    const last = out[out.length - 1]
-    if (last && last.u === seg.u) last.text += seg.text
-    else out.push({ ...seg })
-  }
-  return out.length ? out : [{ text: src, u: false }]
-}
-
-/** 下線が引かれた語句の一覧（Excel の「下線キーワード」列に対応）。 */
-export const underlineKeywords = (segments) =>
-  (segments ?? []).filter((s) => s.u && s.text).map((s) => s.text)
+/** 素のテキストから segments を作る。 */
+export const segmentsFromText = (text) => [{ text: String(text ?? '') }]
