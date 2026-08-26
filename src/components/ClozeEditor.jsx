@@ -23,7 +23,6 @@ import {
   withMarkerIndexes,
 } from '../data/cloze'
 import { useCompactLayout } from '../hooks/useMediaQuery'
-import { fontOf, measureTextPx } from '../utils/textWidth'
 import SameWordDialog from './SameWordDialog'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -93,7 +92,7 @@ const pill = (bg, color) => ({
  * 編集中は薄い下地＋細枠で「隠す対象」だけを示す（SPEC B: edit-mode mark render）。
  * 入力自体は下に重ねた textarea が受け持ち、この層は見た目だけを担当する。
  */
-function EditorOverlay({ paras, fontSize, lineHeight, indentPx = 0 }) {
+function EditorOverlay({ paras, fontSize, lineHeight }) {
   const indexed = withMarkerIndexes(paras)
   return (
     <div
@@ -105,8 +104,6 @@ function EditorOverlay({ paras, fontSize, lineHeight, indentPx = 0 }) {
         border: '1px solid transparent',
         // 入力欄と**同じ値**にすること。片方だけ変えると文字が二重にずれて見える
         padding: '16px',
-        paddingLeft: `${16 + indentPx}px`,
-        textIndent: `${-indentPx}px`,
         fontSize,
         lineHeight,
         fontFamily: 'inherit',
@@ -287,44 +284,6 @@ export default function ClozeEditor({
       window.removeEventListener('orientationchange', fit)
     }
   }, [text, compact])
-
-  /**
-   * 番号ぶんの字下げ（px）。**実際に描かれる幅を測って**使う。
-   *
-   * 入力欄は行ごとに字下げを持てないので、文章全体で1つの値になる。
-   * 番号の種類が混ざっているときは、いちばん広いものに合わせる
-   * （狭いほうに合わせると、広い行の折り返しが本文に食い込む）。
-   * 半角0.5em・全角1emという概算では書体によってずれるため、canvas で測る。
-   */
-  const [indentPx, setIndentPx] = useState(0)
-
-  useLayoutEffect(() => {
-    const el = areaRef.current
-    if (!el) return undefined
-
-    const measure = () => {
-      const font = fontOf(el)
-      let max = 0
-      for (const para of paras) {
-        const line = para.map((r) => r.text).join('')
-        const hit = matchNumberPrefix(line)
-        if (!hit) continue
-        const width = measureTextPx(line.slice(0, hit.length), font)
-        if (width > max) max = width
-      }
-      setIndentPx(Math.round(max))
-    }
-
-    measure()
-    // 書体が後から届くと幅が変わる。読み込み後にもう一度測る
-    let alive = true
-    document.fonts?.ready?.then(() => {
-      if (alive) measure()
-    })
-    return () => {
-      alive = false
-    }
-  }, [paras, bodyFontSize])
 
   const syncSelection = useCallback(() => {
     const el = areaRef.current
@@ -755,12 +714,7 @@ export default function ClozeEditor({
 
         {/* 入力欄（下に見た目の層、上に透明なtextarea） */}
         <div style={{ position: 'relative', marginTop: '10px' }}>
-          <EditorOverlay
-            paras={paras}
-            fontSize={bodyFontSize}
-            lineHeight={BODY_LINE_HEIGHT}
-            indentPx={indentPx}
-          />
+          <EditorOverlay paras={paras} fontSize={bodyFontSize} lineHeight={BODY_LINE_HEIGHT} />
           <textarea
             ref={areaRef}
             value={text}
@@ -797,11 +751,11 @@ export default function ClozeEditor({
               minHeight: '230px',
               // 中身に合わせて伸ばすので、この欄の中ではスクロールさせない
               overflow: 'hidden',
-              // 番号付きの行の折り返しを、本文の開始位置に揃える。
-              // 入力欄は行ごとに字下げを変えられないので、文章全体で1つの値を使う
+              // 字下げ（text-indent）は入れないこと。**入力欄では文章全体の1行目にしか
+              // 効かない**のに、下に敷く層（段落ごとの div）では段落ごとに効くため、
+              // 2段落目から22pxずれて文字が二重に見える（2026-08-26 に実機で発生）。
+              // 番号の折り返しを揃えるのは、箱を分けられる演習・プレビュー・詳細だけ。
               padding: '16px',
-              paddingLeft: `${16 + indentPx}px`,
-              textIndent: `${-indentPx}px`,
               borderRadius: '10px',
               border: `1px solid ${touched && !chars ? COLORS.red : COLORS.blue}`,
               background: 'transparent',

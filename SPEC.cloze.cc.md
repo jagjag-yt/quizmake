@@ -7,6 +7,7 @@
 # v3.0(2026-08-26): 「同じ語をすべて隠す」に2つのスイッチ（番号の付け方 / 開き方）。markerKey と markerIndex を分離。
 # v3.1(2026-08-26): 番号付き段落の折り返しを本文の開始位置に揃える（ぶら下げ字下げ）。
 # v3.2(2026-08-26): その字下げを em の見積もりから、箱分け（演習）と canvas 実測（編集）に置き換え。
+# v3.3(2026-08-26): 編集画面の字下げは撤回（textareaと重ね層で text-indent の効き方が違い、二重にずれる）。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -104,11 +105,13 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
             演習・プレビュー・詳細: **番号を別の箱に入れて横に並べる**
             （`display:flex` ＋ 先頭に `flex:0 0 auto` の span、本文は `flex:1 1 auto; min-width:0`）。
             折り返しは本文の箱の中で起きるので、**計算せずに必ず揃う**。分割は `splitNumberPrefix(para)`。
-            編集画面: 入力欄は行ごとの字下げを持てないので箱に分けられない。
-            **canvas で実寸を測り**（`utils/textWidth.js`）、文章中でいちばん広い番号に合わせた
-            px を `padding-left` と `text-indent` に入れる。**入力欄と見た目の層に同じ値**を入れること
-            （片方だけだと二重にずれて見える）。書体は後から届くので `document.fonts.ready` で測り直す。
-            番号付きの段落が無ければ 0＝従来どおり。
+            編集画面: **字下げを入れない**（v3.3 でやめた）。
+            `text-indent` は **textarea では文章全体の1行目にしか効かない**のに、
+            下に敷く層（段落ごとの div）では**段落ごとに効く**。実測すると
+            段落ごとの div は `[38,16,38,38,16,38]`、ひとかたまり（textarea と同じ扱い）は
+            `[16,38,38,38]` となり、2段落目から 22px ずれて文字が二重に見える
+            （2026-08-26 に実機で発生）。canvas で実寸を測っても、この食い違いは消えない。
+            **折り返しを揃えるのは、箱を分けられる演習・プレビュー・詳細だけ**にする。
           IMPLEMENTATION: 文字列を作り直さず、段落の先頭 run だけを足し引きする
             （numberParas / unnumberParas / renumberFollowing / splitParaWithNumber in data/cloze.js）。
             テキストから組み直すと、隠す指定と文字色が別の位置へずれる。
