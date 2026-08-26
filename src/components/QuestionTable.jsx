@@ -22,6 +22,8 @@ export default function QuestionTable({ table, compact = false }) {
     textAlign: 'left',
     verticalAlign: 'top',
     overflowWrap: 'anywhere',
+    // 1マスの中で打った改行をそのまま出す（編集欄と同じ見え方にする）
+    whiteSpace: 'pre-wrap',
   }
 
   return (
