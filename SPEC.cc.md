@@ -175,7 +175,8 @@ DETAIL content order:
   image: if imageUrl -> img r14 b1 border; else omit. (design shows striped placeholder = spec only)
   choices a–e r14 h>=48: correct -> b1 green + greenLight + label chip green/#fff + text greenDark bold + right "正解"; else b1 border/#fff
   解説 (h14b+bb) 14.5/1.9 body
-  基本事項 (h14b+bb) each bullet: blueLight r14 p12 14, "●" blue + text
+  基本事項 (h14b+bb) each line: blueLight r14 p12 14（記号「●」は v3.2 で廃止）。
+    ここだけカードのまま。演習・プレビューは v3.3 で解説と同じ地の文にした（上の DISPLAY 参照）。
   自分メモ (h14b+bb) editable textarea-look input10, autosave onBlur; empty -> "メモはまだありません。クリックして入力できます。"
   ANSWER VISIBILITY(v2): 詳細パネルは既定で答えを伏せる。segmented [答えを隠す|答えを表示] DEFAULT=答えを隠す。
     reason: 一覧から復習に使うため、開いた瞬間に正解が見えると確認にならない。虫食いの D2 も同じ既定に揃えた。
@@ -279,6 +280,12 @@ EDITOR fields (top->bottom)
     保存の形は変えない（1項目＝1行の配列）。Excel の「基本事項」列は
     これまでどおり改行区切りで往復する。空行は使う直前に落とす（compactQuestion）。
     表示も記号なしの行にする。数式（$…$）が使える。
+    DISPLAY(v3.3・利用者の指示): **演習(ResultCard)と演習プレビュー(EditorView.Preview)では
+      解説とまったく同じ見た目にする。** 字下げ・1項目ごとの隙間・囲い（カード）を付けず、
+      空行を落とした配列を改行で繋いだ**1本の文章**として出す（14.5px / 1.9 / pre-wrap）。
+      入力欄が1つなのに表示だけ項目に割れていると、書いたとおりに出ない。
+      出す条件は keyPoints.some(trim)（length>0 だと空行だけのときに見出しだけが出る）。
+      設問一覧の詳細パネル(QuestionDetail)は blueLight のカードのまま（別画面なので揃えていない）。
 
   数式(v3.1・任意): 本文・選択肢・解説・基本事項で `$…$`（文中）と `$$…$$`（行を分けて中央）を LaTeX として組む。
     KaTeX を使い、**数式を含む問題を開いたときにだけ読み込む**（約260KB・別チャンク）。
@@ -331,7 +338,7 @@ EDITOR fields (top->bottom)
     [＋ 選択肢を追加](dashed #cbd5e1) hidden at 5
     if correctCount>=2 -> inline blueLight bar "正解が2つ →「2つ選べ」として出題されます" (mirror badge in preview)
   解説: multiline 14.5/1.9
-  基本事項: repeatable rows ⠿ + text + ✕, dnd, [＋ 項目を追加](dashed)
+  基本事項: 解説と同じ1つの入力欄（v3.2 で行ごとの ⠿ / ✕ / [＋ 項目を追加] は廃止）
   問題の移動(v3.3): 基本事項の下に [← 前の問題][N / M問目][次の問題 →]（EditorView.QuestionNav）。
     並びは左カラムの一覧と同じ（＝種別の絞り込みも効く）。端では disabled。
     虫食いの編集にも同じ帯を専用エディタの下に置く（3ペインでは grid の1マスに収まるよう箱で包む）。

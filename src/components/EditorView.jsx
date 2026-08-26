@@ -399,29 +399,15 @@ function Preview({ question, groupName, mode, position, total, pad }) {
               />
             </div>
           )}
-          {question.keyPoints.length > 0 && (
+          {/* 基本事項は解説と同じ見た目にする（演習画面と1:1で揃える） */}
+          {question.keyPoints.some((kp) => kp.trim()) && (
             <div>
               <h3 style={heading}>基本事項</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {question.keyPoints
-                  .filter((kp) => kp.trim())
-                  .map((kp, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: '14px',
-                        background: COLORS.blueLight,
-                      }}
-                    >
-                      <RichText
-                        text={kp}
-                        tables={question.tables}
-                        style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}
-                      />
-                    </div>
-                  ))}
-              </div>
+              <RichText
+                text={question.keyPoints.filter((kp) => kp.trim()).join(NEWLINE)}
+                tables={question.tables}
+                style={{ margin: 0, fontSize: '14.5px', lineHeight: 1.9, color: COLORS.body, whiteSpace: 'pre-wrap' }}
+              />
             </div>
           )}
         </div>

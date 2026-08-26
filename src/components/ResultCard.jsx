@@ -3,6 +3,9 @@ import { COLORS, LETTERS, LIMITS, SPACING } from '../constants'
 import RichText from './RichText'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
+/** 改行。この文字を直接書くと編集の途中で壊れやすいので、文字コードで作る。 */
+const NEWLINE = String.fromCharCode(10)
+
 /** 「解説」「基本事項」で共通の見出しスタイル。 */
 const sectionHeading = {
   fontSize: '14px',
@@ -229,30 +232,24 @@ export default function ResultCard({
           </div>
         )}
 
-        {/* 基本事項 */}
-        {question.keyPoints.length > 0 && (
+        {/*
+          基本事項は**解説と同じ見た目**にする（利用者の指示・2026-08-26）。
+          字下げも1項目ごとの隙間も付けず、入力欄に書いたとおりの1本の文章として出す。
+        */}
+        {question.keyPoints.some((kp) => kp.trim()) && (
           <div>
             <h3 style={sectionHeading}>基本事項</h3>
-            <div
+            <RichText
+              text={question.keyPoints.filter((kp) => kp.trim()).join(NEWLINE)}
+              tables={question.tables}
               style={{
+                fontSize: '14.5px',
+                lineHeight: '1.9',
+                color: COLORS.body,
                 margin: 0,
-                paddingLeft: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
+                whiteSpace: 'pre-wrap',
               }}
-            >
-              {question.keyPoints
-                .filter((kp) => kp.trim())
-                .map((kp, i) => (
-                  <RichText
-                    key={i}
-                    text={kp}
-                    tables={question.tables}
-                    style={{ margin: 0, fontSize: '14px', lineHeight: '1.7', color: COLORS.body }}
-                  />
-                ))}
-            </div>
+            />
           </div>
         )}
 
