@@ -3,6 +3,7 @@ import { COLORS, LETTERS, SPACING, TAP_MIN } from '../constants'
 import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
 import { splitBodyByTables } from '../data/questions'
 import QuestionTable from './QuestionTable'
+import MathText from './MathText'
 
 /**
  * 「問題〇」バッジ。番号部分が入力欄になっており、番号を打って Enter で
@@ -230,7 +231,9 @@ function Choice({ letter, text, state, onSelect }) {
       >
         {letter}
       </span>
-      <span>{text}</span>
+      <span>
+        <MathText text={text} />
+      </span>
     </div>
   )
 }
@@ -337,7 +340,7 @@ export default function QuestionCard({
                       : undefined
                   }
                 >
-                  {seg.text}
+                  <MathText text={seg.text} />
                 </span>
               ))}
             </p>

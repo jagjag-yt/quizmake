@@ -222,10 +222,32 @@ OFFLINE NOTICE(v2.3): 右下(bottom 84px)の「⚡オフラインです / 演習
 EDITOR fields (top->bottom)
   問題番号: read-only pill "問題番号 NNN（自動）"
   グループ: 左カラムの「追加先のグループ」で決まる。エディタ内の 科目 combobox は廃止(v2)。
-  問題文: contenteditable-ish rich-lite; required badge red"必須"; toolbar right: [U 下線をつける](primary, enabled only when selection non-empty)[解除]
-    DECISION(keep): selection-based marking, NOT a separate keyword field. reason: segments carry POSITION; keyword-string matching mis-hits repeated tokens.
-    active underline render: bg blueLight + bb2 blue + bold. meta: pill"下線 n か所" + "テキストを選択すると「下線をつける」が有効になります。書き出し時は下線部が「下線キーワード」列になります。"
+  問題文: required badge red"必須"; 右に [⊞ 表を入れる] のみ。
+    UNDERLINE(v3.1 で変更): **編集画面から下線を引く操作は廃止**（利用者の指示・2026-08-26）。
+      ただし model の `u` と描画は残す。Excel の「下線キーワード」列から入った問題は
+      これまでどおり下線付きで出題され、書き出しでも失われない。
+      文字を打つと下線の位置は自動で追従する（adjustMarks）。
+    INPUT SIZE(v3.1・非交渉): 問題文・解説・基本事項は **中身の高さに合わせて自動で伸ばす**
+      （AutoTextarea。resize:none / overflow:hidden）。手で高さを変える方式はやめた。
+      **読み込み直後にも測る**こと。Excel から入れた長い問題文が最初の高さのままになり、
+      「反映されない」と報告されたため。測るあいだページのスクロール位置は保存して戻す。
+    TEXT(v3.1・非交渉): 入力中の文字を **trim しない**（editableText）。trim すると
+      文頭でスペース・改行を打った瞬間に消え、「入力できない」ように見える。
+      未入力の判定は使う側で trim して行う。
     serialize -> segments[]; merge adjacent same-u; strip empty.
+  数式(v3.1・任意): 本文・選択肢・解説で `$…$`（文中）と `$$…$$`（行を分けて中央）を LaTeX として組む。
+    KaTeX を使い、**数式を含む問題を開いたときにだけ読み込む**（約260KB・別チャンク）。
+    読み込みが終わるまでは元の文字を出す（空白の時間を作らない）。
+    書き方を誤ったところは赤字で元の文字を出す（画面は壊さない）。
+    utils/mathText.js が切り分け、components/MathText.jsx が描く。
+
+  並べ替え(v3.1・非交渉): 行の並べ替えは **つまみ（⠿）を押している間だけ** draggable にする。
+    行全体を draggable にすると、入力欄の中で文字を選ぼうとした瞬間に並べ替えが始まり、
+    選択できない（基本事項で報告）。Sortable は children を関数で受け、handleProps を渡す。
+
+  サイドバーの件数(v3.1): 「作成した問題 N問」は**表示中のグループだけ**を数える。
+    全体を数えると、下の [選択式 n][虫食い n] と食い違う（48問なのに一覧は10問、と報告）。
+
   表(v3・任意): 問題文の**途中に差し込む**。1問に9つまで。30行×10列・1マス200字まで。
     MODEL: 表そのものは `question.tables`。本文には**目印 `[[表N]]` だけ**を置く。
       理由: 問題文は「テキスト＋下線位置」から毎回組み直している（buildSegmentsFromMarks）。
