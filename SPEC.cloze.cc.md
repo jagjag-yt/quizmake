@@ -5,6 +5,7 @@
 # v2.8(2026-08-25): 判定と開閉を演習中ずっと保持 / 結果画面から誤答問題だけ再演習 / Tab+Enter / 問題送りで先頭表示。
 # v2.9(2026-08-25): 結果画面へ移る前に中央の確認ダイアログを1枚挟む。
 # v3.0(2026-08-26): 「同じ語をすべて隠す」に2つのスイッチ（番号の付け方 / 開き方）。markerKey と markerIndex を分離。
+# v3.1(2026-08-26): 番号付き段落の折り返しを本文の開始位置に揃える（ぶら下げ字下げ）。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -95,6 +96,12 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
           丸数字は ①〜⑳ まで。21以降は「(21) 」に落とす（丸数字が存在しないため）。
           **Enter で次の番号が続く**。番号だけの行で Enter を押すと番号を外し、そこで箇条書きを終える。
           行を足したあとは、下に続く同じ種類の番号を振り直す。
+          HANGING INDENT(v3.1): 番号付きの段落は、**折り返した2行目以降を本文の開始位置に揃える**
+            （`padding-left: Nem; text-indent: -Nem`。N は番号の幅＝半角0.5em/全角1emで数える）。
+            演習・プレビュー・詳細は `indentEmOf(para)` で**段落ごと**に当てる。
+            編集画面は入力欄が行ごとの字下げを持てないため、`documentIndentEm(paras)` で
+            **文章全体に1つの値**を当て、**入力欄と見た目の層に同じ値**を入れる
+            （片方だけ変えると二重にずれて見える）。番号付きの段落が無ければ 0＝従来どおり。
           IMPLEMENTATION: 文字列を作り直さず、段落の先頭 run だけを足し引きする
             （numberParas / unnumberParas / renumberFollowing / splitParaWithNumber in data/cloze.js）。
             テキストから組み直すと、隠す指定と文字色が別の位置へずれる。

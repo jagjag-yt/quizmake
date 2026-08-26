@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
-import { clozeHeadline, hiddenCount, withMarkerIndexes } from '../data/cloze'
+import { clozeHeadline, hiddenCount, indentEmOf, withMarkerIndexes } from '../data/cloze'
 import { compactQuestion, isCloze } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -94,7 +94,16 @@ function ClozeDetailBody({ paras, opened }) {
   return (
     <div style={{ fontSize: '16px', lineHeight: 2.0, color: COLORS.text }}>
       {indexed.map((para, pi) => (
-        <p key={pi} style={{ margin: pi === 0 ? 0 : '1.1em 0 0 0' }}>
+        <p
+          key={pi}
+          style={{
+            margin: pi === 0 ? 0 : '1.1em 0 0 0',
+            // 番号付きの段落は、折り返しを本文の開始位置に揃える
+            ...(indentEmOf(para)
+              ? { paddingLeft: `${indentEmOf(para)}em`, textIndent: `-${indentEmOf(para)}em` }
+              : null),
+          }}
+        >
           {para.map((run, ri) =>
             run.hide ? (
               <span

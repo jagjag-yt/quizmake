@@ -3,6 +3,7 @@ import { CLOZE_LIMITS, COLORS, SPACING, TAP_MIN, inkColor } from '../constants'
 import {
   NUMBER_STYLES,
   bodyLength,
+  documentIndentEm,
   extractBracketRanges,
   hiddenCount,
   hideRange,
@@ -92,7 +93,7 @@ const pill = (bg, color) => ({
  * 編集中は薄い下地＋細枠で「隠す対象」だけを示す（SPEC B: edit-mode mark render）。
  * 入力自体は下に重ねた textarea が受け持ち、この層は見た目だけを担当する。
  */
-function EditorOverlay({ paras, fontSize, lineHeight }) {
+function EditorOverlay({ paras, fontSize, lineHeight, indentEm = 0 }) {
   const indexed = withMarkerIndexes(paras)
   return (
     <div
@@ -102,7 +103,10 @@ function EditorOverlay({ paras, fontSize, lineHeight }) {
         inset: 0,
         boxSizing: 'border-box',
         border: '1px solid transparent',
+        // 入力欄と**同じ値**にすること。片方だけ変えると文字が二重にずれて見える
         padding: '16px',
+        paddingLeft: `calc(16px + ${indentEm}em)`,
+        textIndent: `-${indentEm}em`,
         fontSize,
         lineHeight,
         fontFamily: 'inherit',
@@ -230,6 +234,8 @@ export default function ClozeEditor({
 
   const paras = question.paras
   const text = useMemo(() => parasToText(paras), [paras])
+  // 番号の幅ぶんだけ字下げする。番号付きの段落が無ければ 0（従来どおりの見た目）
+  const indentEm = useMemo(() => documentIndentEm(paras), [paras])
   const hidden = hiddenCount(paras)
   const chars = bodyLength(paras)
   const hasSelection = selection.end > selection.start
@@ -713,7 +719,12 @@ export default function ClozeEditor({
 
         {/* 入力欄（下に見た目の層、上に透明なtextarea） */}
         <div style={{ position: 'relative', marginTop: '10px' }}>
-          <EditorOverlay paras={paras} fontSize={bodyFontSize} lineHeight={BODY_LINE_HEIGHT} />
+          <EditorOverlay
+            paras={paras}
+            fontSize={bodyFontSize}
+            lineHeight={BODY_LINE_HEIGHT}
+            indentEm={indentEm}
+          />
           <textarea
             ref={areaRef}
             value={text}
@@ -750,7 +761,11 @@ export default function ClozeEditor({
               minHeight: '230px',
               // 中身に合わせて伸ばすので、この欄の中ではスクロールさせない
               overflow: 'hidden',
+              // 番号付きの行の折り返しを、本文の開始位置に揃える。
+              // 入力欄は行ごとに字下げを変えられないので、文章全体で1つの値を使う
               padding: '16px',
+              paddingLeft: `calc(16px + ${indentEm}em)`,
+              textIndent: `-${indentEm}em`,
               borderRadius: '10px',
               border: `1px solid ${touched && !chars ? COLORS.red : COLORS.blue}`,
               background: 'transparent',
