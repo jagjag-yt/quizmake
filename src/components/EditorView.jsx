@@ -333,7 +333,13 @@ function Preview({ question, groupName, mode, position, total, pad }) {
               >
                 {LETTERS[i]}
               </span>
-              <span>{text || <span style={{ color: COLORS.muted }}>（未入力）</span>}</span>
+              <span>
+                {text ? (
+                  <MathText text={text} />
+                ) : (
+                  <span style={{ color: COLORS.muted }}>（未入力）</span>
+                )}
+              </span>
             </div>
           ))}
         </div>

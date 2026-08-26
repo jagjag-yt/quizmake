@@ -296,6 +296,10 @@ EDITOR fields (top->bottom)
     読み込みが終わるまでは元の文字を出す（空白の時間を作らない）。
     書き方を誤ったところは赤字で元の文字を出す（画面は壊さない）。
     utils/mathText.js が切り分け、components/MathText.jsx が描く。
+    **描く場所すべてに通すこと(v3.3)。** 選択肢は演習(QuestionCard.Choice)だけが MathText を
+      通していて、作成のプレビュー(EditorView.Preview)と設問一覧の詳細パネル(QuestionDetail)は
+      素の文字のままだった。同じ問題が場所によって違って見えるので、書いた人が確認できない。
+      選択肢を描く場所は3つ。新しく足すときも MathText を通す。
 
   並べ替え(v3.1・非交渉 / v3.3 で対象は**選択肢のみ**): 行の並べ替えは
     **つまみ（⠿）を押している間だけ** draggable にする。

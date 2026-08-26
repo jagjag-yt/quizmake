@@ -405,7 +405,7 @@ export default function QuestionDetail({
                   fontWeight: isCorrect ? 700 : 400,
                 }}
               >
-                {text}
+                <MathText text={text} />
               </span>
               {isCorrect && (
                 <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.green }}>正解</span>
