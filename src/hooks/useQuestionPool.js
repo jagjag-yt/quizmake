@@ -254,14 +254,30 @@ export function useQuestionPool() {
 
   // ---------- 問題 ----------
 
-  /** 問題を1問追加して、その id を返す。 */
-  const addQuestion = useCallback((groupId, type = QUESTION_TYPES.CHOICE) => {
+  /**
+   * 問題を追加して、**最初の1問の id** を返す（そこから編集を始める）。
+   *
+   * まとめて足せるようにしてあるのは、同じ形の問題を続けて作るとき、
+   * 1問ごとにダイアログへ戻るのが手間になるため（利用者の要望・2026-08-26）。
+   *
+   * @param {string} groupId 追加先のグループ
+   * @param {'choice'|'cloze'} type 問題タイプ
+   * @param {number} count 追加する問題数（1以上。プールの上限までで打ち切る）
+   */
+  const addQuestion = useCallback((groupId, type = QUESTION_TYPES.CHOICE, count = 1) => {
     const current = poolRef.current
     const target = groupId ?? current.groups[0]?.id
     if (!target) return null
-    const created = emptyQuestion(nextQuestionNumber(current.questions, target), target, type)
-    setPool((prev) => ({ ...prev, questions: [...prev.questions, created] }))
-    return created.id
+    const room = Math.max(0, LIMITS.QUESTIONS - current.questions.length)
+    const wanted = Math.min(Math.max(1, Math.floor(count) || 1), room)
+    if (!wanted) return null
+
+    const start = nextQuestionNumber(current.questions, target)
+    const created = Array.from({ length: wanted }, (_, i) =>
+      emptyQuestion(start + i, target, type),
+    )
+    setPool((prev) => ({ ...prev, questions: [...prev.questions, ...created] }))
+    return created[0].id
   }, [setPool])
 
   const updateQuestion = useCallback((id, patch) => {

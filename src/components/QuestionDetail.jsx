@@ -3,6 +3,7 @@ import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
 import { clozeHeadline, hiddenCount, splitNumberPrefix, withMarkerIndexes } from '../data/cloze'
 import QuestionTable from './QuestionTable'
 import MathText from './MathText'
+import RichText from './RichText'
 import { compactQuestion, isCloze, splitBodyByTables } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -408,7 +409,9 @@ export default function QuestionDetail({
       {answerOpen && question.explanation && (
         <div>
           <h3 style={heading}>解説</h3>
-          <p
+          <RichText
+            text={question.explanation}
+            tables={question.tables}
             style={{
               margin: 0,
               fontSize: '14.5px',
@@ -416,9 +419,7 @@ export default function QuestionDetail({
               color: COLORS.body,
               whiteSpace: 'pre-wrap',
             }}
-          >
-            <MathText text={question.explanation} />
-          </p>
+          />
         </div>
       )}
 
@@ -429,20 +430,20 @@ export default function QuestionDetail({
             {question.keyPoints
               .filter((kp) => kp.trim())
               .map((kp, i) => (
-                <p
+                <div
                   key={i}
                   style={{
-                    margin: 0,
                     padding: '12px 14px',
                     borderRadius: '14px',
                     background: COLORS.blueLight,
-                    fontSize: '14px',
-                    lineHeight: 1.7,
-                    color: COLORS.body,
                   }}
                 >
-                  <MathText text={kp} />
-                </p>
+                  <RichText
+                    text={kp}
+                    tables={question.tables}
+                    style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}
+                  />
+                </div>
               ))}
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
 } from '../constants'
 import {
   emptyTable,
+  placedTableNumbers,
   segmentsFromText,
   segmentsToText,
   splitBodyByTables,
@@ -23,10 +24,18 @@ import { useCompactLayout, usePhoneLayout, usePreviewTight } from '../hooks/useM
 import ClozeEditor from './ClozeEditor'
 import QuestionTable from './QuestionTable'
 import MathText from './MathText'
+import RichText from './RichText'
 import TableEditor from './TableEditor'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
 import { isSafeImageUrl } from '../utils/safe'
+
+/** 改行。この文字を直接書くと編集の途中で壊れやすいので、文字コードで作る。 */
+const NEWLINE = String.fromCharCode(10)
+const CARRIAGE = String.fromCharCode(13)
+
+/** 表を置ける欄。 */
+const FIELDS = { BODY: 'body', EXPLANATION: 'explanation', KEY_POINTS: 'keyPoints' }
 
 const card = (pad) => ({
   background: COLORS.card,
@@ -155,6 +164,68 @@ const handleStyle = {
   lineHeight: 1,
 }
 
+/** 「⊞ 表を入れる」ボタン（問題文・解説・基本事項で同じ形にする）。 */
+const tableButton = (enabled) => ({
+  marginLeft: 'auto',
+  minHeight: '36px',
+  padding: '0 12px',
+  borderRadius: '10px',
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.card,
+  color: enabled ? COLORS.body : COLORS.dashed,
+  fontSize: '12.5px',
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  cursor: enabled ? 'pointer' : 'default',
+  whiteSpace: 'nowrap',
+})
+
+/** 解説・基本事項の入力欄。問題文と同じく、カーソルの位置に表を差し込める。 */
+function LongTextField({ title, hint, value, onChange, onInsertTable, canAddTable }) {
+  const ref = useRef(null)
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '6px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={label}>{title}</span>
+        {hint && <span style={{ fontSize: '11.5px', color: COLORS.muted }}>{hint}</span>}
+        <button
+          type="button"
+          onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
+          disabled={!canAddTable}
+          title="カーソルの位置に表を差し込みます"
+          style={tableButton(canAddTable)}
+        >
+          ⊞ 表を入れる
+        </button>
+      </div>
+
+      <AutoTextarea
+        textareaRef={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        minRows={3}
+        data-shortcut-ignore="true"
+        style={{
+          ...input,
+          minHeight: 'auto',
+          padding: '12px 14px',
+          fontSize: '14.5px',
+          lineHeight: 1.9,
+        }}
+      />
+    </div>
+  )
+}
+
 /**
  * 問題文の入力欄。
  *
@@ -183,20 +254,7 @@ function QuestionTextField({ text, onChange, invalid, onInsertTable, canAddTable
           onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
           disabled={!canAddTable}
           title="カーソルの位置に表を差し込みます"
-          style={{
-            marginLeft: 'auto',
-            minHeight: '36px',
-            padding: '0 12px',
-            borderRadius: '10px',
-            border: `1px solid ${COLORS.border}`,
-            background: COLORS.card,
-            color: canAddTable ? COLORS.body : COLORS.dashed,
-            fontSize: '12.5px',
-            fontWeight: 700,
-            fontFamily: 'inherit',
-            cursor: canAddTable ? 'pointer' : 'default',
-            whiteSpace: 'nowrap',
-          }}
+          style={tableButton(canAddTable)}
         >
           ⊞ 表を入れる
         </button>
@@ -327,9 +385,11 @@ function Preview({ question, groupName, mode, position, total, pad }) {
           {question.explanation && (
             <div style={{ marginBottom: '20px' }}>
               <h3 style={heading}>解説</h3>
-              <p style={{ margin: 0, fontSize: '14.5px', lineHeight: 1.9, color: COLORS.body, whiteSpace: 'pre-wrap' }}>
-                {question.explanation}
-              </p>
+              <RichText
+                text={question.explanation}
+                tables={question.tables}
+                style={{ margin: 0, fontSize: '14.5px', lineHeight: 1.9, color: COLORS.body, whiteSpace: 'pre-wrap' }}
+              />
             </div>
           )}
           {question.keyPoints.length > 0 && (
@@ -339,20 +399,20 @@ function Preview({ question, groupName, mode, position, total, pad }) {
                 {question.keyPoints
                   .filter((kp) => kp.trim())
                   .map((kp, i) => (
-                    <p
+                    <div
                       key={i}
                       style={{
-                        margin: 0,
                         padding: '12px 14px',
                         borderRadius: '14px',
                         background: COLORS.blueLight,
-                        fontSize: '14px',
-                        lineHeight: 1.7,
-                        color: COLORS.body,
                       }}
                     >
-                      <MathText text={kp} />
-                    </p>
+                      <RichText
+                        text={kp}
+                        tables={question.tables}
+                        style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: COLORS.body }}
+                      />
+                    </div>
                   ))}
               </div>
             </div>
@@ -675,6 +735,73 @@ function StartPane({
   )
 }
 
+/**
+ * 前後の問題へ移る帯。
+ *
+ * 左の一覧まで目を戻さずに、いま編集している欄のすぐ下から次へ進めるようにする
+ * （利用者の要望・2026-08-26）。並びは左の一覧と同じ（＝絞り込みも効く）。
+ */
+function QuestionNav({ items, currentId, onSelect, divider = true }) {
+  const index = items.findIndex((q) => q.id === currentId)
+  if (index < 0) return null
+  const prev = items[index - 1] ?? null
+  const next = items[index + 1] ?? null
+
+  const navButton = (enabled) => ({
+    minHeight: `${TAP_MIN}px`,
+    padding: '0 16px',
+    borderRadius: '12px',
+    border: `1px solid ${enabled ? COLORS.border : COLORS.cardBorder}`,
+    background: COLORS.card,
+    color: enabled ? COLORS.body : COLORS.dashed,
+    fontSize: '13px',
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    cursor: enabled ? 'pointer' : 'default',
+    whiteSpace: 'nowrap',
+  })
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        borderTop: divider ? `1px solid ${COLORS.border}` : 'none',
+        paddingTop: divider ? '14px' : 0,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => prev && onSelect(prev.id)}
+        disabled={!prev}
+        style={navButton(!!prev)}
+      >
+        ← 前の問題
+      </button>
+      <span
+        style={{
+          flex: 1,
+          textAlign: 'center',
+          fontSize: '12.5px',
+          color: COLORS.sub,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {index + 1} / {items.length}問目
+      </span>
+      <button
+        type="button"
+        onClick={() => next && onSelect(next.id)}
+        disabled={!next}
+        style={navButton(!!next)}
+      >
+        次の問題 →
+      </button>
+    </div>
+  )
+}
+
 export default function EditorView({
   questions,
   authored,
@@ -715,6 +842,10 @@ export default function EditorView({
   const [creatingGroup, setCreatingGroup] = useState(false)
   // 一覧から複数まとめて選び、移動・削除できるようにする
   const [checkedIds, setCheckedIds] = useState([])
+  // Shift での範囲選択の起点（一覧の何番目を最後に触ったか）
+  const checkAnchorRef = useRef(null)
+  // 選択肢に貼り付けた行が5つに収まらなかったときの断り書き
+  const [choicePasteNote, setChoicePasteNote] = useState('')
   const [movingTo, setMovingTo] = useState(false)
   const [deletingChecked, setDeletingChecked] = useState(false)
   // 何か直したら「保存」を出す（保存自体は自動だが、区切りを自分で決められるようにする）
@@ -744,6 +875,7 @@ export default function EditorView({
   useEffect(() => {
     setDirty(false)
     setTouched({})
+    setChoicePasteNote('')
     snapshotRef.current = questionsRef.current.find((q) => q.id === selectedId) ?? null
   }, [selectedId])
 
@@ -779,25 +911,40 @@ export default function EditorView({
     [question],
   )
 
-  /** 本文に置かれている表の番号（1始まり）。 */
-  const placedTables = useMemo(() => {
-    const set = new Set()
-    for (const hit of text.matchAll(TABLE_TOKEN)) set.add(Number(hit[1]))
-    return set
-  }, [text])
+  /** 本文・解説・基本事項に置かれている表の番号（1始まり）。 */
+  const placedTables = useMemo(() => placedTableNumbers(question), [question])
 
-  /** 表を1つ足し、いまのカーソル位置（無ければ末尾）に目印を入れる。 */
-  const addTable = useCallback(
-    (caret = null) => {
-      if (!question) return
-      const nextTables = [...tables, emptyTable()]
-      const token = tableToken(nextTables.length)
-      const at = caret == null ? text.length : caret
-      const nextText = text.slice(0, at) + token + text.slice(at)
-      onUpdate(question.id, { tables: nextTables, segments: segmentsFromText(nextText) })
-    },
-    [question, tables, text, onUpdate],
+  /** 基本事項は「1項目＝1行」の配列。入力欄では1本の文章として扱う。 */
+  const keyPointsText = useMemo(
+    () => (question?.keyPoints ?? []).join(NEWLINE),
+    [question],
   )
+
+  /**
+   * 表を置ける欄（本文・解説・基本事項）の、いまの文字と書き戻し方。
+   * 3か所で同じ処理をするため、欄の違いはここだけに閉じ込める。
+   */
+  const fieldText = (field) => {
+    if (field === FIELDS.EXPLANATION) return question?.explanation ?? ''
+    if (field === FIELDS.KEY_POINTS) return keyPointsText
+    return text
+  }
+  const fieldPatch = (field, value) => {
+    if (field === FIELDS.EXPLANATION) return { explanation: value }
+    if (field === FIELDS.KEY_POINTS) return { keyPoints: value.split(NEWLINE) }
+    return { segments: segmentsFromText(value) }
+  }
+
+  /** 表を1つ足し、その欄のカーソル位置（無ければ末尾）に目印を入れる。 */
+  const addTable = (field, caret = null) => {
+    if (!question) return
+    const nextTables = [...tables, emptyTable()]
+    const token = tableToken(nextTables.length)
+    const source = fieldText(field)
+    const at = caret == null ? source.length : caret
+    const nextText = source.slice(0, at) + token + source.slice(at)
+    onUpdate(question.id, { tables: nextTables, ...fieldPatch(field, nextText) })
+  }
 
   /** 表の中身を差し替える。 */
   const updateTable = useCallback(
@@ -816,17 +963,24 @@ export default function EditorView({
     (index) => {
       if (!question) return
       const nextTables = tables.filter((_, i) => i !== index)
-      const nextText = text.replace(TABLE_TOKEN, (whole, num) => {
-        const n = Number(num) - 1
-        if (n === index) return ''
-        return n > index ? tableToken(n) : whole
+      // 目印は本文・解説・基本事項のどこにでも置けるので、3か所とも振り直す
+      const renumber = (source) =>
+        String(source ?? '').replace(TABLE_TOKEN, (whole, num) => {
+          const n = Number(num) - 1
+          if (n === index) return ''
+          return n > index ? tableToken(n) : whole
+        })
+      onUpdate(question.id, {
+        tables: nextTables,
+        segments: segmentsFromText(renumber(text)),
+        explanation: renumber(question.explanation),
+        keyPoints: (question.keyPoints ?? []).map(renumber),
       })
-      onUpdate(question.id, { tables: nextTables, segments: segmentsFromText(nextText) })
     },
     [question, tables, text, onUpdate],
   )
 
-  /** 本文から外れている表の目印を、末尾に入れ直す。 */
+  /** どこにも置かれていない表の目印を、本文の末尾に入れ直す。 */
   const placeTable = useCallback(
     (index) => {
       if (!question) return
@@ -848,6 +1002,39 @@ export default function EditorView({
     const choices = [...question.choices]
     choices[index] = value
     onUpdate(question.id, { choices })
+  }
+
+  /**
+   * 選択肢の欄に**複数行**を貼り付けたとき、1行ずつ別々の選択肢にする。
+   *
+   * 入力欄は1行のため、そのまま貼ると改行が潰れて1つの選択肢になってしまう
+   * （利用者の報告・2026-08-26）。貼った欄から順に入れ、足りなければ足す。
+   * 上限の5つを超えた行は入れられないので、そのことをその場に出す。
+   *
+   * @returns {boolean} 行に分けたか（true なら既定の貼り付けは行わない）
+   */
+  const pasteChoices = (index, raw) => {
+    const lines = String(raw ?? '')
+      .split(CARRIAGE)
+      .join('')
+      .split(NEWLINE)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (lines.length < 2) return false
+
+    const choices = [...question.choices]
+    let dropped = 0
+    lines.forEach((line, i) => {
+      const at = index + i
+      if (at < choices.length) choices[at] = line
+      else if (choices.length < 5) choices.push(line)
+      else dropped += 1
+    })
+    onUpdate(question.id, { choices })
+    setChoicePasteNote(
+      dropped ? `選択肢は5つまでのため、余った${dropped}行は入れていません` : '',
+    )
+    return true
   }
 
   const toggleCorrect = (index) => {
@@ -894,6 +1081,40 @@ export default function EditorView({
   const clozeCount = groupScoped.filter(isCloze).length
   const sidebarItems =
     poolFilter === 'all' ? groupScoped : groupScoped.filter((q) => q.type === poolFilter)
+
+  // 絞り込みや表示グループが変わると位置がずれるので、範囲選択の起点は捨てる
+  useEffect(() => {
+    checkAnchorRef.current = null
+  }, [poolFilter, activeGroupId])
+
+  /**
+   * 一覧のチェックを切り替える。**Shift を押しながら**なら、前に触った行から
+   * ここまでをまとめて同じ状態にする（利用者の要望・2026-08-26）。
+   *
+   * @param {string} id 問題の id
+   * @param {number} index いま表示している一覧での位置
+   * @param {boolean} shiftKey Shift を押していたか
+   */
+  const toggleChecked = (id, index, shiftKey) => {
+    // 起点は**この場で**読む。更新関数の中で読むと、その頃には下の行で
+    // 書き換えたあと（＝いま押した行）になっていて、範囲が消える
+    const anchor = checkAnchorRef.current
+    checkAnchorRef.current = index
+    setCheckedIds((prev) => {
+      const checking = !prev.includes(id)
+      if (shiftKey && anchor != null && anchor !== index) {
+        const from = Math.min(anchor, index)
+        const to = Math.max(anchor, index)
+        const set = new Set(prev)
+        for (const q of sidebarItems.slice(from, to + 1)) {
+          if (checking) set.add(q.id)
+          else set.delete(q.id)
+        }
+        return [...set]
+      }
+      return checking ? [...prev, id] : prev.filter((x) => x !== id)
+    })
+  }
 
   /**
    * 削除したあとに選ぶ問題を決める。
@@ -1329,15 +1550,24 @@ export default function EditorView({
                 type="checkbox"
                 checked={checkedIds.includes(q.id)}
                 onClick={(e) => e.stopPropagation()}
-                onChange={() =>
-                  setCheckedIds((prev) =>
-                    prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
-                  )
-                }
+                onChange={(e) => toggleChecked(q.id, i, e.nativeEvent?.shiftKey === true)}
                 aria-label={`${head} を選択`}
                 style={{ width: '17px', height: '17px', accentColor: COLORS.blue, cursor: 'pointer', flexShrink: 0 }}
               />
                 <span style={handleStyle} aria-hidden="true" {...handleProps}>⠿</span>
+              <span
+                style={{
+                  minWidth: '20px',
+                  flexShrink: 0,
+                  textAlign: 'right',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: active ? COLORS.blue : COLORS.muted,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {q.questionNumber}
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -1494,18 +1724,34 @@ export default function EditorView({
     </div>
   )
 
+  // 前後の問題へ移る帯。選択式は基本事項の下、虫食いは専用エディタの下に置く
+  const navNode = (
+    <QuestionNav items={sidebarItems} currentId={selectedId} onSelect={onSelect} />
+  )
+
   // 虫食いは専用エディタ（本文・隠す・文字色）に差し替える
   const clozePanes =
     question && isCloze(question)
       ? {
           editor: (
-            <ClozeEditor
-              question={question}
-              onUpdate={onUpdate}
-              groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
-              total={questions.length}
-              pane="editor"
-            />
+            // 3ペインでは grid の1マスなので、帯と一緒に1つの箱に入れる
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+              <ClozeEditor
+                question={question}
+                onUpdate={onUpdate}
+                groupName={groups.find((g) => g.id === question.groupId)?.name ?? ''}
+                total={questions.length}
+                pane="editor"
+              />
+              <div style={card(16)}>
+                <QuestionNav
+                  items={sidebarItems}
+                  currentId={selectedId}
+                  onSelect={onSelect}
+                  divider={false}
+                />
+              </div>
+            </div>
           ),
           preview: (
             <ClozeEditor
@@ -1533,7 +1779,7 @@ export default function EditorView({
           text={text}
           onChange={setText}
           invalid={textInvalid}
-          onInsertTable={addTable}
+          onInsertTable={(caret) => addTable(FIELDS.BODY, caret)}
           canAddTable={tables.length < 9}
         />
       </div>
@@ -1583,7 +1829,9 @@ export default function EditorView({
       <div onBlur={() => setTouched((t) => ({ ...t, choices: true }))}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <span style={label}>選択肢</span>
-          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>2〜5個 / 「正解」を1つ以上</span>
+          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>
+            2〜5個 / 「正解」を1つ以上 ・ 複数行を貼り付けると1行ずつ入ります
+          </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {question.choices.map((choice, i) => {
@@ -1627,6 +1875,10 @@ export default function EditorView({
                 <input
                   value={choice}
                   onChange={(e) => setChoice(i, e.target.value)}
+                  onPaste={(e) => {
+                    const raw = e.clipboardData?.getData('text') ?? ''
+                    if (pasteChoices(i, raw)) e.preventDefault()
+                  }}
                   placeholder={`選択肢${LETTERS[i]}`}
                   data-shortcut-ignore="true"
                   style={{ ...input, minHeight: '36px', flex: 1, border: 'none', background: 'transparent' }}
@@ -1682,64 +1934,44 @@ export default function EditorView({
           </div>
         )}
 
+        {choicePasteNote && (
+          <div style={{ marginTop: '8px', fontSize: '12px', color: COLORS.amberDark }}>
+            {choicePasteNote}
+          </div>
+        )}
+
         {choiceInvalid && errorText('選択肢は2つ以上、正解は1つ以上必要です')}
       </div>
 
-      <div>
-        <div style={label}>解説</div>
-        <AutoTextarea
-          value={question.explanation}
-          onChange={(e) => onUpdate(question.id, { explanation: e.target.value })}
-          minRows={3}
-          data-shortcut-ignore="true"
-          style={{
-            ...input,
-            marginTop: '6px',
-            minHeight: 'auto',
-            padding: '12px 14px',
-            fontSize: '14.5px',
-            lineHeight: 1.9,
-          }}
-        />
-      </div>
+      <LongTextField
+        title="解説"
+        value={question.explanation}
+        onChange={(value) => onUpdate(question.id, { explanation: value })}
+        onInsertTable={(caret) => addTable(FIELDS.EXPLANATION, caret)}
+        canAddTable={tables.length < 9}
+      />
 
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={label}>基本事項</span>
-          <span style={{ fontSize: '11.5px', color: COLORS.muted }}>
-            解説と同じように、そのまま書けます（改行して並べても構いません）
-          </span>
-        </div>
-        {/*
-          箇条書きと並べ替えは 2026-08-26 に廃止した（利用者の指示）。
-          保存の形（1項目＝1行の配列）は変えていない。Excel の「基本事項」列は
-          これまでどおり改行区切りで往復する。
-        */}
-        <AutoTextarea
-          value={(question.keyPoints ?? []).join(String.fromCharCode(10))}
-          onChange={(e) =>
-            onUpdate(question.id, {
-              keyPoints: e.target.value.split(String.fromCharCode(10)),
-            })
-          }
-          minRows={3}
-          data-shortcut-ignore="true"
-          style={{
-            ...input,
-            marginTop: '6px',
-            minHeight: 'auto',
-            padding: '12px 14px',
-            fontSize: '14.5px',
-            lineHeight: 1.9,
-          }}
-        />
-      </div>
+      {/*
+        箇条書きと並べ替えは 2026-08-26 に廃止した（利用者の指示）。
+        保存の形（1項目＝1行の配列）は変えていない。Excel の「基本事項」列は
+        これまでどおり改行区切りで往復する。
+      */}
+      <LongTextField
+        title="基本事項"
+        hint="解説と同じように、そのまま書けます（改行して並べても構いません）"
+        value={keyPointsText}
+        onChange={(value) => onUpdate(question.id, { keyPoints: value.split(NEWLINE) })}
+        onInsertTable={(caret) => addTable(FIELDS.KEY_POINTS, caret)}
+        canAddTable={tables.length < 9}
+      />
 
       {errors.length > 0 && (
         <div style={{ fontSize: '12px', color: COLORS.muted }}>
           未入力の項目：{errors.join(' / ')}
         </div>
       )}
+
+      {navNode}
     </div>
   ) : (
     // 問題を選んでいないときは、入口と同じ「グループを決める」画面を出す

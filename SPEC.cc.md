@@ -146,11 +146,29 @@ MODEL 追記 (v2.1)
   判定は問題オブジェクトの参照比較（不変更新なので、触っていない問題は同じ参照で残る）＋グループ名の変化。
   対象: 追加・編集・削除・移動(移動元と移動先の両方)・改名。旧データは createdAt で埋める。
 
+RESET PROGRESS (v3.3, 学習状況のリセット)
+  グループ見出しのカード右端に [⟲ 学習状況をリセット]。**このグループの全問**が対象。
+  一括操作の帯にも [⟲ 学習状況] を置き、こちらは**選んだ問題だけ**を対象にする。
+  消すもの: 解いた回数・正誤・定着度(box)・次の復習日(dueAt)・虫食いを見た日(viewedAt)。
+  残すもの: **ブックマークと自分メモ**（覚え直したいだけで、印や書き込みまでは失いたくない）。
+    日別の統計(daily/totals)は履歴なので触らない。
+  実装は useStudyData.resetRecords(keys)。ConfirmDialog を必ず通す(R6)。
+  設定の「すべてのデータを削除」とは別物。あちらは全グループ・ブックマーク・メモまで消す。
+
+RANGE SELECT (v3.3, 非交渉)
+  チェックボックスは **Shift を押しながら**で「前に触った行〜いま押した行」をまとめて
+  同じ状態にする。設問一覧と、問題作成の左カラム（作成した問題）の両方。
+  起点は「最後にチェックを触った行の位置」。並び順・絞り込みが変わったら捨てる（位置がずれるため）。
+  **起点は setState の更新関数の外で読むこと。** 更新関数の中で ref を読むと、
+  その頃には「いま押した行」に書き換わっていて範囲が常に空になる（実装時に踏んだ）。
+  onChange の e.nativeEvent.shiftKey を見る（React は checkbox の onChange を click から作るため取れる）。
+
 FOOTER-CTA card: "絞り込み中の N問 を対象に" + [⇄ シャッフル演習][▶ この条件で演習を開始](primary)
   -> start 演習 with current filtered set. **この2つは現存する**(実機で確認)。
   ※ 廃止したのは「演習」画面の条件バーにあった開始ボタンのほう(StudyToolbar)。混同しないこと。
 BULK (include=YES): >=1 checked -> bottom bar bg#1e293b r14: "N問を選択中" + [★ ブックマーク][⧉ 複製][→ 移動…(group select)]
-  [⇱ 別グループへ分割][🗑 削除(confirm)][▶ 演習](primary). hidden at 0. same 複製/移動/削除 also sit atop the detail panel.
+  [⇱ 別グループへ分割][▶ 演習](primary)[⟲ 学習状況][🗑 削除(confirm)]. hidden at 0.
+  same 複製/移動/削除 also sit atop the detail panel.
 DETAIL content order:
   headline: 問題 NNN + 科目pill + origin pill(作成|読込, blueLight/blue) + ★btn44 + [この問題から演習](primary)
   q text 18/1.9, segments u:true -> border-bottom 2px blue + bold
@@ -196,12 +214,20 @@ LAYOUT phone(<=600): 編集画面を出さず PHONE GATE に差し替え。
 SIDEBAR (v2)
   head: 「追加先のグループ」select + [＋ 新規]（グループを増やす操作。ここだけ）
   divider(1px cardBorder)
-  [＋ 問題を追加]: **幅いっぱい・primary・h44**(v2.1)。
+  [＋ 問題を追加]: **幅いっぱい・primary・h44**(v2.1)。押すと「新しい問題」ダイアログ(TypePickerDialog)。
     NG: 36px の ＋ アイコンを「作成した問題 N問」行の右端に置く形。グループの [＋ 新規] と右端で縦に並び、
         押し間違える。役割が違うものは線で分け、大きさも変える。
+  NEW QUESTION DIALOG (TypePickerDialog): グループ select / 問題タイプ radio(選択式・虫食い。作成後は変更不可) /
+    **問題数**(v3.3) chips [1問][3問][5問][10問] + 数値入力(1〜20)。既定は1問。
+    ボタンは「作成して編集する」（2問以上なら「N問を作成して編集する」）。
+    まとめて作ったら**1問目を開く**。2問以上のときはトーストで「基本事項の下の『次の問題 →』で続けて書けます」。
+    pool.addQuestion(groupId, type, count) が採番して足す（LIMITS.QUESTIONS で打ち切る）。
   「作成した問題 N問」ラベル行 + segmented すべて/選択式/虫食い
-  items h>=52: ⠿ drag handle, head 1行 ellipsis, trailing "!" red if invalid. selected bg=blueLight.
-    各行に checkbox。1件以上チェック -> [→ 移動][🗑 削除] で複数まとめて操作。
+  items h>=52: checkbox, ⠿ drag handle, **番号**, head 1行 ellipsis, trailing "!" red if invalid. selected bg=blueLight.
+    番号(v3.3) = q.questionNumber（グループごとの連番。エディタ上部の「問題番号 N（自動）」と同じ値）。
+      幅20px・右寄せ・tabular-nums。選択中の行だけ blue。**通し番号を別に振らない**
+      （種別で絞ると list index と実際の番号がずれ、どちらが正なのか分からなくなる）。
+    1件以上チェック -> [→ 移動][🗑 削除] で複数まとめて操作。Shift での範囲選択は RANGE SELECT に従う。
   foot: [複製][削除(red text)] + [書き出す][読み込む](DataTransfer。ヘッダーから移設)
   移動ダイアログ: 「移動先のグループ」select +
     "移動先で番号が重なった場合は、移動してきた問題の番号だけを振り直します。"
@@ -236,6 +262,7 @@ EDITOR fields (top->bottom)
       文頭でスペース・改行を打った瞬間に消え、「入力できない」ように見える。
       未入力の判定は使う側で trim して行う。
     serialize -> segments[]; merge adjacent same-u; strip empty.
+  解説 / 基本事項(v3.3): 見出し行の右に [⊞ 表を入れる]（問題文と同じ形・EditorView.LongTextField）。
   基本事項(v3.2 で変更): **1つの入力欄**（解説と同じ・自動で伸びる）。
     箇条書きの記号（●）と並べ替え・個別の削除は**廃止**（利用者の指示）。
     保存の形は変えない（1項目＝1行の配列）。Excel の「基本事項」列は
@@ -255,14 +282,23 @@ EDITOR fields (top->bottom)
   サイドバーの件数(v3.1): 「作成した問題 N問」は**表示中のグループだけ**を数える。
     全体を数えると、下の [選択式 n][虫食い n] と食い違う（48問なのに一覧は10問、と報告）。
 
-  表(v3・任意): 問題文の**途中に差し込む**。1問に9つまで。30行×10列・1マス200字まで。
+  表(v3・任意 / v3.3 で置ける場所を拡張): **問題文・解説・基本事項**の途中に差し込む。
+    1問に9つまで（3つの欄で共有する）。30行×10列・1マス200字まで。
     MODEL: 表そのものは `question.tables`。本文には**目印 `[[表N]]` だけ**を置く。
       理由: 問題文は「テキスト＋下線位置」から毎回組み直している（buildSegmentsFromMarks）。
       表を segments に混ぜると、1字打つたびに消える。目印なら文字と一緒に動き、
       位置合わせの計算も要らない。目印を消せば本文から外れる（表は残り、editor が
       「本文に置かれていません」と出して入れ直せる）。
     表を消したら、後ろの表の番号を繰り上げること（ずれると別の表が出る）。
-    入力: [⊞ 表を入れる]（カーソル位置に挿入）→ 下に表カード。
+      **3つの欄すべてを振り直す**こと。1か所だけ直すと、別の欄に残った目印が違う表を指す。
+      目印の数え直し・振り直し・書き出し時の除去は data/questions.js に集約してある
+      （placedTableNumbers / usedTableCount / stripQuestionTables）。新しい欄を足すときは
+      tableHostTexts に足せば全部そろう。
+    入力: 3つの欄それぞれの見出し右に [⊞ 表を入れる]（その欄のカーソル位置に挿入）→ 問題文の下に表カード。
+      表カードは1か所（問題文の下）にまとめる。欄ごとに散らすと、どの表がどれか分からなくなる。
+      「本文に置かれていません」の警告は**3つの欄のどこにも目印が無いとき**だけ出す。
+    描画: 解説・基本事項は components/RichText.jsx（目印で切って表を挟み、文章側は MathText に通す）。
+      演習の解答後・設問一覧の詳細・作成のプレビューで同じ見た目。
       Excel から範囲を貼り付け（行=改行・列=タブ）と、1マスずつの手入力の両方。
       [＋行][−行][＋列][−列]、「1行目を見出しにする」（既定 on）。
       **行ごとの列数は必ず揃える**（崩れた表は直す手段が無い）。
@@ -273,11 +309,21 @@ EDITOR fields (top->bottom)
 
   画像URL(任意): input10 mono13 + 64x44 thumb. debounce 400ms -> preload. fail -> red border + "✕ 画像を読み込めません。URLを確認してください"
   選択肢: 2..5 rows r14 h>=48: ⠿ + label chip a..e (auto-relabel on reorder) + text input + toggle pill [正解にする|✓ 正解] + ✕(disabled at 2)
+    PASTE(v3.3・非交渉): 入力欄に**複数行**を貼ったら、**1行＝1選択肢**に分ける（onPaste で既定の貼り付けを止める）。
+      入力欄は1行なので、そのままでは改行が潰れて1つの選択肢になってしまう（利用者の報告）。
+      貼った欄から順に上書きし、足りなければ足す。空行は捨て、各行は trim する。
+      5つを超えた分は入れられないので「選択肢は5つまでのため、余ったN行は入れていません」を欄の下に出す
+      （黙って落とさない）。1行だけの貼り付けは**何もしない**（普通の貼り付けのまま）。
     correct row: b1 green + greenLight; pill green/#fff
     [＋ 選択肢を追加](dashed #cbd5e1) hidden at 5
     if correctCount>=2 -> inline blueLight bar "正解が2つ →「2つ選べ」として出題されます" (mirror badge in preview)
   解説: multiline 14.5/1.9
   基本事項: repeatable rows ⠿ + text + ✕, dnd, [＋ 項目を追加](dashed)
+  問題の移動(v3.3): 基本事項の下に [← 前の問題][N / M問目][次の問題 →]（EditorView.QuestionNav）。
+    並びは左カラムの一覧と同じ（＝種別の絞り込みも効く）。端では disabled。
+    虫食いの編集にも同じ帯を専用エディタの下に置く（3ペインでは grid の1マスに収まるよう箱で包む）。
+    reason: 長い問題を書いたあと、次の1問へ行くのに左カラムまで目とマウスを戻す必要があった。
+
 PREVIEW (right) = exact 演習 look, reuse existing quiz card components, 1:1 not a mock.
   toggle segmented [解答前|解答後]. 解答前 = q card only. 解答後 = q card + answer card(正解 a・c pill greenLight + 解説 + 基本事項).
   q card: 科目pill + 「2つ選べ」pill(if multi) + right "N / N問目"; q text with underline segs; image; choices neutral.

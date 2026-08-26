@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, SPACING } from '../constants'
-import MathText from './MathText'
+import RichText from './RichText'
 import { useCompactLayout } from '../hooks/useMediaQuery'
 
 /** 「解説」「基本事項」で共通の見出しスタイル。 */
@@ -215,7 +215,9 @@ export default function ResultCard({
         {question.explanation && (
           <div>
             <h3 style={sectionHeading}>解説</h3>
-            <p
+            <RichText
+              text={question.explanation}
+              tables={question.tables}
               style={{
                 fontSize: '14.5px',
                 lineHeight: '1.9',
@@ -223,9 +225,7 @@ export default function ResultCard({
                 margin: 0,
                 whiteSpace: 'pre-wrap',
               }}
-            >
-              <MathText text={question.explanation} />
-            </p>
+            />
           </div>
         )}
 
@@ -245,9 +245,12 @@ export default function ResultCard({
               {question.keyPoints
                 .filter((kp) => kp.trim())
                 .map((kp, i) => (
-                  <p key={i} style={{ margin: 0, fontSize: '14px', lineHeight: '1.7', color: COLORS.body }}>
-                    <MathText text={kp} />
-                  </p>
+                  <RichText
+                    key={i}
+                    text={kp}
+                    tables={question.tables}
+                    style={{ margin: 0, fontSize: '14px', lineHeight: '1.7', color: COLORS.body }}
+                  />
                 ))}
             </div>
           </div>

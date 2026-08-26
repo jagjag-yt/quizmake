@@ -336,18 +336,83 @@ export function splitBodyByTables(segments, tables) {
   return blocks.length ? blocks : [{ type: 'text', segments: [] }]
 }
 
+/**
+ * ひとつづきの文章を「文章」と「表」の並びに分ける（解説・基本事項の表示用）。
+ *
+ * 問題文は segments に分かれているため splitBodyByTables を使う。
+ * こちらは素の文字列（解説の1本、基本事項の1行）を受ける。
+ *
+ * @param {string} text 目印 `[[表N]]` を含みうる文章
+ * @param {Array} tables 表の一覧（問題ごとに1つ。本文・解説・基本事項で共有する）
+ * @returns {Array<{type:'text', text:string}|{type:'table', table:object, index:number}>}
+ */
+export function splitTextByTables(text, tables) {
+  const list = Array.isArray(tables) ? tables : []
+  const source = String(text ?? '')
+  if (!list.length) return [{ type: 'text', text: source }]
+
+  const blocks = []
+  let last = 0
+  for (const hit of source.matchAll(TABLE_TOKEN)) {
+    const index = Number(hit[1]) - 1
+    const table = list[index]
+    // 消えた表を指す目印は、文字のまま残さず読み飛ばす
+    if (!table) continue
+    const before = source.slice(last, hit.index)
+    if (before) blocks.push({ type: 'text', text: before })
+    blocks.push({ type: 'table', table, index })
+    last = hit.index + hit[0].length
+  }
+  const rest = source.slice(last)
+  if (rest || !blocks.length) blocks.push({ type: 'text', text: rest })
+  return blocks
+}
+
 /** 本文から目印を取り除く（Excel へ書き出すときなど、表を落とす場面で使う）。 */
 export const stripTableTokens = (text) => String(text ?? '').replace(TABLE_TOKEN, '')
 
-/** その問題が表を持っているか（本文に目印が置かれているものだけ数える）。 */
+/**
+ * 表を置ける場所（本文・解説・基本事項）の文章をまとめて返す。
+ * 目印を数える・付け替える処理を1か所にまとめ、直し漏れを防ぐ。
+ */
+export function tableHostTexts(q) {
+  if (!q || q.type === QUESTION_TYPES.CLOZE) return []
+  return [segmentsToText(q.segments), q.explanation ?? '', ...(q.keyPoints ?? [])]
+}
+
+/** その問題で実際に使われている表の番号（1始まり）。 */
+export function placedTableNumbers(q) {
+  const set = new Set()
+  for (const text of tableHostTexts(q)) {
+    for (const hit of String(text).matchAll(TABLE_TOKEN)) set.add(Number(hit[1]))
+  }
+  return set
+}
+
+/** その問題が表を持っているか（本文・解説・基本事項に目印が置かれているものだけ数える）。 */
 export function usedTableCount(q) {
   if (!q || q.type === QUESTION_TYPES.CLOZE) return 0
-  const text = segmentsToText(q.segments)
   let count = 0
-  for (const hit of text.matchAll(TABLE_TOKEN)) {
-    if ((q.tables ?? [])[Number(hit[1]) - 1]) count += 1
+  for (const text of tableHostTexts(q)) {
+    for (const hit of String(text).matchAll(TABLE_TOKEN)) {
+      if ((q.tables ?? [])[Number(hit[1]) - 1]) count += 1
+    }
   }
   return count
+}
+
+/**
+ * 表の目印を、本文・解説・基本事項のすべてから外した問題を返す。
+ * Excel へ書き出すときに使う（12列に表は入らない）。
+ */
+export function stripQuestionTables(q) {
+  if (!q || q.type === QUESTION_TYPES.CLOZE) return q
+  return {
+    ...q,
+    segments: (q.segments ?? []).map((seg) => ({ ...seg, text: stripTableTokens(seg.text) })),
+    explanation: stripTableTokens(q.explanation),
+    keyPoints: (q.keyPoints ?? []).map(stripTableTokens),
+  }
 }
 
 /**
