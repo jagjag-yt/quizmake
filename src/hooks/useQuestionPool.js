@@ -254,14 +254,18 @@ export function useQuestionPool() {
   // ---------- 問題 ----------
 
   /**
-   * 問題を追加して、**最初の1問の id** を返す（そこから編集を始める）。
+   * 問題を追加する。
    *
    * まとめて足せるようにしてあるのは、同じ形の問題を続けて作るとき、
    * 1問ごとにダイアログへ戻るのが手間になるため（利用者の要望・2026-08-26）。
+   * **数に上限は設けない。** ただしプール全体の上限（LIMITS.QUESTIONS）だけは越えられない
+   * ので、そこで打ち切る。呼び出し側が「頼んだ数」と「足せた数」を見比べて伝えられるよう、
+   * 実際に足せた数も返す（黙って減らさない）。
    *
    * @param {string} groupId 追加先のグループ
    * @param {'choice'|'cloze'} type 問題タイプ
-   * @param {number} count 追加する問題数（1以上。プールの上限までで打ち切る）
+   * @param {number} count 追加する問題数（1以上）
+   * @returns {{id: string, created: number}|null} 最初の1問の id（そこから編集を始める）と足せた数
    */
   const addQuestion = useCallback((groupId, type = QUESTION_TYPES.CHOICE, count = 1) => {
     const current = poolRef.current
@@ -276,7 +280,7 @@ export function useQuestionPool() {
       emptyQuestion(start + i, target, type),
     )
     setPool((prev) => ({ ...prev, questions: [...prev.questions, ...created] }))
-    return created[0].id
+    return { id: created[0].id, created: wanted }
   }, [setPool])
 
   const updateQuestion = useCallback((id, patch) => {

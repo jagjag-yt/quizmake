@@ -17,9 +17,13 @@ const TYPE_CARDS = [
 
 const FOCUSABLE = 'button, select, input, [tabindex]:not([tabindex="-1"])'
 
-/** まとめて作れる問題数の上限（一度に増やしすぎると一覧が空の問題で埋まる）。 */
-const MAX_COUNT = 20
-const COUNT_PRESETS = [1, 3, 5, 10]
+/**
+ * よく使う問題数（早く選ぶためのボタン）。
+ * **上限は設けない**（利用者の指示・2026-08-26）。数はここに無い値も打ち込める。
+ * 実際に足せる数はプール全体の上限（LIMITS.QUESTIONS）までで、
+ * 足りなかったぶんは作成後にトーストで伝える。
+ */
+const COUNT_PRESETS = [1, 3, 5, 10, 20]
 
 /**
  * 「新しい問題」ダイアログ。
@@ -265,11 +269,10 @@ export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onC
               <input
                 type="number"
                 min="1"
-                max={MAX_COUNT}
                 value={count}
                 onChange={(e) => {
                   const n = Math.floor(Number(e.target.value))
-                  setCount(Number.isFinite(n) ? Math.min(MAX_COUNT, Math.max(1, n)) : 1)
+                  setCount(Number.isFinite(n) ? Math.max(1, n) : 1)
                 }}
                 aria-label="作成する問題数"
                 data-shortcut-ignore="true"
@@ -286,7 +289,7 @@ export default function TypePickerDialog({ groups, defaultGroupId, onCancel, onC
                   outline: 'none',
                 }}
               />
-              <span style={{ fontSize: '12.5px', color: COLORS.sub }}>問（最大{MAX_COUNT}）</span>
+              <span style={{ fontSize: '12.5px', color: COLORS.sub }}>問</span>
             </span>
           </div>
         </div>

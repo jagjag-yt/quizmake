@@ -1323,19 +1323,30 @@ export default function App() {
           defaultGroupId={activeEditorGroupId}
           onCancel={() => setTypePickerOpen(false)}
           onCreate={({ groupId, type, count }) => {
-            const id = pool.addQuestion(groupId, type, count)
+            const added = pool.addQuestion(groupId, type, count)
             setTypePickerOpen(false)
             setEditorGroupId(groupId)
-            if (id) {
-              setEditingId(id)
-              setView(VIEWS.EDITOR)
-              if (count > 1) {
-                toast.show({
-                  tone: 'info',
-                  title: `${count}問を追加しました`,
-                  description: '基本事項の下の「次の問題 →」で続けて書けます',
-                })
-              }
+            if (!added) {
+              // プール全体の上限に達している（1問も入らない）
+              toast.show({
+                tone: 'error',
+                title: '問題を追加できません',
+                description: `保存できる問題は全部で${LIMITS.QUESTIONS}問までです。いらない問題を消すか、別の端末に分けてください`,
+              })
+              return
+            }
+            setEditingId(added.id)
+            setView(VIEWS.EDITOR)
+            // 頼んだ数より少なくしか入らなかったときは、黙って減らさずに伝える
+            const short = count > added.created
+            if (added.created > 1 || short) {
+              toast.show({
+                tone: short ? 'error' : 'info',
+                title: `${added.created}問を追加しました`,
+                description: short
+                  ? `全部で${LIMITS.QUESTIONS}問までのため、頼まれた${count}問のうち${count - added.created}問は追加できませんでした`
+                  : '基本事項の下の「次の問題 →」で続けて書けます',
+              })
             }
           }}
         />
