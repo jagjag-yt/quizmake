@@ -4,6 +4,7 @@
 # v2.7(2026-08-25): 演習の自己採点（左クリック=正答/右クリック=誤答・誤答だけやり直す）。
 # v2.8(2026-08-25): 判定と開閉を演習中ずっと保持 / 結果画面から誤答問題だけ再演習 / Tab+Enter / 問題送りで先頭表示。
 # v2.9(2026-08-25): 結果画面へ移る前に中央の確認ダイアログを1枚挟む。
+# v3.0(2026-08-26): 「同じ語をすべて隠す」に2つのスイッチ（番号の付け方 / 開き方）。markerKey と markerIndex を分離。
 # encoding: dense-kv. no prose. all UI copy = JP literal, ship verbatim.
 # design source-of-truth: 受け渡し用/quizmake-cloze-mode.html (frames 01-07)。7.5MB・.gitignore 済みでリポジトリには入らない。
 # companion spec (already shipped): ./SPEC.cc.md (設問一覧 + 問題作成). this file EXTENDS it.
@@ -75,6 +76,12 @@ B. CLOZE EDITOR (問題作成, same 3-pane shell as 選択式)
       toolbar (p8, b1 border, r12, bg #f8fafc, position:sticky top:0 on tablet):
         [■ 隠す](primary, enabled only when selection non-empty, shortcut **F1**（修飾キー無し。⌘/Ctrl+H も受ける）)
         [同じ語をすべて隠す](enabled when selection non-empty)
+          押すと**まず設定ダイアログを出す**（v3.0）。中央・2つのスイッチ:
+            番号の付け方 [連番 | 同じ番号]  … 同じ番号 = そのまとまりで表示番号を1つ共有
+            開き方       [ふつう | まとめて開く] … まとめて開く = 1つ開くと仲間も開く
+          **2つは独立**。「同じ番号だが1つずつ開く」も「連番だがまとめて開く」も選べる。
+          前回の選び方は localStorage `quizmake.sameWord.v1` に覚える。
+          どちらも既定（連番・ふつう）ならまとまりを作らず、従来と同じ独立マーカーになる。
           選んだ語と同じ語を文章全体からまとめて隠す。隠しても文字数は変わらないので、
           元の文章での位置をそのまま使って順に hideRange する。
           RATIONALE: **ブラウザは離れた複数箇所の同時選択を持てない**（Chrome 148 で実測。
@@ -195,6 +202,17 @@ C. CLOZE QUIZ SCREEN (演習)
   SCROLL(v2.8):
     問題が変わったら **画面の先頭へ戻す**（view/currentIndex/startedAt を見て scrollTop=0）。
     前の問題で下までスクロールしていると、次の問題も途中から表示されてしまう。
+
+  MARKER IDENTITY(v3.0・非交渉):
+    マーカーは**2つの数**を持つ（`withMarkerIndexes`）。
+      markerKey   … 上から数えて何個目か。**必ず一意**。開閉・○✕・連動の管理はこれで行う
+      markerIndex … 画面に出す番号。「同じ番号」のまとまりでは重複する
+    表示番号で状態を管理してはいけない。番号を共有した瞬間に開閉まで道連れになり、
+    「同じ番号だが1つずつ開く」が作れなくなる（実装中に踏んだ）。
+    run に持たせる `link` は `{id, number, open}`。隠さない run には付けない。
+    `mergeRuns` は link.id が違う run を繋げない（別のまとまりが1つに溶ける）。
+    連動の対応表は `openTogetherMap(paras)`（markerKey → 一緒に開く markerKey の一覧）。
+    連動するのは**開く・閉じる**だけ。○✕は押した1か所だけに付く。
 
   SELF-MARKING(v2.7・利用者の指示で追加):
     **開いたあとに自分で ○/✕ を付ける**。採点はしない方針のままで、記録にも残さない。
