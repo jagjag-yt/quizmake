@@ -142,6 +142,29 @@ export function useStudyData() {
     })
   }, [])
 
+  /**
+   * 選んだ問題の学習状況だけを消す（未学習に戻す）。
+   *
+   * 消すのは「解いた回数・正誤・定着度・次回復習日・虫食いを見た日」。
+   * **ブックマークと自分メモは残す**（覚え直したいから消すのであって、
+   * 印や書き込みまで失うのは望まれない）。日別の統計は履歴なので触らない。
+   *
+   * @param {string[]} keys 問題キー（questionKey）の配列
+   */
+  const resetRecords = useCallback((keys) => {
+    const targets = new Set((keys ?? []).filter(Boolean))
+    if (!targets.size) return
+    setData((prev) => {
+      const records = Object.create(null)
+      for (const [key, value] of Object.entries(prev.records)) {
+        records[key] = targets.has(key)
+          ? { ...emptyRecord(), note: value.note, bookmarked: value.bookmarked }
+          : value
+      }
+      return { ...prev, records }
+    })
+  }, [])
+
   /** 正答率・日別統計のみリセット（ブックマーク・メモ・SRSは残す）。 */
   const resetStats = useCallback(() => {
     setData((prev) => ({
@@ -165,6 +188,7 @@ export function useStudyData() {
       markViewed,
       toggleBookmark,
       setNote,
+      resetRecords,
       resetStats,
       resetAll,
       importData,
@@ -175,6 +199,7 @@ export function useStudyData() {
       markViewed,
       toggleBookmark,
       setNote,
+      resetRecords,
       resetStats,
       resetAll,
       importData,

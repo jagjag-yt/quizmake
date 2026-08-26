@@ -161,6 +161,7 @@ export default function QuestionsView({
   onImportClick,
   onCreateClick,
   onBulkBookmark,
+  onResetProgress,
   onEdit,
   onDuplicate,
   onMoveToGroup,
@@ -185,11 +186,14 @@ export default function QuestionsView({
   const [checkedIds, setCheckedIds] = useState([])
   // 確認は window.confirm ではなくアプリ内のダイアログで行う
   const [deleting, setDeleting] = useState(null) // { ids, label }
+  const [resetting, setResetting] = useState(null) // { questions, label, clearChecked }
   const [splitting, setSplitting] = useState(false)
   const [focusIndex, setFocusIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const scrollRef = useRef(null)
   const panelRef = useRef(null)
+  // Shift での範囲選択の起点（一覧の何番目を最後に触ったか）
+  const checkAnchorRef = useRef(null)
 
   const patch = useCallback((p) => setState((prev) => ({ ...prev, ...p })), [])
 
@@ -249,6 +253,15 @@ export default function QuestionsView({
     return withRecord
   }, [questions, state, getRecord])
 
+  // 範囲選択は「いま並んでいる順」で行う。並び替え・絞り込みの結果をそのまま使う
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
+  // 並び順や絞り込みが変わると位置がずれるので、範囲選択の起点は捨てる
+  useEffect(() => {
+    checkAnchorRef.current = null
+  }, [state])
+
   const selected = useMemo(
     () => rows.find((r) => r.q.id === selectedId) ?? rows[0] ?? null,
     [rows, selectedId],
@@ -265,9 +278,37 @@ export default function QuestionsView({
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / rowH) + 6)
   const visible = rows.slice(start, end)
 
-  const toggleChecked = useCallback((id) => {
-    setCheckedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }, [])
+  /**
+   * 行のチェックを切り替える。**Shift を押しながら**なら、前に触った行から
+   * ここまでをまとめて同じ状態にする（利用者の要望・2026-08-26）。
+   *
+   * @param {string} id 問題の id
+   * @param {number} index いま表示している一覧での位置（rows の添字）
+   * @param {boolean} shiftKey Shift を押していたか
+   */
+  const toggleChecked = useCallback(
+    (id, index = null, shiftKey = false) => {
+      // 起点は**この場で**読む。更新関数の中で読むと、その頃には下の行で
+      // 書き換えたあと（＝いま押した行）になっていて、範囲が消える
+      const anchor = checkAnchorRef.current
+      if (index != null) checkAnchorRef.current = index
+      setCheckedIds((prev) => {
+        const checking = !prev.includes(id)
+        if (shiftKey && index != null && anchor != null && anchor !== index) {
+          const from = Math.min(anchor, index)
+          const to = Math.max(anchor, index)
+          const set = new Set(prev)
+          for (const r of rowsRef.current.slice(from, to + 1)) {
+            if (checking) set.add(r.q.id)
+            else set.delete(r.q.id)
+          }
+          return [...set]
+        }
+        return checking ? [...prev, id] : prev.filter((x) => x !== id)
+      })
+    },
+    [],
+  )
 
   const openDetail = useCallback((id, index) => {
     setSelectedId(id)
@@ -331,7 +372,7 @@ export default function QuestionsView({
     } else if (e.key === ' ') {
       e.preventDefault()
       const row = rows[focusIndex]
-      if (row) toggleChecked(row.q.id)
+      if (row) toggleChecked(row.q.id, focusIndex, e.shiftKey)
     }
   }
 
@@ -468,6 +509,34 @@ export default function QuestionsView({
           {group?.name ?? 'グループ'}
         </span>
         <span style={{ fontSize: '12.5px', color: COLORS.sub }}>{questions.length}問</span>
+        {/*
+          学習状況のリセットはこのグループの中だけに効く。設定画面の「すべて消す」と
+          違って、他のグループの記録には触れない（利用者の要望・2026-08-26）。
+        */}
+        <button
+          type="button"
+          onClick={() =>
+            setResetting({
+              questions,
+              label: `「${group?.name ?? 'このグループ'}」の${questions.length}問`,
+            })
+          }
+          style={{
+            marginLeft: 'auto',
+            minHeight: `${TAP_MIN - 8}px`,
+            padding: '0 14px',
+            borderRadius: '10px',
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.card,
+            color: COLORS.body,
+            fontSize: '12.5px',
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          ⟲ 学習状況をリセット
+        </button>
       </div>
 
       {/* フィルタバー */}
@@ -604,7 +673,9 @@ export default function QuestionsView({
                     type="checkbox"
                     checked={isChecked}
                     onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleChecked(q.id)}
+                    onChange={(e) =>
+                      toggleChecked(q.id, index, e.nativeEvent?.shiftKey === true)
+                    }
                     aria-label={`問題 ${q.questionNumber} を選択`}
                     style={{
                       width: phone ? '22px' : '18px',
@@ -922,6 +993,19 @@ export default function QuestionsView({
           <button
             type="button"
             onClick={() =>
+              setResetting({
+                questions: rows.filter((r) => checkedIds.includes(r.q.id)).map((r) => r.q),
+                label: `選択した${checkedIds.length}問`,
+                clearChecked: true,
+              })
+            }
+            style={ghostButton}
+          >
+            ⟲ 学習状況
+          </button>
+          <button
+            type="button"
+            onClick={() =>
               setDeleting({ ids: [...checkedIds], label: `選択した${checkedIds.length}問` })
             }
             style={{ ...ghostButton, borderColor: COLORS.red, color: COLORS.red }}
@@ -1077,6 +1161,20 @@ export default function QuestionsView({
             onSplit(checkedIds, name)
             setCheckedIds([])
             setSplitting(false)
+          }}
+        />
+      )}
+
+      {resetting && (
+        <ConfirmDialog
+          title={`${resetting.label}の学習状況をリセットしますか？`}
+          message="解いた回数・正誤・定着度・次の復習日を消して、未学習に戻します。ブックマークと自分メモは残ります。元に戻せません。"
+          confirmLabel="リセットする"
+          onCancel={() => setResetting(null)}
+          onConfirm={() => {
+            onResetProgress(resetting.questions)
+            if (resetting.clearChecked) setCheckedIds([])
+            setResetting(null)
           }}
         />
       )}

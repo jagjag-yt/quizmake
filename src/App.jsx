@@ -14,7 +14,7 @@ import {
   isCloze,
   isGraded,
   questionKey,
-  stripTableTokens,
+  stripQuestionTables,
   usedTableCount,
 } from './data/questions'
 import { hiddenCount, openTogetherMap } from './data/cloze'
@@ -652,11 +652,7 @@ export default function App() {
       try {
         // Excel の12列に表は入らない。本文の目印だけを外して書き出し、そのことを伝える
         const withTables = list.filter((q) => usedTableCount(q) > 0).length
-        const cleaned = list.map((q) =>
-          usedTableCount(q) > 0
-            ? { ...q, segments: q.segments.map((seg) => ({ ...seg, text: stripTableTokens(seg.text) })) }
-            : q,
-        )
+        const cleaned = list.map((q) => (usedTableCount(q) > 0 ? stripQuestionTables(q) : q))
         const { fileName, count } = await exportQuestionsToXlsx(cleaned, { groupName })
         toast.show({
           tone: withTables ? 'info' : 'success',
@@ -768,17 +764,7 @@ export default function App() {
           const target = list
             .filter((q) => !isCloze(q))
             .map(compactQuestion)
-            .map((q) =>
-              usedTableCount(q) > 0
-                ? {
-                    ...q,
-                    segments: q.segments.map((seg) => ({
-                      ...seg,
-                      text: stripTableTokens(seg.text),
-                    })),
-                  }
-                : q,
-            )
+            .map((q) => (usedTableCount(q) > 0 ? stripQuestionTables(q) : q))
           if (!target.length) {
             toast.show({
               tone: 'error',
@@ -1116,6 +1102,15 @@ export default function App() {
               ids.forEach((id) => pool.removeQuestion(id))
               toast.show({ tone: 'info', title: `${ids.length}問を削除しました` })
             }}
+            onResetProgress={(list) => {
+              const keys = list.map((q) => questionKey(q))
+              study.resetRecords(keys)
+              toast.show({
+                tone: 'info',
+                title: `${list.length}問の学習状況をリセットしました`,
+                description: 'ブックマークと自分メモは残しています',
+              })
+            }}
             onBulkBookmark={(ids) => {
               const picked = questions.filter((q) => ids.includes(q.id))
               picked.forEach((q) => {
@@ -1328,13 +1323,20 @@ export default function App() {
           groups={pool.groups}
           defaultGroupId={activeEditorGroupId}
           onCancel={() => setTypePickerOpen(false)}
-          onCreate={({ groupId, type }) => {
-            const id = pool.addQuestion(groupId, type)
+          onCreate={({ groupId, type, count }) => {
+            const id = pool.addQuestion(groupId, type, count)
             setTypePickerOpen(false)
             setEditorGroupId(groupId)
             if (id) {
               setEditingId(id)
               setView(VIEWS.EDITOR)
+              if (count > 1) {
+                toast.show({
+                  tone: 'info',
+                  title: `${count}問を追加しました`,
+                  description: '基本事項の下の「次の問題 →」で続けて書けます',
+                })
+              }
             }
           }}
         />
