@@ -44,6 +44,9 @@ export const SYNC_KEY = 'quizmake.sync.v1'
  */
 export const API_BASE = import.meta.env?.VITE_API_BASE || 'https://api.quiz-make.com'
 
+/** 「同じ語をすべて隠す」の選び方を覚えておくキー。 */
+export const SAME_WORD_KEY = 'quizmake.sameWord.v1'
+
 /** グループ一覧の並び順を覚えておくキー（端末ごとの好みなので localStorage）。 */
 export const GROUP_SORT_KEY = 'quizmake.groupSort.v1'
 

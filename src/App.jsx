@@ -10,7 +10,7 @@ import {
   VIEWS,
 } from './constants'
 import { compactQuestion, isCloze, isGraded, questionKey } from './data/questions'
-import { hiddenCount } from './data/cloze'
+import { hiddenCount, openTogetherMap } from './data/cloze'
 import { useStudyData } from './hooks/useStudyData'
 import { useQuestionPool } from './hooks/useQuestionPool'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -49,6 +49,7 @@ import { useToast } from './hooks/useToast'
 /** マーカーの状態が無い問題のための空の入れ物（毎回作ると再描画が増える）。 */
 const EMPTY_OPENED = new Set()
 const EMPTY_VERDICTS = new Map()
+const EMPTY_LINKS = new Map()
 
 /** グループの絞り込み条件に合致するか。 */
 function matchesFilters(q, groupId) {
@@ -397,6 +398,15 @@ export default function App() {
   }, [answered, session.examMode, currentIndex])
 
   /** 虫食いのマーカーを1つ開閉する。 */
+  /**
+   * 「1つ開くと全部開く」まとまりの対応表。
+   * 「同じ語をすべて隠す」で［まとめて開く］を選んだ箇所だけが入る。
+   */
+  const linkedMarkers = useMemo(
+    () => (baseQuestion && isCloze(baseQuestion) ? openTogetherMap(baseQuestion.paras) : EMPTY_LINKS),
+    [baseQuestion],
+  )
+
   /** いま見ている問題のマーカーの状態を書き換える。 */
   const updateMarkers = useCallback(
     (id, { opened, verdicts: nextVerdicts } = {}) => {
@@ -429,23 +439,30 @@ export default function App() {
     (n) => {
       const id = baseQuestion?.id
       if (!id) return
+      // まとめて開く指定があれば、開け閉めは仲間ごと動かす
+      const family = linkedMarkers.get(n) ?? [n]
+
       if (!openedIds.has(n)) {
-        updateMarkers(id, { opened: new Set(openedIds).add(n) }) // 閉 → 開
+        const opened = new Set(openedIds)
+        for (const member of family) opened.add(member) // 閉 → 開
+        updateMarkers(id, { opened })
         return
       }
       if (verdicts.get(n) === 'correct') {
         // 正答 → 閉じる（判定も消す）
         const opened = new Set(openedIds)
-        opened.delete(n)
         const nextVerdicts = new Map(verdicts)
-        nextVerdicts.delete(n)
+        for (const member of family) {
+          opened.delete(member)
+          nextVerdicts.delete(member)
+        }
         updateMarkers(id, { opened, verdicts: nextVerdicts })
         return
       }
       // 開いただけ・誤答 → 正答
       updateMarkers(id, { verdicts: new Map(verdicts).set(n, 'correct') })
     },
-    [baseQuestion, openedIds, verdicts, updateMarkers],
+    [baseQuestion, openedIds, verdicts, updateMarkers, linkedMarkers],
   )
 
   /**
@@ -457,7 +474,9 @@ export default function App() {
       const id = baseQuestion?.id
       if (!id) return
       if (!openedIds.has(n)) {
-        updateMarkers(id, { opened: new Set(openedIds).add(n) })
+        const opened = new Set(openedIds)
+        for (const member of linkedMarkers.get(n) ?? [n]) opened.add(member)
+        updateMarkers(id, { opened })
         return
       }
       const nextVerdicts = new Map(verdicts)
@@ -465,7 +484,7 @@ export default function App() {
       else nextVerdicts.set(n, 'wrong')
       updateMarkers(id, { verdicts: nextVerdicts })
     },
-    [baseQuestion, openedIds, verdicts, updateMarkers],
+    [baseQuestion, openedIds, verdicts, updateMarkers, linkedMarkers],
   )
 
   /**

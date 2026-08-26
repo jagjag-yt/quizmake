@@ -218,7 +218,9 @@ export default function ClozeBody({
                 </span>
               )
             }
-            const opened = openedIds.has(run.markerIndex)
+            // 開閉と○✕は markerKey（必ず一意）で管理する。表示の番号は
+            // 「同じ番号」のまとまりで重なるため、状態の鍵には使えない
+            const opened = openedIds.has(run.markerKey)
             if (!interactive) {
               // プレビューでは個別に押せない（一括切替のみ）
               return (
@@ -247,10 +249,10 @@ export default function ClozeBody({
                 key={ri}
                 run={run}
                 opened={opened}
-                verdict={verdicts.get(run.markerIndex) ?? null}
+                verdict={verdicts.get(run.markerKey) ?? null}
                 tablet={tablet}
-                onToggle={() => onToggle?.(run.markerIndex)}
-                onMarkWrong={() => onMarkWrong?.(run.markerIndex)}
+                onToggle={() => onToggle?.(run.markerKey)}
+                onMarkWrong={() => onMarkWrong?.(run.markerKey)}
               />
             )
           })}

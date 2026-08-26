@@ -6,6 +6,7 @@ import {
   extractBracketRanges,
   hiddenCount,
   hideRange,
+  hideSameWord,
   locate,
   matchNumberPrefix,
   numberParas,
@@ -22,6 +23,7 @@ import {
   withMarkerIndexes,
 } from '../data/cloze'
 import { useCompactLayout } from '../hooks/useMediaQuery'
+import SameWordDialog from './SameWordDialog'
 import { shouldInline } from '../utils/clozeRender'
 
 /**
@@ -409,20 +411,29 @@ export default function ClozeEditor({
    *
    * ブラウザは離れた複数箇所の同時選択を持てない（Chrome では範囲が1つに潰れる）。
    * 「飛び地を選んで一気に隠す」の代わりに、同じ語の一括指定を用意する。
+   *
+   * 押すとまず設定を聞く（番号の付け方・開き方）。同じ語が何度も出てくる文章では、
+   * 「どこも同じ番号にしたい」「1つ開いたら全部開きたい」という要望が両方あるため。
    */
-  const hideAllSame = useCallback(() => {
-    if (!hasSelection) return
-    const word = text.slice(selection.start, selection.end)
+  const [sameWord, setSameWord] = useState(null) // { word, count }
+
+  const openSameWord = useCallback(() => {
+    const el = areaRef.current
+    // 選択は入力欄から直に読む。state は onSelect が走るまで古いままのため
+    const start = el ? el.selectionStart : selection.start
+    const end = el ? el.selectionEnd : selection.end
+    if (end <= start) return
+    const word = text.slice(start, end)
     if (!word.trim()) return
-    let next = paras
+
+    let count = 0
     let at = text.indexOf(word)
     while (at !== -1) {
-      // 隠しても文字数は変わらないので、元の文章での位置をそのまま使える
-      next = hideRange(next, at, at + word.length)
+      count += 1
       at = text.indexOf(word, at + word.length)
     }
-    applyAndDeselect(next)
-  }, [hasSelection, text, selection, paras, applyAndDeselect])
+    setSameWord({ word, count, caret: end })
+  }, [text, selection])
 
   /** 段落の文字数。 */
   const paraLength = (para) => para.reduce((n, r) => n + r.text.length, 0)
@@ -635,7 +646,7 @@ export default function ClozeEditor({
           </button>
           <button
             type="button"
-            onClick={hideAllSame}
+            onClick={openSameWord}
             disabled={!hasSelection}
             title="選んだ語と同じ語を、文章の中からまとめて隠す"
             style={toolbarButton(hasSelection, false)}
@@ -828,6 +839,21 @@ export default function ClozeEditor({
       >
         虫食い問題は採点しないため、正答率・定着度・今日の復習には含まれません。Excelにも書き出されません。
       </div>
+
+      {sameWord && (
+        <SameWordDialog
+          word={sameWord.word}
+          count={sameWord.count}
+          onCancel={() => setSameWord(null)}
+          onApply={(prefs) => {
+            const { paras: next, count } = hideSameWord(paras, sameWord.word, prefs)
+            const caret = sameWord.caret
+            setSameWord(null)
+            if (!count) return
+            commit(next, { caret, kind: 'mark' })
+          }}
+        />
+      )}
     </div>
   )
 

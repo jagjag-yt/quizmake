@@ -31,12 +31,37 @@ const runText = (value, maxChars) => {
   return maxChars && s.length > maxChars ? s.slice(0, maxChars) : s
 }
 
+/**
+ * まとまり（link）を整える。
+ *
+ * 「同じ語をすべて隠す」で作ったマーカーの集まりを表す。
+ *   id     … どの集まりか
+ *   number … true なら集まり全体で番号を1つだけ使う（false は連番）
+ *   open   … true なら1つ開くと全部開く（false は1つずつ開く）
+ * 持たない run は null（従来どおり、1つずつ独立したマーカー）。
+ */
+function safeLink(value) {
+  if (!value || typeof value !== 'object') return null
+  const id = typeof value.id === 'string' ? value.id.slice(0, 40) : ''
+  if (!id) return null
+  return { id, number: value.number === true, open: value.open === true }
+}
+
 /** run を1つ作る。 */
-export const makeRun = (text, { hide = false, color = DEFAULT_TEXT_COLOR } = {}) => ({
-  text: String(text ?? ''),
-  hide: hide === true,
-  color: safeColor(color),
-})
+export const makeRun = (text, { hide = false, color = DEFAULT_TEXT_COLOR, link = null } = {}) => {
+  const run = {
+    text: String(text ?? ''),
+    hide: hide === true,
+    color: safeColor(color),
+  }
+  // 隠さない文字にまとまりは要らない（付いていても意味を持たない）
+  const safe = run.hide ? safeLink(link) : null
+  if (safe) run.link = safe
+  return run
+}
+
+/** 2つの run が同じまとまりに属するか。 */
+const sameLink = (a, b) => (a?.link?.id ?? null) === (b?.link?.id ?? null)
 
 /** 隣り合う同じ属性の run をまとめ、空の run を捨てる。 */
 export function mergeRuns(runs) {
@@ -44,7 +69,7 @@ export function mergeRuns(runs) {
   for (const run of runs ?? []) {
     if (!run || !run.text) continue
     const last = out[out.length - 1]
-    if (last && last.hide === run.hide && last.color === run.color) {
+    if (last && last.hide === run.hide && last.color === run.color && sameLink(last, run)) {
       last.text += run.text
     } else {
       out.push({ ...run })
@@ -64,6 +89,7 @@ export function normalizeParas(raw) {
           makeRun(runText(run?.text, CLOZE_LIMITS.BODY_CHARS), {
             hide: run?.hide,
             color: run?.color,
+            link: run?.link,
           }),
         ),
       ),
@@ -86,16 +112,33 @@ export const hiddenCount = (paras) =>
   (paras ?? []).reduce((n, para) => n + para.filter((r) => r.hide).length, 0)
 
 /**
- * 文書順に 1 始まりの通し番号を振る。
- * 編集のたびに振り直すので、番号は常に「上から数えて何番目か」を表す。
+ * 文書順に通し番号を振る。マーカーには2つの数を持たせる。
+ *
+ *   markerKey   … 上から数えて何個目か。**必ず一意**。開閉や○✕の管理に使う
+ *   markerIndex … 画面に出す番号。「同じ番号」のまとまりでは同じ値が繰り返される
+ *
+ * 2つに分けている理由：「同じ番号を出すが、開くのは1つずつ」という指定ができるため。
+ * 画面の番号で状態を管理すると、番号を共有した瞬間に開閉まで道連れになる。
  */
 export function withMarkerIndexes(paras) {
+  let key = 0
   let index = 0
+  // 「同じ番号」のまとまりは、最初に出てきたときの番号を使い回す
+  const shared = new Map()
   return (paras ?? []).map((para) =>
     para.map((run) => {
-      if (!run.hide) return { ...run, markerIndex: null }
+      if (!run.hide) return { ...run, markerKey: null, markerIndex: null }
+      key += 1
+      const link = run.link
+      if (link?.number) {
+        const known = shared.get(link.id)
+        if (known) return { ...run, markerKey: key, markerIndex: known }
+        index += 1
+        shared.set(link.id, index)
+        return { ...run, markerKey: key, markerIndex: index }
+      }
       index += 1
-      return { ...run, markerIndex: index }
+      return { ...run, markerKey: key, markerIndex: index }
     }),
   )
 }
@@ -184,7 +227,67 @@ export function applyToRange(paras, start, end, patch) {
   return next.map(mergeRuns)
 }
 
-/** 範囲を隠す。 */
+/**
+ * 同じ語を文章全体から探して隠す。
+ *
+ * ブラウザは離れた複数箇所の同時選択を持てないため、選択の代わりにこれを使う。
+ * options で「番号の付け方」と「開き方」を選べる。どちらも既定（連番・1つずつ）なら
+ * まとまりは作らず、従来どおりの独立したマーカーになる。
+ *
+ * @param {Array} paras
+ * @param {string} word 探す語
+ * @param {{sharedNumber?: boolean, openTogether?: boolean, linkId?: string}} [options]
+ * @returns {{paras: Array, count: number}} 隠した箇所の数も返す（画面に出すため）
+ */
+export function hideSameWord(paras, word, options = {}) {
+  const target = String(word ?? '')
+  if (!target.trim()) return { paras, count: 0 }
+
+  const { sharedNumber = false, openTogether = false } = options
+  const linked = sharedNumber || openTogether
+  const link = linked
+    ? { id: options.linkId ?? `lk_${Math.random().toString(36).slice(2, 10)}`, number: sharedNumber, open: openTogether }
+    : null
+
+  const text = parasToText(paras)
+  let next = paras
+  let count = 0
+  let at = text.indexOf(target)
+  while (at !== -1) {
+    // 隠しても文字数は変わらないので、元の文章での位置をそのまま使える
+    // link は常に上書きする（null なら外れる）。前に付けたまとまりが残らないようにするため
+    next = applyToRange(next, at, at + target.length, () => ({ hide: true, link }))
+    count += 1
+    at = text.indexOf(target, at + target.length)
+  }
+  return { paras: next, count }
+}
+
+/**
+ * 「1つ開くと全部開く」まとまりの対応表。
+ * markerKey から、一緒に開け閉めする markerKey の一覧を引く。
+ *
+ * @returns {Map<number, number[]>}
+ */
+export function openTogetherMap(paras) {
+  const byLink = new Map()
+  for (const para of withMarkerIndexes(paras)) {
+    for (const run of para) {
+      if (!run.hide || !run.link?.open) continue
+      const list = byLink.get(run.link.id) ?? []
+      list.push(run.markerKey)
+      byLink.set(run.link.id, list)
+    }
+  }
+  const map = new Map()
+  for (const list of byLink.values()) {
+    if (list.length < 2) continue
+    for (const n of list) map.set(n, list)
+  }
+  return map
+}
+
+/** 範囲を隠す。 *//** 範囲を隠す。 */
 export const hideRange = (paras, start, end) =>
   applyToRange(paras, start, end, () => ({ hide: true }))
 
