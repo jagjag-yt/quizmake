@@ -261,6 +261,11 @@ EDITOR fields (top->bottom)
     TEXT(v3.1・非交渉): 入力中の文字を **trim しない**（editableText）。trim すると
       文頭でスペース・改行を打った瞬間に消え、「入力できない」ように見える。
       未入力の判定は使う側で trim して行う。
+    NEWLINE(v3.3・非交渉): 入力欄で打った**改行をそのまま出す**。問題文を描く3か所
+      （演習 QuestionCard / 詳細パネル QuestionDetail / 作成のプレビュー EditorView.Preview）の
+      本文 <p> に white-space: pre-wrap を付ける。解説・基本事項は以前からこの扱いで、
+      問題文だけが改行を潰していた（利用者の報告・2026-08-26）。
+      設問一覧の行は1行の省略表示のまま（nowrap + ellipsis）。ここで改行を活かすと行の高さが崩れる。
     serialize -> segments[]; merge adjacent same-u; strip empty.
   解説 / 基本事項(v3.3): 見出し行の右に [⊞ 表を入れる]（問題文と同じ形・EditorView.LongTextField）。
   基本事項(v3.2 で変更): **1つの入力欄**（解説と同じ・自動で伸びる）。

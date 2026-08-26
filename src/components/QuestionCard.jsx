@@ -325,6 +325,8 @@ export default function QuestionCard({
                 lineHeight: '1.9',
                 color: COLORS.text,
                 margin: 0,
+                // 作成画面で入れた改行をそのまま出す（解説・基本事項と同じ扱い）
+                whiteSpace: 'pre-wrap',
               }}
             >
               {block.segments.map((seg, i) => (

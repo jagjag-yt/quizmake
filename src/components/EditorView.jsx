@@ -311,7 +311,13 @@ function Preview({ question, groupName, mode, position, total, pad }) {
             ) : (
               <p
                 key={bi}
-                style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}
+                style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  lineHeight: 1.9,
+                  color: COLORS.text,
+                  whiteSpace: 'pre-wrap',
+                }}
               >
                 {block.segments.map((seg, i) => (
                   <MathText key={i} text={seg.text} />
