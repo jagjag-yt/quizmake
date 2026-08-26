@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
 import { clozeHeadline, hiddenCount, splitNumberPrefix, withMarkerIndexes } from '../data/cloze'
-import { compactQuestion, isCloze } from '../data/questions'
+import QuestionTable from './QuestionTable'
+import { compactQuestion, isCloze, splitBodyByTables } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
 /** 見出し（h14b + 下線）。 */
@@ -281,21 +282,31 @@ export default function QuestionDetail({
         </>
       ) : (
       <>
-      {/* 問題文 */}
-      <p style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
-        {question.segments.map((seg, i) => (
-          <span
-            key={i}
-            style={
-              seg.u
-                ? { borderBottom: `2px solid ${COLORS.blue}`, paddingBottom: '1px', fontWeight: 700 }
-                : undefined
-            }
-          >
-            {seg.text}
-          </span>
-        ))}
-      </p>
+      {/* 問題文（表は本文の途中に差し込まれる） */}
+      {splitBodyByTables(question.segments, question.tables).map((block, bi) =>
+        block.type === 'table' ? (
+          <QuestionTable key={bi} table={block.table} />
+        ) : (
+          <p key={bi} style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
+            {block.segments.map((seg, i) => (
+              <span
+                key={i}
+                style={
+                  seg.u
+                    ? {
+                        borderBottom: `2px solid ${COLORS.blue}`,
+                        paddingBottom: '1px',
+                        fontWeight: 700,
+                      }
+                    : undefined
+                }
+              >
+                {seg.text}
+              </span>
+            ))}
+          </p>
+        ),
+      )}
 
       {question.imageUrl && (
         <img

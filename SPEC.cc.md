@@ -70,7 +70,8 @@ NAV (v2: drawer。ヘッダーに並ぶタブ列は廃止)
 
 MODEL (extend existing, no breaking change)
   Question{id; type:'choice'; questionNumber:int; groupId; segments:[{text,u:bool}]; choices:string[2..5];
-           correctIndexes:int[]; explanation; keyPoints:string[]; imageUrl:string|null; origin:'authored'|'imported'}
+           correctIndexes:int[]; explanation; keyPoints:string[]; imageUrl:string|null; origin:'authored'|'imported';
+           tables:[{header:bool, rows:string[][]}]}
   ※ tags は廃止(v2)。model・UI・xlsx すべてから削除済み。復活させない。
   ※ subject は groupId に置き換え済み(旧「科目」= グループ)。
   Record{bookmarked:bool; attempts:int; correct:int; lastResult:'correct'|'incorrect'|null; box:0..5; note:string; lastStudiedAt:ISO}
@@ -225,6 +226,22 @@ EDITOR fields (top->bottom)
     DECISION(keep): selection-based marking, NOT a separate keyword field. reason: segments carry POSITION; keyword-string matching mis-hits repeated tokens.
     active underline render: bg blueLight + bb2 blue + bold. meta: pill"下線 n か所" + "テキストを選択すると「下線をつける」が有効になります。書き出し時は下線部が「下線キーワード」列になります。"
     serialize -> segments[]; merge adjacent same-u; strip empty.
+  表(v3・任意): 問題文の**途中に差し込む**。1問に9つまで。30行×10列・1マス200字まで。
+    MODEL: 表そのものは `question.tables`。本文には**目印 `[[表N]]` だけ**を置く。
+      理由: 問題文は「テキスト＋下線位置」から毎回組み直している（buildSegmentsFromMarks）。
+      表を segments に混ぜると、1字打つたびに消える。目印なら文字と一緒に動き、
+      位置合わせの計算も要らない。目印を消せば本文から外れる（表は残り、editor が
+      「本文に置かれていません」と出して入れ直せる）。
+    表を消したら、後ろの表の番号を繰り上げること（ずれると別の表が出る）。
+    入力: [⊞ 表を入れる]（カーソル位置に挿入）→ 下に表カード。
+      Excel から範囲を貼り付け（行=改行・列=タブ）と、1マスずつの手入力の両方。
+      [＋行][−行][＋列][−列]、「1行目を見出しにする」（既定 on）。
+      **行ごとの列数は必ず揃える**（崩れた表は直す手段が無い）。
+    描画: 演習・詳細・プレビューで同じ見た目（components/QuestionTable.jsx）。
+      狭い画面では**表だけ横スクロール**（ページ全体を横に伸ばさない）。見出し行は th。
+    xlsx: **表は書き出さない**（12列は選択式のための形式）。目印を外した本文だけを出し、
+      「表 N問ぶん は含まれていません」と伝える。バックアップ(.json)には入る。
+
   画像URL(任意): input10 mono13 + 64x44 thumb. debounce 400ms -> preload. fail -> red border + "✕ 画像を読み込めません。URLを確認してください"
   選択肢: 2..5 rows r14 h>=48: ⠿ + label chip a..e (auto-relabel on reorder) + text input + toggle pill [正解にする|✓ 正解] + ✕(disabled at 2)
     correct row: b1 green + greenLight; pill green/#fff
@@ -253,7 +270,7 @@ EXPORT xlsx (button 「Excelに書き出す」)
     問題番号 | 問題文 | 下線キーワード | 画像URL | 選択肢a | 選択肢b | 選択肢c | 選択肢d | 選択肢e | 正解 | 解説 | 基本事項
     (12 cols. group is per-file, not a column. タグ列は廃止)
   serialization:
-    問題文: segments concat plain text (no markup)
+    問題文: segments concat plain text (no markup)。**表の目印 `[[表N]]` は取り除く**
     下線キーワード: u:true segment texts, newline-joined (multi)
     選択肢d/e: "" when absent
     正解: letters joined "a,c" (matches import parser)

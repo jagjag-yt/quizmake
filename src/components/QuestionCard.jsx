@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, SPACING, TAP_MIN } from '../constants'
 import { useCanHover, useCompactLayout } from '../hooks/useMediaQuery'
+import { splitBodyByTables } from '../data/questions'
+import QuestionTable from './QuestionTable'
 
 /**
  * 「問題〇」バッジ。番号部分が入力欄になっており、番号を打って Enter で
@@ -308,31 +310,40 @@ export default function QuestionCard({
         <BookmarkStar active={bookmarked} onToggle={onToggleBookmark} />
       </div>
 
-      <p
-        style={{
-          fontSize: compact ? '17px' : '18px',
-          lineHeight: '1.9',
-          color: COLORS.text,
-          margin: '0 0 24px 0',
-        }}
-      >
-        {question.segments.map((seg, i) => (
-          <span
-            key={i}
-            style={
-              seg.u
-                ? {
-                    borderBottom: `2px solid ${COLORS.blue}`,
-                    paddingBottom: '1px',
-                    fontWeight: 700,
+      <div style={{ margin: '0 0 24px 0' }}>
+        {splitBodyByTables(question.segments, question.tables).map((block, bi) =>
+          block.type === 'table' ? (
+            <QuestionTable key={bi} table={block.table} compact={compact} />
+          ) : (
+            <p
+              key={bi}
+              style={{
+                fontSize: compact ? '17px' : '18px',
+                lineHeight: '1.9',
+                color: COLORS.text,
+                margin: 0,
+              }}
+            >
+              {block.segments.map((seg, i) => (
+                <span
+                  key={i}
+                  style={
+                    seg.u
+                      ? {
+                          borderBottom: `2px solid ${COLORS.blue}`,
+                          paddingBottom: '1px',
+                          fontWeight: 700,
+                        }
+                      : undefined
                   }
-                : undefined
-            }
-          >
-            {seg.text}
-          </span>
-        ))}
-      </p>
+                >
+                  {seg.text}
+                </span>
+              ))}
+            </p>
+          ),
+        )}
+      </div>
 
       <QuestionImage url={question.imageUrl} />
 

@@ -11,13 +11,19 @@ import {
 } from '../constants'
 import {
   buildSegmentsFromMarks,
+  emptyTable,
   segmentsToMarks,
   segmentsToText,
+  splitBodyByTables,
+  tableToken,
+  TABLE_TOKEN,
 } from '../data/questions'
 import { clozeHeadline, hiddenCount } from '../data/cloze'
 import { isCloze } from '../data/questions'
 import { useCompactLayout, usePhoneLayout, usePreviewTight } from '../hooks/useMediaQuery'
 import ClozeEditor from './ClozeEditor'
+import QuestionTable from './QuestionTable'
+import TableEditor from './TableEditor'
 import ConfirmDialog, { PromptDialog } from './ConfirmDialog'
 import { validateQuestion } from '../hooks/useQuestionPool'
 import { isSafeImageUrl } from '../utils/safe'
@@ -120,7 +126,7 @@ const handleStyle = {
 }
 
 /** 問題文＋下線指定。選択範囲に対して下線を付け外しする。 */
-function QuestionTextField({ text, marks, onChange, invalid }) {
+function QuestionTextField({ text, marks, onChange, invalid, onInsertTable, canAddTable }) {
   const ref = useRef(null)
   const [selection, setSelection] = useState({ start: 0, end: 0 })
   const hasSelection = selection.end > selection.start
@@ -177,6 +183,27 @@ function QuestionTextField({ text, marks, onChange, invalid }) {
             }}
           >
             U 下線をつける
+          </button>
+          <button
+            type="button"
+            onClick={() => onInsertTable?.(ref.current?.selectionStart ?? null)}
+            disabled={!canAddTable}
+            title="カーソルの位置に表を差し込みます"
+            style={{
+              minHeight: '36px',
+              padding: '0 12px',
+              borderRadius: '10px',
+              border: `1px solid ${canAddTable ? COLORS.border : COLORS.border}`,
+              background: COLORS.card,
+              color: canAddTable ? COLORS.body : COLORS.dashed,
+              fontSize: '12.5px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: canAddTable ? 'pointer' : 'default',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ⊞ 表を入れる
           </button>
           <button
             type="button"
@@ -286,19 +313,30 @@ function Preview({ question, groupName, mode, position, total, pad }) {
           </span>
         </div>
 
-        <p style={{ margin: '0 0 20px 0', fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}>
-          {question.segments.map((seg, i) => (
-            <span
-              key={i}
-              style={seg.u ? { borderBottom: `2px solid ${COLORS.blue}`, paddingBottom: '1px', fontWeight: 700 } : undefined}
-            >
-              {seg.text}
-            </span>
-          ))}
+        <div style={{ margin: '0 0 20px 0' }}>
+          {splitBodyByTables(question.segments, question.tables).map((block, bi) =>
+            block.type === 'table' ? (
+              <QuestionTable key={bi} table={block.table} />
+            ) : (
+              <p
+                key={bi}
+                style={{ margin: 0, fontSize: '18px', lineHeight: 1.9, color: COLORS.text }}
+              >
+                {block.segments.map((seg, i) => (
+                  <span
+                    key={i}
+                    style={seg.u ? { borderBottom: `2px solid ${COLORS.blue}`, paddingBottom: '1px', fontWeight: 700 } : undefined}
+                  >
+                    {seg.text}
+                  </span>
+                ))}
+              </p>
+            ),
+          )}
           {!segmentsToText(question.segments) && (
             <span style={{ color: COLORS.muted }}>ここに問題文が表示されます</span>
           )}
-        </p>
+        </div>
 
         {question.imageUrl && (
           <img
@@ -799,6 +837,78 @@ export default function EditorView({
     }, 400)
     return () => clearTimeout(timer)
   }, [imageUrl])
+
+  const tables = useMemo(
+    () => (question && !isCloze(question) ? (question.tables ?? []) : []),
+    [question],
+  )
+
+  /** 本文に置かれている表の番号（1始まり）。 */
+  const placedTables = useMemo(() => {
+    const set = new Set()
+    for (const hit of text.matchAll(TABLE_TOKEN)) set.add(Number(hit[1]))
+    return set
+  }, [text])
+
+  /** 表を1つ足し、いまのカーソル位置（無ければ末尾）に目印を入れる。 */
+  const addTable = useCallback(
+    (caret = null) => {
+      if (!question) return
+      const nextTables = [...tables, emptyTable()]
+      const token = tableToken(nextTables.length)
+      const at = caret == null ? text.length : caret
+      const nextText = text.slice(0, at) + token + text.slice(at)
+      // 目印より後ろにある下線は、入れた分だけ後ろへずらす
+      const nextMarks = marks.map((m) =>
+        m.start >= at ? { start: m.start + token.length, end: m.end + token.length } : m,
+      )
+      onUpdate(question.id, {
+        tables: nextTables,
+        segments: buildSegmentsFromMarks(nextText, nextMarks),
+      })
+    },
+    [question, tables, text, marks, onUpdate],
+  )
+
+  /** 表の中身を差し替える。 */
+  const updateTable = useCallback(
+    (index, next) => {
+      if (!question) return
+      onUpdate(question.id, { tables: tables.map((t, i) => (i === index ? next : t)) })
+    },
+    [question, tables, onUpdate],
+  )
+
+  /**
+   * 表を消す。本文の目印も消し、後ろの表の番号を繰り上げる。
+   * 番号がずれたまま残ると、別の表が表示されてしまう。
+   */
+  const removeTable = useCallback(
+    (index) => {
+      if (!question) return
+      const nextTables = tables.filter((_, i) => i !== index)
+      const nextText = text.replace(TABLE_TOKEN, (whole, num) => {
+        const n = Number(num) - 1
+        if (n === index) return ''
+        return n > index ? tableToken(n) : whole
+      })
+      onUpdate(question.id, {
+        tables: nextTables,
+        segments: buildSegmentsFromMarks(nextText, marks),
+      })
+    },
+    [question, tables, text, marks, onUpdate],
+  )
+
+  /** 本文から外れている表の目印を、末尾に入れ直す。 */
+  const placeTable = useCallback(
+    (index) => {
+      if (!question) return
+      const nextText = `${text}${tableToken(index + 1)}`
+      onUpdate(question.id, { segments: buildSegmentsFromMarks(nextText, marks) })
+    },
+    [question, text, marks, onUpdate],
+  )
 
   const setText = useCallback(
     (nextText, nextMarks) => {
@@ -1469,8 +1579,32 @@ export default function EditorView({
 
 
       <div onBlur={() => setTouched((t) => ({ ...t, text: true }))}>
-        <QuestionTextField text={text} marks={marks} onChange={setText} invalid={textInvalid} />
+        <QuestionTextField
+          text={text}
+          marks={marks}
+          onChange={setText}
+          invalid={textInvalid}
+          onInsertTable={addTable}
+          canAddTable={tables.length < 9}
+        />
       </div>
+
+      {(tables.length > 0 || false) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={label}>表</div>
+          {tables.map((table, i) => (
+            <TableEditor
+              key={i}
+              table={table}
+              label={`表${i + 1}`}
+              placed={placedTables.has(i + 1)}
+              onChange={(next) => updateTable(i, next)}
+              onRemove={() => removeTable(i)}
+              onInsertToken={() => placeTable(i)}
+            />
+          ))}
+        </div>
+      )}
 
       <div>
         <div style={label}>画像URL（任意）</div>
