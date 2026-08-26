@@ -476,44 +476,35 @@ export function matchNumberPrefix(text) {
 }
 
 /**
- * 文字の見た目の幅（em）。半角は 0.5em、全角は 1em とみなす。
- * 正確な実測ではないが、番号の折り返し位置を揃えるにはこれで足りる。
- */
-function widthEm(text) {
-  let em = 0
-  for (const ch of String(text ?? '')) em += ch.codePointAt(0) < 0x80 ? 0.5 : 1
-  return em
-}
-
-/**
- * 段落の番号ぶんの字下げ幅（em）。番号が無ければ 0。
+ * 段落を「先頭の番号」と「それ以外」に分ける（表示のため）。
  *
- * 折り返した2行目以降を、番号の後ろ（本文の開始位置）に揃えるために使う。
- * 「3. 原始卵黄嚢から…」が折り返したとき、続きが行頭ではなく本文の下に来る。
- */
-export function indentEmOf(paraOrText) {
-  const text = Array.isArray(paraOrText)
-    ? paraOrText.map((r) => r.text).join('')
-    : String(paraOrText ?? '')
-  const hit = matchNumberPrefix(text)
-  return hit ? widthEm(text.slice(0, hit.length)) : 0
-}
-
-/**
- * 文章全体で使う字下げ幅（em）。番号付きの段落のうち、いちばん広いものに合わせる。
+ * 番号を別の箱に入れて並べると、折り返しの位置が**字幅の計算なしで**揃う。
+ * 文字幅は書体によって変わるため、計算で合わせようとすると必ずずれる。
  *
- * 編集画面は「透明な入力欄」と「見た目の層」を重ねているため、
- * **段落ごとに変えられない**（入力欄は行ごとの字下げを持てない）。
- * 全体で1つの値にし、両方の層に同じ値を当てて位置を保つ。
- * 番号付きの段落が1つも無ければ 0 を返し、これまでと同じ見た目になる。
+ * run はそのまま渡す（markerKey などの付加情報を落とさないよう、text だけ切る）。
+ *
+ * @returns {{prefix: string, rest: Array}|null} 番号が無ければ null
  */
-export function documentIndentEm(paras) {
-  let max = 0
-  for (const para of paras ?? []) {
-    const em = indentEmOf(para)
-    if (em > max) max = em
+export function splitNumberPrefix(para) {
+  const list = para ?? []
+  const hit = matchNumberPrefix(list.map((r) => r.text).join(''))
+  if (!hit) return null
+
+  let left = hit.length
+  const rest = []
+  for (const run of list) {
+    if (left <= 0) {
+      rest.push(run)
+      continue
+    }
+    if (run.text.length <= left) {
+      left -= run.text.length
+      continue
+    }
+    rest.push({ ...run, text: run.text.slice(left) })
+    left = 0
   }
-  return max
+  return { prefix: list.map((r) => r.text).join('').slice(0, hit.length), rest }
 }
 
 /** 段落の先頭から n 文字を落とす（run の属性は残す）。 *//** 段落の先頭から n 文字を落とす（run の属性は残す）。 */

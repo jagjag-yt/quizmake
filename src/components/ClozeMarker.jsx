@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { COLORS, inkColor } from '../constants'
-import { indentEmOf, withMarkerIndexes } from '../data/cloze'
+import { splitNumberPrefix, withMarkerIndexes } from '../data/cloze'
 import { shouldInline } from '../utils/clozeRender'
 
 /**
@@ -209,20 +209,39 @@ export default function ClozeBody({
   return (
     <div style={{ fontSize, lineHeight: 2.05, color: COLORS.text }}>
       {indexed.map((para, pi) => {
-        // 番号付きの段落は、折り返した2行目以降を本文の開始位置に揃える
-        const indent = indentEmOf(para)
+        // 番号付きの段落は、番号と本文を別の箱に入れて横に並べる。
+        // 折り返した2行目以降は本文の箱の中で折り返すので、字幅を計算しなくても
+        // 必ず本文の開始位置に揃う（書体が変わってもずれない）
+        const numbered = splitNumberPrefix(para)
+        const body = numbered ? numbered.rest : para
         return (
         <p
           key={pi}
           style={{
             margin: pi === 0 ? '0' : '1.1em 0 0 0',
-            ...(indent
-              ? { paddingLeft: `${indent}em`, textIndent: `-${indent}em` }
-              : null),
+            ...(numbered ? { display: 'flex', alignItems: 'flex-start' } : null),
           }}
         >
-          {para.map((run, ri) => {
-            if (!run.hide) {
+          {numbered && (
+            <span style={{ flex: '0 0 auto', whiteSpace: 'pre' }}>{numbered.prefix}</span>
+          )}
+          {numbered ? (
+            <span style={{ flex: '1 1 auto', minWidth: 0 }}>{renderRuns(body)}</span>
+          ) : (
+            renderRuns(para)
+          )}
+        </p>
+        )
+      })}
+    </div>
+  )
+
+  /** 段落の中身（マーカーと素の文字）を描く。 */
+  function renderRuns(runs) {
+    return (
+      <>
+        {runs.map((run, ri) => {
+          if (!run.hide) {
               return (
                 <span key={ri} style={{ color: inkColor(run.color) }}>
                   {run.text}
@@ -266,10 +285,8 @@ export default function ClozeBody({
                 onMarkWrong={() => onMarkWrong?.(run.markerKey)}
               />
             )
-          })}
-        </p>
-        )
-      })}
-    </div>
-  )
+        })}
+      </>
+    )
+  }
 }

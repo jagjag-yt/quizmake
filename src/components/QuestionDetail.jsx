@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COLORS, LETTERS, LIMITS, ORIGIN_LABELS, TAP_MIN } from '../constants'
-import { clozeHeadline, hiddenCount, indentEmOf, withMarkerIndexes } from '../data/cloze'
+import { clozeHeadline, hiddenCount, splitNumberPrefix, withMarkerIndexes } from '../data/cloze'
 import { compactQuestion, isCloze } from '../data/questions'
 import { shouldInline } from '../utils/clozeRender'
 
@@ -93,18 +93,23 @@ function ClozeDetailBody({ paras, opened }) {
   const indexed = withMarkerIndexes(paras)
   return (
     <div style={{ fontSize: '16px', lineHeight: 2.0, color: COLORS.text }}>
-      {indexed.map((para, pi) => (
+      {indexed.map((para, pi) => {
+        // 番号は別の箱に入れて横に並べる。折り返しは本文の箱の中で起きるので、
+        // 字幅を計算しなくても本文の開始位置に揃う
+        const numbered = splitNumberPrefix(para)
+        return (
         <p
           key={pi}
           style={{
             margin: pi === 0 ? 0 : '1.1em 0 0 0',
-            // 番号付きの段落は、折り返しを本文の開始位置に揃える
-            ...(indentEmOf(para)
-              ? { paddingLeft: `${indentEmOf(para)}em`, textIndent: `-${indentEmOf(para)}em` }
-              : null),
+            ...(numbered ? { display: 'flex', alignItems: 'flex-start' } : null),
           }}
         >
-          {para.map((run, ri) =>
+          {numbered && (
+            <span style={{ flex: '0 0 auto', whiteSpace: 'pre' }}>{numbered.prefix}</span>
+          )}
+          <span style={numbered ? { flex: '1 1 auto', minWidth: 0 } : undefined}>
+          {(numbered ? numbered.rest : para).map((run, ri) =>
             run.hide ? (
               <span
                 key={ri}
@@ -148,8 +153,10 @@ function ClozeDetailBody({ paras, opened }) {
               </span>
             ),
           )}
+          </span>
         </p>
-      ))}
+        )
+      })}
     </div>
   )
 }
