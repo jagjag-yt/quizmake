@@ -47,17 +47,19 @@ export const API_BASE = import.meta.env?.VITE_API_BASE || 'https://api.quiz-make
 /**
  * 広告（Google AdSense）。
  *
- * **ID を入れるまで広告は1つも出ない。** 審査に通る前でも画面が壊れないようにするため、
- * 未設定のときは枠ごと描かない（空っぽの箱や「広告」の文字だけが残らないように）。
+ * **広告ユニットIDを入れるまで、広告は1つも出ない。** 審査に通る前でも画面が壊れない
+ * ようにするため、未設定のときは枠ごと描かない（空っぽの箱や「広告」の文字だけが残らないように）。
  * 審査に通ったら、Cloudflare のビルド設定に次の環境変数を入れて配信し直す。
- *   VITE_AD_CLIENT      … ca-pub-… （AdSense の発行者ID）
  *   VITE_AD_SLOT_RESULT … 結果画面の下のバナーの広告ユニットID
  *   VITE_AD_SLOT_GROUPS … グループ一覧の下のバナーの広告ユニットID
  *   VITE_AD_SLOT_START  … 演習を始めるときの1枚の広告ユニットID
- * あわせて site/public/ads.txt に発行者IDの行を入れること（無いと配信が止まる）。
+ * 発行者ID（VITE_AD_CLIENT）は下に既定値を入れてあるので、ふつうは触らなくてよい。
+ * ads.txt は public/ と site/public/ の**両方**に要る（無いほうの配信が止まる）。
  */
 export const ADS = {
-  CLIENT: import.meta.env?.VITE_AD_CLIENT || '',
+  // 発行者ID は ads.txt で公開しているものと同じ（隠す種類の値ではない）。
+  // 広告ユニットIDが入るまで、これだけでは何も出ない
+  CLIENT: import.meta.env?.VITE_AD_CLIENT || 'ca-pub-6422017157291772',
   SLOT_RESULT: import.meta.env?.VITE_AD_SLOT_RESULT || '',
   SLOT_GROUPS: import.meta.env?.VITE_AD_SLOT_GROUPS || '',
   SLOT_START: import.meta.env?.VITE_AD_SLOT_START || '',
