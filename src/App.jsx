@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ADS,
+  AD_START_KEY,
+  adsEnabled,
   COLORS,
   LETTERS,
   LIMITS,
@@ -51,6 +54,8 @@ import ExportModal from './components/ExportModal'
 import ClozeQuizView from './components/ClozeQuizView'
 import TypePickerDialog from './components/TypePickerDialog'
 import ToastHost from './components/Toast'
+import AdBanner from './components/AdBanner'
+import AdInterstitial from './components/AdInterstitial'
 import { useToast } from './hooks/useToast'
 
 /** マーカーの状態が無い問題のための空の入れ物（毎回作ると再描画が増える）。 */
@@ -106,6 +111,34 @@ function createSession(source, records, opts) {
     startedAt,
     deadline:
       opts.examMode && opts.examMinutes > 0 ? startedAt + opts.examMinutes * 60_000 : null,
+  }
+}
+
+/**
+ * 演習を始めるときに広告を1枚挟むか。
+ *
+ * 押すたびに出すと、続けて解く人ほど邪魔になる。前に出してから
+ * ADS.START_COOLDOWN_MIN 分たつまでは出さない。
+ * 保存が使えない環境（プライベートモードなど）では、広告を出さない側に倒す。
+ */
+function shouldShowStartAd() {
+  if (!ADS.CLIENT || !ADS.SLOT_START) return false
+  if (ADS.START_COOLDOWN_MIN <= 0) return true
+  try {
+    const last = Number(localStorage.getItem(AD_START_KEY))
+    if (!Number.isFinite(last) || last <= 0) return true
+    return Date.now() - last >= ADS.START_COOLDOWN_MIN * 60_000
+  } catch {
+    return false
+  }
+}
+
+/** 広告を出した時刻を控える。 */
+function markStartAdShown() {
+  try {
+    localStorage.setItem(AD_START_KEY, String(Date.now()))
+  } catch {
+    // 覚えられなくても演習には支障がない
   }
 }
 
@@ -176,6 +209,8 @@ export default function App() {
   const [markerOpened, setMarkerOpened] = useState(() => new Map()) // 問題id → Set<番号>
   const [markerVerdicts, setMarkerVerdicts] = useState(() => new Map()) // 問題id → Map<番号, 判定>
   const [typePickerOpen, setTypePickerOpen] = useState(false)
+  // 演習を始める前に広告を1枚挟んでいるあいだ true（本文と入れ替えて出す）
+  const [adBreak, setAdBreak] = useState(false)
   // 「結果を見る」の直前に出す確認
   const [finishConfirm, setFinishConfirm] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -197,6 +232,11 @@ export default function App() {
 
   const key = baseQuestion ? questionKey(baseQuestion) : ''
   const record = study.getRecord(key)
+
+  // 演習から離れたら、挟んでいた広告も閉じる（メニューで抜けたときに残さない）
+  useEffect(() => {
+    if (view !== VIEWS.QUIZ) setAdBreak(false)
+  }, [view])
 
   /** 新しいセッションを開始する。 */
   const startSession = useCallback(
@@ -641,6 +681,11 @@ export default function App() {
         const idx = ordered.findIndex((q) => q.id === startAtId)
         if (idx > 0) setCurrentIndex(idx)
       }
+      // 演習の中身はもう用意できている。広告はその手前に1枚だけ挟む
+      if (shouldShowStartAd()) {
+        markStartAdShown()
+        setAdBreak(true)
+      }
     },
     [opts, startSession],
   )
@@ -1020,7 +1065,10 @@ export default function App() {
           alignItems: 'stretch',
         }}
       >
-        {view === VIEWS.QUESTIONS && !openGroup ? (
+        {adBreak ? (
+          // 演習の手前に1枚だけ。重ねるのではなく本文と入れ替える（ポップアップにしない）
+          <AdInterstitial onClose={() => setAdBreak(false)} />
+        ) : view === VIEWS.QUESTIONS && !openGroup ? (
           <GroupsView
             groups={pool.groups}
             questions={questions}
@@ -1301,6 +1349,18 @@ export default function App() {
             actionLabel="全問題に戻る"
             onAction={() => updateOpts({ mode: MODES.ALL, groupId: '' })}
           />
+        )}
+
+        {/*
+          バナーは**選択肢から離れた場所**にだけ置く。
+          解いている最中の画面（演習）には出さない。押し間違いを誘う置き方は規約違反にあたるうえ、
+          考えている途中で邪魔をすると学習そのものが続かない。
+        */}
+        {!adBreak && view === VIEWS.SUMMARY && adsEnabled(ADS.SLOT_RESULT) && (
+          <AdBanner slot={ADS.SLOT_RESULT} style={{ gridColumn: '1 / -1' }} />
+        )}
+        {!adBreak && view === VIEWS.QUESTIONS && !openGroup && adsEnabled(ADS.SLOT_GROUPS) && (
+          <AdBanner slot={ADS.SLOT_GROUPS} style={{ gridColumn: '1 / -1' }} />
         )}
       </main>
 
