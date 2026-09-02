@@ -1,0 +1,6 @@
+# ads.txt — 広告枠を誰が売ってよいかの申告（IAB の仕様）。
+# AdSense の所有権確認にも使う。**この行を消さないこと**（消すと配信が止まる）。
+#
+# アプリ（app.quiz-make.com）とホームページ（quiz-make.com）の両方に必要なため、
+# site/public/ads.txt も同じ内容にしてある。片方だけだと、無いほうの配信が止まる。
+google.com, pub-6422017157291772, DIRECT, f08c47fec0942fa0
